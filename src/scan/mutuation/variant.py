@@ -1,65 +1,21 @@
 """
-변형기 — scan_targets.json + attack_request_list.json → RequestFamily 목록
+변형기 — scan_targets.json + attack_request_list.json -> RequestFamily 목록
 
-HTTP 전송 없음. 파라미터 하나씩 페이로드로 교체한 family(baseline + mutations)를 반환한다.
+HTTP 전송 없음. ScanPoint 추출(1번) + 룰 매칭(2번) 후 request_builder(3번)로
+요청을 조립해 family(baseline + mutations)를 반환
 """
 
 from __future__ import annotations
 
 import json
-import re
-import urllib.parse
 from pathlib import Path
 
-_CONTROL_ACTION_WORDS = frozenset({
-    "submit", "login", "search", "change", "update", "delete",
-    "create", "register", "logout", "reset", "cancel", "sign",
-    "upload", "clear", "add", "remove",
-})
-_HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]{16,}$')
+from .models import RequestFamily
+from .scan_point import build_scan_points
+from .request_builder import build_baseline_case, build_mutation_case
 
 
-def _is_control_param(name: str, value: str) -> bool:
-    v = (value or "").strip().lower()
-    if not v:
-        return False
-    if v == (name or "").strip().lower():
-        return True
-    words = set(v.replace("+", " ").split())
-    return bool(words & _CONTROL_ACTION_WORDS)
-
-
-def _is_security_token(value: str) -> bool:
-    return bool(_HEX_TOKEN_RE.match((value or "").strip()))
-
-
-def _mutate_query(url: str, param_name: str, new_value: str) -> str:
-    parsed = urllib.parse.urlparse(url)
-    params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
-    replaced = False
-    result = []
-    for k, v in params:
-        if k == param_name and not replaced:
-            result.append((k, new_value))
-            replaced = True
-        else:
-            result.append((k, v))
-    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(result)))
-
-
-def _mutate_form(body: str, param_name: str, new_value: str) -> str:
-    params = urllib.parse.parse_qsl(body or "", keep_blank_values=True)
-    replaced = False
-    result = []
-    for k, v in params:
-        if k == param_name and not replaced:
-            result.append((k, new_value))
-            replaced = True
-        else:
-            result.append((k, v))
-    return urllib.parse.urlencode(result)
-
-
+# rule의 payload_templates를 {value}/{token}으로 치환한 (payload, step) 목록 반환, baseline step 제외
 def _expand_payloads(
     payload_templates: dict,
     sequence: list,
@@ -78,11 +34,12 @@ def _expand_payloads(
     return results
 
 
+# 타겟 목록 + 룰 목록 -> ScanPoint마다 룰을 매칭해 RequestFamily 목록 생성
 def generate_families(
     targets_path: str | Path,
     rules_path: str | Path,
     vuln_types: list[str] | None = None,
-) -> list[dict]:
+) -> list[RequestFamily]:
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
     with open(rules_path, encoding="utf-8") as f:
@@ -92,84 +49,48 @@ def generate_families(
         r for r in all_rules if r["vuln_type"] in vuln_types
     ]
 
-    families = []
+    target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)}  # target_id -> 원본 target dict
+    scan_points = build_scan_points(targets)
 
-    for t_idx, target in enumerate(targets):
-        method    = target.get("method", "GET").upper()
-        base_url  = target.get("base_url", "")
-        url       = target.get("url", base_url)
-        params    = target.get("params") or {}
-        scannable = set(target.get("scannable_params") or params.keys())
-        location  = target.get("param_location", "query")
-        headers   = dict(target.get("headers") or {})
-        cookies   = dict(target.get("cookies") or {})
-        body      = target.get("request_body") or ""
-        body_type = "form" if (location == "body" and method == "POST") else "query"
-        target_id = f"t{t_idx}"
+    families: list[RequestFamily] = []
 
-        for param_name, param_value in params.items():
-            if param_name not in scannable:
-                continue
-            if _is_control_param(param_name, param_value):
-                continue
-            if _is_security_token(param_value):
-                continue
+    for sp in scan_points:
+        target = target_by_id[sp.target_id]
 
-            for rule in rules:
-                family_id = f"{target_id}_{param_name}_{rule['attack_id']}"
+        for rule in rules:
+            family_id = f"{sp.target_id}_{sp.name}_{rule['attack_id']}"
+            baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
 
-                baseline = {
-                    "case_id":   f"{family_id}_baseline",
-                    "method":    method,
-                    "url":       url,
-                    "headers":   headers,
-                    "cookies":   cookies,
-                    "body_type": body_type,
-                    "body":      body,
-                }
-
-                mutations = []
+            mutations = [
+                build_mutation_case(
+                    target, sp.location, sp.name, sp.original_value,
+                    payload, step, f"{family_id}_{step}_{p_idx}",
+                )
                 for p_idx, (payload, step) in enumerate(
-                    _expand_payloads(rule["payload_templates"], rule["sequence"], param_value)
-                ):
-                    if body_type == "form":
-                        mutated_url  = base_url
-                        mutated_body = _mutate_form(body, param_name, payload)
-                    else:
-                        mutated_url  = _mutate_query(url, param_name, payload)
-                        mutated_body = body
+                    _expand_payloads(rule["payload_templates"], rule["sequence"], sp.original_value)
+                )
+            ]
 
-                    mutations.append({
-                        "case_id":        f"{family_id}_{step}_{p_idx}",
-                        "step":           step,
-                        "method":         method,
-                        "url":            mutated_url,
-                        "headers":        headers,
-                        "cookies":        cookies,
-                        "body_type":      body_type,
-                        "body":           mutated_body,
-                        "payload":        payload,
-                        "original_value": param_value,
-                    })
-
-                families.append({
-                    "family_id":  family_id,
-                    "target_id":  target_id,
-                    "param":      param_name,
-                    "attack_id":  rule["attack_id"],
-                    "vuln_type":  rule["vuln_type"],
-                    "technique":  rule["technique"],
-                    "baseline":   baseline,
-                    "mutations":  mutations,
-                })
+            families.append(RequestFamily(
+                family_id=family_id,
+                target_id=sp.target_id,
+                param=sp.name,
+                attack_id=rule["attack_id"],
+                vuln_type=rule["vuln_type"],
+                technique=rule["technique"],
+                baseline=baseline,
+                mutations=mutations,
+            ))
 
     return families
 
 
 if __name__ == "__main__":
     import sys
+    from dataclasses import asdict
+
     t_path = sys.argv[1] if len(sys.argv) > 1 else "results/new/scan_targets.json"
     r_path = sys.argv[2] if len(sys.argv) > 2 else "attack_request_list.json"
     result = generate_families(t_path, r_path)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps([asdict(f) for f in result], ensure_ascii=False, indent=2))
     print(f"\n총 {len(result)}개 family 생성", file=sys.stderr)

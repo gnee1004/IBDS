@@ -1,4 +1,5 @@
 """
+꼮 지워야 하는거.
 scan_targets.json → HTTP task 목록 변환
 
 XSS 탐지 흐름 (2단계):
