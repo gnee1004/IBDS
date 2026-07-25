@@ -1,5 +1,5 @@
 """
-변형기 — scan_targets.json + attack_request_list.json -> RequestFamily 목록
+변형기 — scan_targets.json -> RequestFamily 목록
 
 HTTP 전송 없음. ScanPoint 추출(1번) + 룰 매칭(2번) 후 request_builder(3번)로
 요청을 조립해 family(baseline + mutations)를 반환
@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from attack_requests import RULES
 from .models import RequestFamily
 from .scan_point import build_scan_points
 from .request_builder import build_baseline_case, build_mutation_case
@@ -34,19 +35,16 @@ def _expand_payloads(
     return results
 
 
-# 타겟 목록 + 룰 목록 -> ScanPoint마다 룰을 매칭해 RequestFamily 목록 생성
+# 타겟 목록 -> ScanPoint마다 attack_requests.RULES를 매칭해 RequestFamily 목록 생성
 def generate_families(
     targets_path: str | Path,
-    rules_path: str | Path,
     vuln_types: list[str] | None = None,
 ) -> list[RequestFamily]:
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
-    with open(rules_path, encoding="utf-8") as f:
-        all_rules = json.load(f)["rules"]
 
-    rules = all_rules if vuln_types is None else [
-        r for r in all_rules if r["vuln_type"] in vuln_types
+    rules = RULES if vuln_types is None else [
+        r for r in RULES if r["vuln_type"] in vuln_types
     ]
 
     target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)}  # target_id -> 원본 target dict
@@ -90,7 +88,6 @@ if __name__ == "__main__":
     from dataclasses import asdict
 
     t_path = sys.argv[1] if len(sys.argv) > 1 else "results/new/scan_targets.json"
-    r_path = sys.argv[2] if len(sys.argv) > 2 else "attack_request_list.json"
-    result = generate_families(t_path, r_path)
+    result = generate_families(t_path)
     print(json.dumps([asdict(f) for f in result], ensure_ascii=False, indent=2))
     print(f"\n총 {len(result)}개 family 생성", file=sys.stderr)

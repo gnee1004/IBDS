@@ -4,7 +4,7 @@ import dataclasses
 import json
 from pathlib import Path
 
-from models import RequestFamily
+from scan.mutation.models import RequestFamily
 
 
 def write_families(families: list[RequestFamily], output_path: str | Path) -> Path:

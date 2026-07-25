@@ -10,8 +10,8 @@ import json
 import re
 from pathlib import Path
 
-from models import MutationCase, RequestFamily
-from scan.mutuation.request_mutator import mutate_form, mutate_query
+from scan.mutation.models import MutationCase, RequestFamily
+from scan.mutation.request_mutator import mutate_form, mutate_query
 
 _CONTROL_ACTION_WORDS = frozenset({
     "submit", "login", "search", "change", "update", "delete",
