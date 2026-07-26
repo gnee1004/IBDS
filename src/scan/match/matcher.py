@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from models import MatchedRule, ScanPoint
+from scan.mutation.models import MatchedRule, ScanPoint
 
 # 룰 스키마
 @dataclass
@@ -17,24 +17,24 @@ class AttackRule:
     allowed_locations: list[str] = field(default_factory=list)   
     allowed_value_types: list[str] = field(default_factory=list) 
 
-# 룰 로드
+# dict 하나를 AttackRule로 변환
+def rule_from_dict(item: dict) -> AttackRule:
+    return AttackRule(
+        attack_id=item["attack_id"],
+        vuln_type=item["vuln_type"],
+        technique=item["technique"],
+        sequence=list(item.get("sequence", [])),
+        payload_templates=dict(item.get("payload_templates", {})),
+        allowed_locations=list(item.get("allowed_locations", [])),
+        allowed_value_types=list(item.get("allowed_value_types", [])),
+    )
+
+
 # 룰 JSON 파일을 읽어서 AttackRule 리스트로 변환.
 def load_rules(rules_path: str | Path) -> list[AttackRule]:
     with open(rules_path, encoding="utf-8") as f:
         raw = json.load(f)
- 
-    rules: list[AttackRule] = []
-    for item in raw.get("rules", []):
-        rules.append(AttackRule(
-            attack_id=item["attack_id"],
-            vuln_type=item["vuln_type"],
-            technique=item["technique"],
-            sequence=list(item.get("sequence", [])),
-            payload_templates=dict(item.get("payload_templates", {})),
-            allowed_locations=list(item.get("allowed_locations", [])),
-            allowed_value_types=list(item.get("allowed_value_types", [])),
-        ))
-    return rules
+    return [rule_from_dict(item) for item in raw.get("rules", [])]
 
 
 # 매칭 판정
