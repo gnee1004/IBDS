@@ -18,7 +18,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from models import RequestFamily
-from scan.mutuation.family_generator import generate_families
+from scan.mutation.variant import generate_families
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 SESSION_DIR = Path("results/collection_20260718_165152")
