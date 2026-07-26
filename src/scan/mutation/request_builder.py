@@ -4,10 +4,8 @@ payload를 실제 요청(URL 쿼리 또는 폼 바디)에 삽입해 변형 케�
 """
 
 from __future__ import annotations
-
 import urllib.parse
-
-from .models import MutationCase
+from scan.models import MutationCase
 
 
 # URL 쿼리스트링에서 param_name 값을 new_value로 교체

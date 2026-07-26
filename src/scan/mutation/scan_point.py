@@ -1,13 +1,12 @@
 """
-변형기 1단계 — RequestTarget(scan_targets.json) -> ScanPoint 목록 변환
-
-normalize 단계(scan/normalize/target.py)에서 이미 걸러진 scannable_params를
-받아, 파라미터 위치를 query/form/json으로 정규화한 ScanPoint를 타겟마다 생성한다.
+변형기 1단계
+normalize 단계(scan/normalize/target.py)에서 이미 걸러진 scannable_params를 받아서
+파라미터 위치를 query/form/json으로 정규화한 ScanPoint를 타겟마다 생성
 """
 
 from __future__ import annotations
 
-from .models import ScanPoint
+from scan.models import ScanPoint
 
 
 # int() 변환 가능 여부로 value_type("number" 또는 "string") 판정

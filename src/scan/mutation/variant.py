@@ -1,5 +1,5 @@
 """
-변형기 — scan_targets.json -> RequestFamily 목록
+변형기
 
 HTTP 전송 없음. ScanPoint 추출(1번) + 룰 매칭(2번) 후 request_builder(3번)로
 요청을 조립해 family(baseline + mutations)를 반환
@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 
 from attack_requests import RULES
-from .models import RequestFamily
+from scan.models import RequestFamily
 from .scan_point import build_scan_points
 from .request_builder import build_baseline_case, build_mutation_case
 

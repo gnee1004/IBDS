@@ -3,8 +3,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ScanPoint:
-    """RequestTarget에서 공격 대상 파라미터를 하나씩 분리한 것. 1번이 파라미터당 하나씩 생성."""
+class ScanPoint:  # RequestTarget에서 공격 대상 파라미터를 하나씩 분리한 것.
     target_id: str       # 어느 RequestTarget에서 나왔는지 연결하는 키
     name: str            # 파라미터 이름 (예: "id", "username")
     location: str        # 파라미터 위치 ("query", "form", "json")
@@ -13,8 +12,7 @@ class ScanPoint:
 
 
 @dataclass
-class MatchedRule:
-    """2번이 룰 선택 + {value} 치환까지 끝낸 결과물. 3번은 payload를 요청에 삽입만 하면 됨."""
+class MatchedRule: # 룰 선택 + {value} 치환까지 끝낸 결과물.
     attack_id: str       # 룰 식별자 (예: "AR-SQLI-ERR-001")
     vuln_type: str       # 취약점 타입 ("sqli" or "xss")
     technique: str       # 공격 기법 (예: "error", "boolean", "time")
@@ -23,8 +21,7 @@ class MatchedRule:
 
 
 @dataclass
-class MutationCase:
-    """HTTP 요청 하나를 완전히 표현하는 단위. baseline과 mutation 모두 이 타입."""
+class MutationCase: # HTTP 요청 하나를 완전히 표현하는 단위. baseline과 mutation 모두 이 타입
     case_id: str         # 케이스 식별자 (예: "t0_id_AR-SQLI-ERR-001_baseline")
     step: str            # 이 케이스의 step (예: "baseline", "error_attack")
     method: str          # HTTP 메서드
@@ -38,8 +35,7 @@ class MutationCase:
 
 
 @dataclass
-class RequestFamily:
-    """파라미터 하나 × 룰 하나 = Family 하나. 분석기가 baseline 대비 응답 차이를 비교하는 단위."""
+class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대비 응답 차이를 비교하는 단위
     family_id: str                # family 식별자 (예: "t0_id_AR-SQLI-ERR-001")
     target_id: str                # 어느 타겟에서 나온 family인지
     param: str                    # 공격 대상 파라미터 이름
@@ -48,3 +44,13 @@ class RequestFamily:
     technique: str                # 공격 기법
     baseline: MutationCase        # 원본 요청 — 응답 비교 기준점
     mutations: list[MutationCase] # payload 교체된 요청 목록
+
+
+@dataclass
+class CaseResult:  # MutationCase 하나를 전송한 결과
+    case: MutationCase                                   # 어떤 요청을 보냈는지 (원본 그대로 참조)
+    status: str                                          # "ok" 또는 "error"
+    response_status: int | None = None
+    response_headers: dict[str, str] | None = None
+    response_body: str | None = None
+    error: str | None = None                             # status="error"일 때 예외 메시지

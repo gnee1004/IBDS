@@ -2,7 +2,7 @@ import os
 from urllib.parse import urlparse
 
 from scan.normalize.importer import _parse_response_status, _parse_headers_block
-from scan.mutation.models import MutationCase
+from scan.models import MutationCase
 from collector.zap_collector import ZapCollector
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))                       # src/scan/requester
