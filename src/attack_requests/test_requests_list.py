@@ -68,11 +68,14 @@ class BuildAttackRequestListTests(unittest.TestCase):
         requests = build_attack_request_list(include_sqli=False)
         set_ids = [request["set_id"] for request in requests]
 
-        self.assertEqual(len(requests), 16)
+        self.assertEqual(len(requests), 36)
         self.assertTrue(any(set_id.startswith("XSS_script_") for set_id in set_ids))
         self.assertTrue(any(set_id.startswith("XSS_event_handler_") for set_id in set_ids))
         self.assertTrue(any(set_id.startswith("XSS_attribute_breakout_") for set_id in set_ids))
+        self.assertTrue(any(set_id.startswith("XSS_javascript_context_") for set_id in set_ids))
         self.assertTrue(any(set_id.startswith("XSS_url_context_") for set_id in set_ids))
+        self.assertTrue(any(set_id.startswith("XSS_dom_context_") for set_id in set_ids))
+        self.assertTrue(any(set_id.startswith("XSS_stored_context_") for set_id in set_ids))
         self.assertTrue(any(set_id.startswith("XSS_escape_probe_") for set_id in set_ids))
         self.assertTrue(all("{token}" in request["payload"] for request in requests))
 
@@ -90,17 +93,43 @@ class BuildAttackRequestListTests(unittest.TestCase):
                     marker in request["payload"].lower()
                     for marker in (
                         "<script",
+                        "alert(",
+                        "confirm(",
                         "onerror",
                         "onload",
                         "onmouseover",
+                        "onfocus",
                         "ontoggle",
+                        "onanimationstart",
                         "javascript:",
                         "data:text/html",
+                        "setattribute",
+                        "srcdoc",
                     )
                 )
                 for request in executable_requests
             )
         )
+
+    def test_xss_requests_are_not_token_only(self) -> None:
+        requests = build_attack_request_list(include_sqli=False)
+        executable_requests = [
+            request
+            for request in requests
+            if not request["set_id"].startswith("XSS_escape_probe_")
+        ]
+
+        self.assertFalse(any(request["payload"] == "{token}" for request in requests))
+        self.assertTrue(all("{token}" in request["payload"] for request in executable_requests))
+        self.assertTrue(any("<script" in request["payload"].lower() for request in executable_requests))
+
+    def test_xss_non_reflected_categories_are_present(self) -> None:
+        requests = build_attack_request_list(include_sqli=False)
+        set_ids = {request["set_id"] for request in requests}
+
+        self.assertTrue(any(set_id.startswith("XSS_dom_context_") for set_id in set_ids))
+        self.assertTrue(any(set_id.startswith("XSS_stored_context_") for set_id in set_ids))
+        self.assertTrue(any(set_id.startswith("XSS_javascript_context_") for set_id in set_ids))
 
     def test_include_flags(self) -> None:
         self.assertTrue(

