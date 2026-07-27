@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 
 # CSRF/토큰 계열 파라미터 이름 키워드 (scan 대상에서 제외)
@@ -5,6 +6,29 @@ _NOSCAN_KEYWORDS = frozenset({
     "token", "csrf", "_wpnonce", "nonce",
     "viewstate", "__requestverificationtoken",
 })
+
+# 폼 제출/액션 의미를 가진 값 모음 — Submit=Submit 같은 control 파라미터 판별용
+_CONTROL_ACTION_WORDS = frozenset({
+    "submit", "login", "search", "change", "update", "delete",
+    "create", "register", "logout", "reset", "cancel", "sign",
+    "upload", "clear", "add", "remove",
+})
+
+_HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]{16,}$')
+
+
+# 값에 control 액션 단어가 포함되어 있으면 control 파라미터로 판정
+def _is_control_param(value: str) -> bool:
+    v = (value or "").strip().lower()
+    if not v:
+        return False
+    words = set(v.replace("+", " ").split())
+    return bool(words & _CONTROL_ACTION_WORDS)
+
+
+# 16자 이상 hex 문자열이면 보안 토큰(세션 ID 등)으로 판정
+def _is_security_token(value: str) -> bool:
+    return bool(_HEX_TOKEN_RE.match((value or "").strip()))
 
 
 @dataclass
@@ -22,11 +46,13 @@ class RequestTarget:
     response_body: str               # 응답 바디
     zap_message_id: str              # ZAP 메시지 ID (추적용)
 
-    # CSRF/token 계열 제외, 이후 XSS/SQLi 스캐너가 사용할 주입 대상 파라미터 목록
+    # CSRF/token 계열, 액션 버튼, 보안 토큰 값 제외한 스캔 대상 파라미터 목록
     def scannable_params(self) -> list[str]:
         return [
-            k for k in self.params
+            k for k, v in self.params.items()
             if not any(kw in k.lower() for kw in _NOSCAN_KEYWORDS)
+            and not _is_control_param(v)
+            and not _is_security_token(v)
         ]
 
     def to_dict(self) -> dict:

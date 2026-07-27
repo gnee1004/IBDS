@@ -1,9 +1,5 @@
 """
-XSS / SQLi payload → WAF 우회 변형 목록
-
-진입점:
-  mutate_payload(payload)       → XSS 변형 목록
-  mutate_sqli_payload(payload)  → SQLi 변형 목록
+순수 문자열 변환기 - WAF/PHPIDS 우회용 변형 문자열 목록을 반환
 """
 
 from __future__ import annotations

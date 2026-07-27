@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 import unittest
 
 from attack_requests import build_attack_request_list
