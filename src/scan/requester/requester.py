@@ -48,7 +48,7 @@ def _iter_set_cookie_values(response_header: str):
             yield value.strip()
 
 
-# 응답의 Set-Cookie를 저장소에 반영, 빈 값은 삭제 지시
+# 응답의 Set-Cookie를 저장소에 반영, 빈 값은 반영하지 않고 삭제 지시
 def _update_cookies_from_response(origin: str, response_header: str) -> None:
     stored = _cookie_store.setdefault(origin, {})
     for set_cookie in _iter_set_cookie_values(response_header):

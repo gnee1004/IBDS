@@ -54,3 +54,14 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_headers: dict[str, str] | None = None
     response_body: str | None = None
     error: str | None = None                             # status="error"일 때 예외 메시지
+
+
+@dataclass
+class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mutations를 family 단위로 묶음
+    family_id: str                # family 식별자
+    vuln_type: str                # 취약점 타입 ("sqli" or "xss")
+    technique: str                # 공격 기법
+    target_id: str                # 어느 타겟에서 나온 family인지
+    param: str                    # 공격 대상 파라미터 이름
+    baseline: CaseResult          # baseline 전송 결과
+    mutations: list[CaseResult]   # mutation 전송 결과 목록
