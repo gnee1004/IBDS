@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scan.mutation.models import MatchedRule, ScanPoint
+from ..models import MatchedRule, ScanPoint
 
 # 룰 스키마
 @dataclass

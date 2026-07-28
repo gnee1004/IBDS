@@ -7,7 +7,7 @@ from scan.match.matcher import match_and_render
 from scan.match.rules_builder import get_rules
 from ..models import RequestFamily
 from .scan_point import build_scan_points
-from .request_builder import build_baseline_case, build_mutation_case
+from .variant import build_baseline_case, build_mutation_case
 
 
 # 타겟 목록 -> ScanPoint마다 룰을 매칭(scan.match)해 RequestFamily 목록 생성

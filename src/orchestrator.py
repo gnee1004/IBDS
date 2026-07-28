@@ -2,7 +2,7 @@ import os
 from dataclasses import asdict
 
 from collector.main_collector import run_collection
-from scan.variant.variant import generate_families
+from scan. mutation.request_builder import generate_families
 from scan.requester import requester
 from scan.models import CaseResult
 from utilities.file_utils import save_json
