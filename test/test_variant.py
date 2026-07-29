@@ -17,7 +17,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from models import RequestFamily
+from scan.mutation.models import RequestFamily
 from scan.mutation.variant import generate_families
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ HTTP 전송 없음. ScanPoint 추출(1번) + 룰 매칭(2번) 후 request_builde
 from __future__ import annotations
 
 import json
+import secrets
 from pathlib import Path
 
 from attack_requests import RULES
@@ -28,7 +29,7 @@ def _expand_payloads(
             continue
         for tmpl in payload_templates.get(step, []):
             try:
-                payload = tmpl.format(value=base_value, token="")
+                payload = tmpl.format(value=base_value, token=secrets.token_hex(6))
             except KeyError:
                 payload = tmpl
             results.append((payload, step))
@@ -38,13 +39,20 @@ def _expand_payloads(
 # 타겟 목록 -> ScanPoint마다 attack_requests.RULES를 매칭해 RequestFamily 목록 생성
 def generate_families(
     targets_path: str | Path,
+    rules_path: str | Path | None = None,
     vuln_types: list[str] | None = None,
 ) -> list[RequestFamily]:
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
 
-    rules = RULES if vuln_types is None else [
-        r for r in RULES if r["vuln_type"] in vuln_types
+    if rules_path is not None:
+        with open(rules_path, encoding="utf-8") as f:
+            all_rules = json.load(f)
+    else:
+        all_rules = RULES
+
+    rules = all_rules if vuln_types is None else [
+        r for r in all_rules if r["vuln_type"] in vuln_types
     ]
 
     target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)}  # target_id -> 원본 target dict
