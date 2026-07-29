@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from payload.sqli import SQLI_RULES
-from payload.xss import XSS_RULES
+from scan.match.rules_sqli import SQLI_RULES
+from scan.match.rules_xss import XSS_RULES
 from scan.match.matcher import AttackRule, rule_from_dict
 
 _ALL_LOCATIONS = ["query", "form", "json"]
