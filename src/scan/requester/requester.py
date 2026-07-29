@@ -89,8 +89,8 @@ def send(case: MutationCase, zap) -> dict:
     cookies = _get_cookies(case)
     raw_request = _build_raw_request(case, cookies)
     result = zap.core.send_request(request=raw_request, followredirects=False)
-    if not result:  # 외부 API 호출 경계, 빈 응답 방어
-        raise RuntimeError("ZAP send_request returned no messages")
+    if not isinstance(result, list) or not result or not isinstance(result[0], dict):     # [{...}] 형태 아니면 원인 파악 위해 실제 응답값 그대로 예외 메시지에 포함
+        raise RuntimeError(f"ZAP send_request 실패, 응답: {result!r}")
     msg = result[0]
     response_header = msg.get("responseHeader", "")
 
