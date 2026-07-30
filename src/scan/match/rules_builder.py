@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from payload.sqli import SQLI_RULES
-from payload.xss import XSS_RULES
+from attack_requests import RULES
 from scan.match.matcher import AttackRule, rule_from_dict
 
 _ALL_LOCATIONS = ["query", "form", "json"]
@@ -29,4 +28,4 @@ def _enrich(rule: dict) -> dict:
 
 # 런타임용 — variant가 match_and_render에 넘길 AttackRule 목록
 def get_rules() -> list[AttackRule]:
-    return [rule_from_dict(_enrich(r)) for r in SQLI_RULES + XSS_RULES]
+    return [rule_from_dict(_enrich(r)) for r in RULES]
