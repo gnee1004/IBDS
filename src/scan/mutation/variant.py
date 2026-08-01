@@ -1,101 +1,93 @@
 """
-변형기 — scan_targets.json -> RequestFamily 목록
-
-HTTP 전송 없음. ScanPoint 추출(1번) + 룰 매칭(2번) 후 request_builder(3번)로
-요청을 조립해 family(baseline + mutations)를 반환
+target + ScanPoint 정보 -> MutationCase 생성
+payload를 실제 요청(URL 쿼리 또는 폼 바디)에 삽입해 변형 케이스를 만드는 부분임.
 """
 
 from __future__ import annotations
-
-import json
-import secrets
-from pathlib import Path
-
-from attack_requests import RULES
-from .models import RequestFamily
-from .scan_point import build_scan_points
-from .request_builder import build_baseline_case, build_mutation_case
+import urllib.parse
+from scan.models import MutationCase
 
 
-# rule의 payload_templates를 {value}/{token}으로 치환한 (payload, step) 목록 반환, baseline step 제외
-def _expand_payloads(
-    payload_templates: dict,
-    sequence: list,
-    base_value: str,
-) -> list[tuple[str, str]]:
-    results = []
-    for step in sequence:
-        if step == "baseline":
-            continue
-        for tmpl in payload_templates.get(step, []):
-            try:
-                payload = tmpl.format(value=base_value, token=secrets.token_hex(6))
-            except KeyError:
-                payload = tmpl
-            results.append((payload, step))
-    return results
+# URL 쿼리스트링에서 param_name 값을 new_value로 교체
+def _mutate_query(url: str, param_name: str, new_value: str) -> str:
+    parsed = urllib.parse.urlparse(url)
+    params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    replaced = False
+    result = []
+    for k, v in params:
+        if k == param_name and not replaced:
+            result.append((k, new_value))
+            replaced = True
+        else:
+            result.append((k, v))
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(result)))
 
 
-# 타겟 목록 -> ScanPoint마다 attack_requests.RULES를 매칭해 RequestFamily 목록 생성
-def generate_families(
-    targets_path: str | Path,
-    rules_path: str | Path | None = None,
-    vuln_types: list[str] | None = None,
-) -> list[RequestFamily]:
-    with open(targets_path, encoding="utf-8") as f:
-        targets = json.load(f)
+# 폼 바디(x-www-form-urlencoded)에서 param_name 값을 new_value로 교체
+def _mutate_form(body: str, param_name: str, new_value: str) -> str:
+    params = urllib.parse.parse_qsl(body or "", keep_blank_values=True)
+    replaced = False
+    result = []
+    for k, v in params:
+        if k == param_name and not replaced:
+            result.append((k, new_value))
+            replaced = True
+        else:
+            result.append((k, v))
+    return urllib.parse.urlencode(result)
 
-    if rules_path is not None:
-        with open(rules_path, encoding="utf-8") as f:
-            all_rules = json.load(f)
+
+# location("form"/"query"/"json")을 body_type("form" or "query")으로 판정
+def _body_type(location: str) -> str:
+    return "form" if location == "form" else "query"
+
+
+# 원본 target 요청 그대로의 baseline MutationCase 생성
+def build_baseline_case(target: dict, location: str, case_id: str) -> MutationCase:
+    return MutationCase(
+        case_id=case_id,
+        step="baseline",
+        method=target.get("method", "GET").upper(),
+        url=target.get("url", target.get("base_url", "")),
+        headers=dict(target.get("headers") or {}),
+        cookies=dict(target.get("cookies") or {}),
+        body_type=_body_type(location),
+        body=target.get("request_body") or "",
+    )
+
+
+# param_name 위치에 payload를 삽입한 mutation MutationCase 생성
+def build_mutation_case(
+    target: dict,
+    location: str,
+    param_name: str,
+    original_value: str,
+    payload: str,
+    step: str,
+    case_id: str,
+) -> MutationCase:
+    method = target.get("method", "GET").upper()
+    base_url = target.get("base_url", "")
+    url = target.get("url", base_url)
+    body = target.get("request_body") or ""
+    body_type = _body_type(location)
+
+    if body_type == "form":
+        mutated_url = base_url
+        mutated_body = _mutate_form(body, param_name, payload)
     else:
-        all_rules = RULES
+        mutated_url = _mutate_query(url, param_name, payload)
+        mutated_body = body
 
-    rules = all_rules if vuln_types is None else [
-        r for r in all_rules if r["vuln_type"] in vuln_types
-    ]
-
-    target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)}  # target_id -> 원본 target dict
-    scan_points = build_scan_points(targets)
-
-    families: list[RequestFamily] = []
-
-    for sp in scan_points:
-        target = target_by_id[sp.target_id]
-
-        for rule in rules:
-            family_id = f"{sp.target_id}_{sp.name}_{rule['attack_id']}"
-            baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
-
-            mutations = [
-                build_mutation_case(
-                    target, sp.location, sp.name, sp.original_value,
-                    payload, step, f"{family_id}_{step}_{p_idx}",
-                )
-                for p_idx, (payload, step) in enumerate(
-                    _expand_payloads(rule["payload_templates"], rule["sequence"], sp.original_value)
-                )
-            ]
-
-            families.append(RequestFamily(
-                family_id=family_id,
-                target_id=sp.target_id,
-                param=sp.name,
-                attack_id=rule["attack_id"],
-                vuln_type=rule["vuln_type"],
-                technique=rule["technique"],
-                baseline=baseline,
-                mutations=mutations,
-            ))
-
-    return families
-
-
-if __name__ == "__main__":
-    import sys
-    from dataclasses import asdict
-
-    t_path = sys.argv[1] if len(sys.argv) > 1 else "results/new/scan_targets.json"
-    result = generate_families(t_path)
-    print(json.dumps([asdict(f) for f in result], ensure_ascii=False, indent=2))
-    print(f"\n총 {len(result)}개 family 생성", file=sys.stderr)
+    return MutationCase(
+        case_id=case_id,
+        step=step,
+        method=method,
+        url=mutated_url,
+        headers=dict(target.get("headers") or {}),
+        cookies=dict(target.get("cookies") or {}),
+        body_type=body_type,
+        body=mutated_body,
+        payload=payload,
+        original_value=original_value,
+    )

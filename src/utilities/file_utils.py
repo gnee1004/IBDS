@@ -25,6 +25,14 @@ def save_json(path: str, data, indent: int = 2) -> None:
         json.dump(data, f, ensure_ascii=False, indent=indent)
 
 
+# JSONL 파일에 한 줄 append, 호출 시점마다 즉시 flush (중간 실패해도 이전 줄은 보존)
+def append_jsonl(path: str, data) -> None:
+    ensure_parent_dir(path)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii=False) + "\n")
+        f.flush()
+
+
 # base URL 끝의 슬래시를 제거하여 반환
 def normalize_base_url(url: str) -> str:
     return (url or "").strip().rstrip("/")
