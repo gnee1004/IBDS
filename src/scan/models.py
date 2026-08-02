@@ -54,6 +54,7 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_headers: dict[str, str] | None = None
     response_body: str | None = None
     error: str | None = None                             # status="error"일 때 예외 메시지
+    effective_cookies: dict[str, str] | None = None       # 요청 전송 시점에 실제로 실린 누적 쿠키
 
 
 @dataclass
