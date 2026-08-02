@@ -51,6 +51,21 @@ def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> F
     technique = family["technique"]
     payload = case.get("payload") or ""
 
+    if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 judge_xss/headless 호출 없이 즉시 safe 처리
+        return Finding(
+            family_id=family["family_id"],
+            target_id=family["target_id"],
+            param=family["param"],
+            attack_id=family["attack_id"],
+            technique=technique,
+            case_id=case["case_id"],
+            payload=case.get("payload"),
+            raw_verdict={"vulnerable": False, "confidence": "", "evidence": "요청 실패로 판정 불가"},
+            headless_checked=False,
+            headless_verdict=None,
+            final_status="safe",
+        )
+
     raw_verdict = judge_xss(case_result.get("response_body") or "", payload)
     headless_checked = _is_headless_target(raw_verdict.vulnerable, technique)
 
@@ -89,21 +104,25 @@ def run(results_path: str, headless: HeadlessSession | None = None) -> str:
 
     owns_headless = headless is None
     headless = headless or HeadlessSession()
-    sqli_skipped = 0
+    non_xss_skipped = 0
 
     try:
         with open(results_path, encoding="utf-8") as f:
             for line in f:
                 family = json.loads(line)
                 if family["vuln_type"] != "xss":
-                    sqli_skipped += 1
+                    non_xss_skipped += 1
                     continue
                 for case_result in family["mutations"]:
-                    finding = _judge_case(family, case_result, headless)
+                    try:  # 개별 case 판정 실패는 로그만 남기고 계속 진행
+                        finding = _judge_case(family, case_result, headless)
+                    except Exception as e:
+                        print(f"[ERROR] XSS 판정 실패: family={family['family_id']} case={case_result.get('case', {}).get('case_id')} - {e}")
+                        continue
                     append_jsonl(out_path, asdict(finding))
     finally:
         if owns_headless:
             headless.close()
 
-    print(f"[JUDGE] xss_findings.jsonl -> {out_path} ({sqli_skipped}건 SQLi family는 판정 로직 미연결 - 건너뜀)")
+    print(f"[JUDGE] xss_findings.jsonl -> {out_path} ({non_xss_skipped}건 non-XSS family는 판정 로직 미연결 - 건너뜀)")
     return out_path

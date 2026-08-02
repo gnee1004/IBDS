@@ -64,5 +64,6 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     technique: str                # 공격 기법
     target_id: str                # 어느 타겟에서 나온 family인지
     param: str                    # 공격 대상 파라미터 이름
+    attack_id: str                # 적용된 룰 식별자
     baseline: CaseResult          # baseline 전송 결과
     mutations: list[CaseResult]   # mutation 전송 결과 목록

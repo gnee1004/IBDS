@@ -49,6 +49,7 @@ def run_pipeline() -> str:
             technique=family.technique,
             target_id=family.target_id,
             param=family.param,
+            attack_id=family.attack_id,
             baseline=case_results[0],
             mutations=case_results[1:],
         )

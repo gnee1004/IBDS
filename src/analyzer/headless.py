@@ -62,24 +62,26 @@ class HeadlessSession:
         if method != "GET":  # POST 폼 재현은 ver1 범위 밖 (design doc 참고)
             return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)")
 
-        browser = self._ensure_browser()
-        context = browser.new_context()
-        if cookies:
-            hostname = urlparse(url).hostname
-            context.add_cookies([
-                {"name": name, "value": value, "domain": hostname, "path": "/"}
-                for name, value in cookies.items()
-            ])
-        page = context.new_page()
-        dialog_messages: list[str] = []
-        page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
+        browser = self._ensure_browser()  # 브라우저 실행 실패는 loudly 전파 — try 밖에 유지
+        context = None
         try:
+            context = browser.new_context()  # context/쿠키/page 준비도 실패 가능하므로 try 안에서 처리, finally에서 반드시 정리
+            if cookies:
+                hostname = urlparse(url).hostname
+                context.add_cookies([
+                    {"name": name, "value": value, "domain": hostname, "path": "/"}
+                    for name, value in cookies.items()
+                ])
+            page = context.new_page()
+            dialog_messages: list[str] = []
+            page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
             page.goto(url, timeout=10000)
             page.wait_for_timeout(500)
         except Exception as e:
             return HeadlessVerdict(executed=False, method="navigate", evidence=f"navigate 실패: {e}")
         finally:
-            context.close()
+            if context is not None:
+                context.close()
         if dialog_messages:
             return HeadlessVerdict(executed=True, method="navigate", evidence=f"dialog fired: {dialog_messages[0]}")
         return HeadlessVerdict(executed=False, method="navigate", evidence="dialog 없음")
