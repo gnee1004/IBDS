@@ -6,6 +6,7 @@ from scan. mutation.request_builder import generate_families
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult
 from utilities.file_utils import save_json, append_jsonl
+from analyzer import family_pipeline
 
 
 # collector -> normalize -> mutation -> requester 순서로 실행해 request_results.json 생성
@@ -37,6 +38,7 @@ def run_pipeline() -> str:
                 response_status=sent["response_status"],
                 response_headers=sent["response_headers"],
                 response_body=sent["response_body"],
+                effective_cookies=sent["effective_cookies"],
             ))
         total_count += len(case_results)
 
@@ -53,6 +55,10 @@ def run_pipeline() -> str:
         append_jsonl(results_path, asdict(family_result))  # family 끝나는 즉시 기록, 중간 실패해도 이전 family는 보존
 
     print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
+
+    findings_path = family_pipeline.run(results_path)
+    print(f"[RUN] xss_findings.jsonl -> {findings_path}")
+
     return results_path
 
 
