@@ -1,6 +1,6 @@
 """
-Playwright 기반 headless 확인
-raw HTTP 판정으로는 안 보이는 실제 실행 여부를 확인. 브라우저는 최초 confirm 호출 시에만 뜬다.
+Playwright 기반 headless 확인부
+raw HTTP 판정으로는 안 보이는 실제 실행 여부를 확인함
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class HeadlessSession:
     def _ensure_browser(self) -> Browser:
         if self._browser is None:
             self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=True)
+            self._browser = self._playwright.firefox.launch(headless=True)    # 파이어 폭스 브라우저 띄움
         return self._browser
 
     # 브라우저/Playwright 프로세스 정리

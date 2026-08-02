@@ -1,8 +1,7 @@
 """
 request_results.jsonl -> XSS 판정(raw) + headless confirm -> xss_findings.jsonl
-analyzer/xss/judge.py의 judge_xss는 무수정으로 그대로 사용. sqli는 팀원 merge 대기라 건너뜀.
+analyzer/xss/judge.py는 수정하지 안하고 사용. sqli는 아직 제대로 merge 할 수 있는 상태가 아니라서 건너뜀.
 """
-
 from __future__ import annotations
 
 import json

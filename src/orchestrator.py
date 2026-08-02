@@ -33,16 +33,17 @@ def run_pipeline() -> str:
                 case_results.append(CaseResult(case=case, status="error", error=str(e)))
                 print(f"[ERROR] 요청 실패: family={family.family_id} case={case.case_id} - {e}")
                 continue
+
             case_results.append(CaseResult(
                 case=case, status="ok",
                 response_status=sent["response_status"],
                 response_headers=sent["response_headers"],
                 response_body=sent["response_body"],
-                effective_cookies=sent["effective_cookies"],
+                effective_cookies=sent["effective_cookies"], # 나중에 headless browser가 쓸 cookie값
             ))
         total_count += len(case_results)
 
-        # case_results[0]은 항상 baseline (baseline을 맨 앞에 두고 순회했으므로)
+        # case_results[0]은 항상 baseline (baseline을 맨 앞에 두고 순회해서)
         family_result = FamilyResult(
             family_id=family.family_id,
             vuln_type=family.vuln_type,
@@ -53,11 +54,11 @@ def run_pipeline() -> str:
             baseline=case_results[0],
             mutations=case_results[1:],
         )
-        append_jsonl(results_path, asdict(family_result))  # family 끝나는 즉시 기록, 중간 실패해도 이전 family는 보존
+        append_jsonl(results_path, asdict(family_result))  # family 끝나는 즉시 기록. 중간에 실패해도 이전 family는 보존
 
     print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
 
-    findings_path = family_pipeline.run(results_path)
+    findings_path = family_pipeline.run(results_path) 
     print(f"[RUN] xss_findings.jsonl -> {findings_path}")
 
     return results_path
