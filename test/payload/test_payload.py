@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from payload.sqli import SQLI_RULES
-from payload.xss import XSS_RULES
+from test.payload.sqli import SQLI_RULES
+from test.payload.xss import XSS_RULES
 
 _REQUIRED_FIELDS = {"attack_id", "vuln_type", "technique", "sequence", "payload_templates"}
 

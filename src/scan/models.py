@@ -54,6 +54,7 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_headers: dict[str, str] | None = None
     response_body: str | None = None
     error: str | None = None                             # status="error"일 때 예외 메시지
+    effective_cookies: dict[str, str] | None = None       # 요청 전송 시점에 실제로 실린 누적 쿠키
 
 
 @dataclass
@@ -63,5 +64,6 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     technique: str                # 공격 기법
     target_id: str                # 어느 타겟에서 나온 family인지
     param: str                    # 공격 대상 파라미터 이름
+    attack_id: str                # 적용된 룰 식별자
     baseline: CaseResult          # baseline 전송 결과
     mutations: list[CaseResult]   # mutation 전송 결과 목록
