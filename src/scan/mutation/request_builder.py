@@ -10,6 +10,11 @@ from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
 
+def _short_step(step: str) -> str:
+    s = step.removesuffix("attack").rstrip("_")
+    return s or "a"
+
+
 # 타겟 목록 -> ScanPoint마다 룰을 매칭(scan.match)해 RequestFamily 목록 생성
 def generate_families(
     targets_path: str | Path,
@@ -31,8 +36,8 @@ def generate_families(
         target = target_by_id[sp.target_id]
 
         for matched in match_and_render(sp, rules):
-            family_id = f"{sp.target_id}_{sp.name}_{matched.attack_id}"
-            baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
+            family_id = f"{sp.target_id}_{sp.name}_{matched.technique}"
+            baseline = build_baseline_case(target, sp.location, f"{family_id}_base")
 
             mutations = []
             p_idx = 0
@@ -42,7 +47,7 @@ def generate_families(
                 for payload in matched.rendered_payloads.get(step, []):
                     mutations.append(build_mutation_case(
                         target, sp.location, sp.name, sp.original_value,
-                        payload, step, f"{family_id}_{step}_{p_idx}",
+                        payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
                     ))
                     p_idx += 1
 
