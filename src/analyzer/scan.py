@@ -29,7 +29,9 @@ def _successful(result: dict | None) -> bool:
 
 
 def _body(result: dict | None) -> str:
-    return (result.get("response_body") or "") if _successful(result) else ""
+    if result is None or not _successful(result):
+        return ""
+    return result.get("response_body") or ""
 
 
 def _finding(family: dict, result: dict, confidence: str, evidence: str) -> dict:
