@@ -1,4 +1,5 @@
 import os
+import time
 from urllib.parse import urlparse
 
 from scan.normalize.importer import _parse_response_status, _parse_headers_block
@@ -88,7 +89,9 @@ def send(case: MutationCase, zap) -> dict:
     origin = _origin(case.url)
     cookies = _get_cookies(case)
     raw_request = _build_raw_request(case, cookies)
+    started = time.perf_counter()
     result = zap.core.send_request(request=raw_request, followredirects=False)
+    elapsed = time.perf_counter() - started
     if not isinstance(result, list) or not result or not isinstance(result[0], dict):     # [{...}] 형태 아니면 원인 파악 위해 실제 응답값 그대로 예외 메시지에 포함
         raise RuntimeError(f"ZAP send_request 실패, 응답: {result!r}")
     msg = result[0]
@@ -101,4 +104,5 @@ def send(case: MutationCase, zap) -> dict:
         "response_status": _parse_response_status(response_header),
         "response_headers": _parse_headers_block(response_header),
         "response_body": msg.get("responseBody", ""),
+        "elapsed": elapsed,
     }

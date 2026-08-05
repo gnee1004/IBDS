@@ -5,6 +5,7 @@ from collector.main_collector import run_collection
 from scan. mutation.request_builder import generate_families
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult
+from analyzer.scan import analyze_results
 from utilities.file_utils import save_json, append_jsonl
 
 
@@ -37,6 +38,7 @@ def run_pipeline() -> str:
                 response_status=sent["response_status"],
                 response_headers=sent["response_headers"],
                 response_body=sent["response_body"],
+                elapsed=sent["elapsed"],
             ))
         total_count += len(case_results)
 
@@ -53,7 +55,7 @@ def run_pipeline() -> str:
         append_jsonl(results_path, asdict(family_result))  # family 끝나는 즉시 기록, 중간 실패해도 이전 family는 보존
 
     print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
-    return results_path
+    return analyze_results(results_path)
 
 
 if __name__ == "__main__":
