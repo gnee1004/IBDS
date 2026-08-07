@@ -1,6 +1,5 @@
 import re
 from urllib.parse import urlparse, parse_qs
-from scan.normalize.target import RequestTarget
 
 # 정적 파일 확장자
 _STATIC_EXT = re.compile(
@@ -89,7 +88,7 @@ def _parse_form_body(body: str) -> dict[str, str]:
 # ZAP 메시지 목록 -> RequestTarget 목록
 # 조건: GET은 query parameter, POST는 x-www-form-urlencoded 바디 파라미터가 있는 것만 포함 (JSON/multipart는 추후 구현)
 # 중복 제거: (method, base_url, param_location, 파라미터 이름 조합) 기준
-def to_targets(messages: list[dict]) -> list[RequestTarget]:
+def to_targets(messages: list[dict]) -> list[dict]:
     seen: set[tuple] = set()
     targets = []
 
@@ -146,19 +145,20 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
         # status: msg 필드 우선, 없으면 responseHeader 파싱
         response_status = _safe_int(msg.get("statusCode")) or _parse_response_status(resp_header_raw)
 
-        targets.append(RequestTarget(
-            method=method,
-            url=url,
-            base_url=base_url,
-            params=params,
-            param_location=param_location,
-            headers=headers_clean,
-            cookies=cookies,
-            request_body=msg.get("requestBody", "") or "",
-            response_status=response_status,
-            response_headers=_parse_headers_block(resp_header_raw),
-            response_body=msg.get("responseBody", "") or "",
-            zap_message_id=str(msg.get("id", "")),
-        ))
+        targets.append({
+            "target_id":       f"t{len(targets)}",
+            "method":          method,
+            "url":             url,
+            "base_url":        base_url,
+            "params":          params,
+            "param_location":  param_location,
+            "headers":         headers_clean,
+            "cookies":         cookies,
+            "request_body":    msg.get("requestBody", "") or "",
+            "response_status": response_status,
+            "response_headers": _parse_headers_block(resp_header_raw),
+            "response_body":   msg.get("responseBody", "") or "",
+            "zap_message_id":  str(msg.get("id", "")),
+        })
 
     return targets
