@@ -7,8 +7,8 @@ from urllib.parse import quote
 
 from .payloads import DB_ERROR_KEYWORDS, UNION_ERROR_KEYWORDS
 
-# Time-based 기준
-SLEEP_THRESHOLD = 4.5
+# Time-based 기준 — rules_sqli.py 의 _SLEEP 과 짝. (_SLEEP - 0.5 여유 권장)
+SLEEP_THRESHOLD = 2.5
 MIN_REPEAT_CONFIRM = 2
 
 # Boolean 비교 기준
