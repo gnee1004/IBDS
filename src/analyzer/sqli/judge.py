@@ -6,9 +6,9 @@ from urllib.parse import quote
 
 from .payloads import DB_ERROR_KEYWORDS, UNION_ERROR_KEYWORDS
 
-# Time-based 기준
-SLEEP_THRESHOLD = 4.5   # 공격 응답이 이 값(초) 이상이어야 지연으로 인정
-DELAY_MARGIN = 4.0      # baseline 대비 최소 추가 지연(초) — 원래 느린 페이지 오탐 방지
+# Time-based 기준 — rules_sqli.py 의 _SLEEP 과 짝. (_SLEEP - 0.5 여유 권장)
+SLEEP_THRESHOLD = 2.5   # 공격 응답이 이 값(초) 이상이어야 지연으로 인정
+DELAY_MARGIN = 2.0      # baseline 대비 최소 추가 지연(초) — 원래 느린 페이지 오탐 방지 (_SLEEP=3 기준)
 MIN_REPEAT_CONFIRM = 2
 
 

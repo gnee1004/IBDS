@@ -42,6 +42,13 @@ def _body_type(location: str) -> str:
     return "form" if location == "form" else "query"
 
 
+# DOM 계열 payload를 URL fragment(#뒤)로 주입. 기존 fragment는 버리고 교체.
+# payload가 이미 "#"로 시작하면 중복 방지 위해 앞의 "#"만 제거 후 다시 붙임.
+def _inject_fragment(url: str, payload: str) -> str:
+    base = url.split("#", 1)[0]
+    return f"{base}#{payload.lstrip('#')}"
+
+
 # 원본 target 요청 그대로의 baseline MutationCase 생성
 def build_baseline_case(target: dict, location: str, case_id: str) -> MutationCase:
     return MutationCase(
@@ -65,6 +72,7 @@ def build_mutation_case(
     payload: str,
     step: str,
     case_id: str,
+    inject_fragment: bool = False,
 ) -> MutationCase:
     method = target.get("method", "GET").upper()
     base_url = target.get("base_url", "")
@@ -72,7 +80,10 @@ def build_mutation_case(
     body = target.get("request_body") or ""
     body_type = _body_type(location)
 
-    if body_type == "form":
+    if inject_fragment:  # DOM 계열: 파라미터 값이 아니라 URL fragment로 주입 (location.hash용)
+        mutated_url = _inject_fragment(url, payload)
+        mutated_body = body
+    elif body_type == "form":
         mutated_url = base_url
         mutated_body = _mutate_form(body, param_name, payload)
     else:

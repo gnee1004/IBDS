@@ -105,4 +105,5 @@ def send(case: MutationCase, zap) -> dict:
         "response_headers": _parse_headers_block(response_header),
         "response_body": msg.get("responseBody", ""),
         "elapsed": elapsed,
+        "effective_cookies": cookies,  # headless 재현 시 실제 전송 쿠키 복원용
     }
