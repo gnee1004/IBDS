@@ -5,6 +5,7 @@ from collector.main_collector import run_collection
 from scan. mutation.request_builder import generate_families
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult
+from analyzer.scan import analyze_results
 from utilities.file_utils import save_json, append_jsonl
 from analyzer import family_pipeline
 
@@ -39,6 +40,7 @@ def run_pipeline() -> str:
                 response_status=sent["response_status"],
                 response_headers=sent["response_headers"],
                 response_body=sent["response_body"],
+                elapsed=sent["elapsed"],
                 effective_cookies=sent["effective_cookies"], # 나중에 headless browser가 쓸 cookie값
             ))
         total_count += len(case_results)
@@ -58,10 +60,11 @@ def run_pipeline() -> str:
 
     print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
 
-    findings_path = family_pipeline.run(results_path) 
-    print(f"[RUN] xss_findings.jsonl -> {findings_path}")
+    findings_path = analyze_results(results_path)          # sqli + xss 판정 -> findings.json
+    xss_findings_path = family_pipeline.run(results_path)  # xss headless 확인 -> xss_findings.jsonl
+    print(f"[RUN] xss_findings.jsonl -> {xss_findings_path}")
 
-    return results_path
+    return findings_path
 
 
 if __name__ == "__main__":
