@@ -8,6 +8,7 @@ import json
 import os
 from dataclasses import asdict, dataclass
 
+from scan.models import RequestFamily, CaseResult
 from utilities.file_utils import append_jsonl
 from .headless import HeadlessSession
 from .xss.judge import judge_xss
@@ -93,6 +94,11 @@ def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> F
             headless_verdict.executed if headless_verdict else False,
         ),
     )
+
+
+# RequestFamily/CaseResult 객체를 파일 경유 없이 그대로 받아 즉시 판정 (오케스트레이터 라이브 루프용)
+def judge_case_live(family: RequestFamily, case_result: CaseResult, headless: HeadlessSession) -> Finding:
+    return _judge_case(asdict(family), asdict(case_result), headless)
 
 
 # request_results.jsonl을 읽어 XSS family만 판정, xss_findings.jsonl 생성
