@@ -46,15 +46,21 @@ def generate_families(
 
             mutations = []
             p_idx = 0
+            seen_cases: set[tuple[str, str]] = set()  # (url, body) — family 내 동일 요청 중복 방지
             for step in matched.sequence:
                 if step == "baseline":
                     continue
                 for payload in matched.rendered_payloads.get(step, []):
-                    mutations.append(build_mutation_case(
+                    case = build_mutation_case(
                         target, sp.location, sp.name, sp.original_value,
                         payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
                         inject_fragment=is_dom,
-                    ))
+                    )
+                    key = (case.url, case.body)
+                    if key in seen_cases:
+                        continue
+                    seen_cases.add(key)
+                    mutations.append(case)
                     p_idx += 1
 
             families.append(RequestFamily(
