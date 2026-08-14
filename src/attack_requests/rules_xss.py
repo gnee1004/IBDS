@@ -264,9 +264,12 @@ XSS_RULES: list[dict] = [
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
+                # DOM 계열은 payload를 URL fragment(#뒤)로 주입하고, 주입 시
+                # _inject_fragment가 앞의 "#"를 lstrip 후 다시 붙이므로 "#" 접두 유무는
+                # 소거된다. 따라서 "#<img..>"와 "<img..>"는 동일 URL이 되어 중복이므로
+                # "#" 접두 버전만 정본으로 남긴다.
                 "#<img src=x onerror=alert(1)>",
                 "#<svg onload=alert(1)>",
-                "<img src=x onerror=alert(1)>",
                 "'-alert(1)-'",
             ],
         },

@@ -10,6 +10,15 @@ from ..models import DiscoveryResult, RequestFamily, ScanPoint
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
+_DOM_TECHNIQUE = "dom"  # DOM 계열은 payload를 URL fragment로 주입 (파라미터 값 아님)
+
+
+# case_id용 step 축약 — 모든 mutation step에 공통으로 붙는 "attack" 단어 제거
+# 예: "true_attack"->"true", "error_attack"->"error", "attack"->"a"
+def _short_step(step: str) -> str:
+    s = step.removesuffix("attack").rstrip("_")
+    return s or "a"
+
 
 # ScanPoint 하나 + 룰 목록 -> RequestFamily 목록. payload_filter가 있으면 조건을 만족하는 payload만 mutation으로 남김
 def build_families_for_point(
@@ -23,19 +32,27 @@ def build_families_for_point(
     for matched in match_and_render(sp, rules):
         family_id = f"{sp.target_id}_{sp.name}_{matched.attack_id}"
         baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
+        is_dom = matched.technique == _DOM_TECHNIQUE
 
         mutations = []
         p_idx = 0
+        seen_cases: set[tuple[str, str]] = set()  # (url, body) — family 내 동일 요청 중복 방지
         for step in matched.sequence:
             if step == "baseline":
                 continue
             for payload in matched.rendered_payloads.get(step, []):
                 if payload_filter is not None and not payload_filter(payload):
                     continue  # Discovery 결과 등으로 실행 불가능하다고 판단된 payload 제외
-                mutations.append(build_mutation_case(
+                case = build_mutation_case(
                     target, sp.location, sp.name, sp.original_value,
-                    payload, step, f"{family_id}_{step}_{p_idx}",
-                ))
+                    payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
+                    inject_fragment=is_dom,
+                )
+                key = (case.url, case.body)
+                if key in seen_cases:
+                    continue
+                seen_cases.add(key)
+                mutations.append(case)
                 p_idx += 1
 
         if not mutations:
