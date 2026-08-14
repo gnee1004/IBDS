@@ -45,3 +45,4 @@ def run_discovery(sp: ScanPoint, target: dict, zap) -> DiscoveryResult:
     if not reflected:
         return DiscoveryResult(reflected=False, valid_specials=set())
     return DiscoveryResult(reflected=True, valid_specials=probe_specials(sp, target, zap))
+
