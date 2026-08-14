@@ -75,12 +75,6 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
         ajax_meta["ajax_spider_completed"] = result["completed"]
         ajax_meta["ajax_spider_elapsed_seconds"] = result["elapsed_seconds"]
 
-    sample = collector.get_messages_sample(target_url, count=3)
-    print("[ZAP] raw 메시지 샘플 (3건):")
-    pprint(sample)
-    sample_path = os.path.join(out_dir, "zap_raw_messages_sample.json")
-    save_json(sample_path, sample)
-    print(f"[ZAP] zap_raw_messages_sample.json -> {sample_path}")
 
     messages = collector.get_all_messages(target_url)
 
