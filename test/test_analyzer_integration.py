@@ -128,16 +128,12 @@ class AnalyzerIntegrationTest(unittest.TestCase):
         self.assertEqual(findings[0]["technique"], "union")
 
     def test_order_by_sqli(self):
-        # ASC/DESC 응답 정렬이 달라짐 → 주입 확인
-        item = family(
-            "sqli",
-            "order_by",
-            [
-                case("attack", "name ASC -- ", "row A\nrow B\nrow C"),
-                case("attack", "name DESC -- ", "row C\nrow B\nrow A"),
-            ],
-        )
-        self.assertEqual(len(analyze_family(item)), 1)
+        # order_by는 ORDER BY <큰수>로 컬럼 에러(Unknown column)를 유발 → error-based 판정기로 탐지
+        body = "Unknown column '100' in 'order clause'"
+        item = family("sqli", "order_by", [case("attack", "1 ORDER BY 100 -- ", body)])
+        findings = analyze_family(item)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["technique"], "order_by")
 
     def test_stacked_time_sqli(self):
         # baseline 대비 지연이 재현되면 time-based(stacked) 확인

@@ -148,28 +148,6 @@ def _analyze_boolean(family: dict) -> list[dict]:
     return [_finding(family, best, "high", evidence)]
 
 
-def _analyze_order_by(family: dict) -> list[dict]:
-    # ORDER BY 주입은 에러가 아니라 "정렬 방향 변화"로 드러남 → ASC 응답과 DESC 응답을 직접 비교
-    def _payload(mutation: dict) -> str:
-        return str((mutation.get("case") or {}).get("payload") or "").lower()
-
-    asc_results = [m for m in family.get("mutations", []) if _successful(m) and " asc" in _payload(m)]
-    desc_results = [m for m in family.get("mutations", []) if _successful(m) and " desc" in _payload(m)]
-    for asc_result in asc_results:
-        asc_body = _clean_body(asc_result)  # ASC/DESC 문자열 등 payload 반사분 제거 후 비교
-        if not asc_body:
-            continue
-        for desc_result in desc_results:
-            desc_body = _clean_body(desc_result)
-            if not desc_body:
-                continue
-            ratio = SequenceMatcher(None, asc_body, desc_body).ratio()
-            if ratio < 0.95:  # ASC≠DESC → 정렬 절이 주입에 영향받음
-                evidence = f"Order-by SQLi: ASC/DESC 응답 정렬 차이 확인 (ratio={ratio:.3f})"
-                return [_finding(family, asc_result, "medium", evidence)]
-    return []
-
-
 def _redirects_to_payload(location: str, payload: str) -> bool:
     loc = location.strip()
     payload = payload.strip()
@@ -201,9 +179,8 @@ def _analyze_sqli(family: dict) -> list[dict]:
     technique = str(family.get("technique") or "")
     if technique.startswith("boolean"):
         return _analyze_boolean(family)
-    if technique == "order_by":
-        return _analyze_order_by(family)
 
+    # order_by 는 ORDER BY <큰수> payload가 컬럼 에러를 유발 → 아래 error-based 판정기로 처리
     baseline = family.get("baseline") or {}
     baseline_body = _body(baseline)
     baseline_elapsed = float(baseline.get("elapsed") or 0.0)
