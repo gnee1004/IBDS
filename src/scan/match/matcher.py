@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from ..models import MatchedRule, ScanPoint
 
@@ -28,13 +26,6 @@ def rule_from_dict(item: dict) -> AttackRule:
         allowed_locations=list(item.get("allowed_locations", [])),
         allowed_value_types=list(item.get("allowed_value_types", [])),
     )
-
-
-# 룰 JSON 파일을 읽어서 AttackRule 리스트로 변환.
-def load_rules(rules_path: str | Path) -> list[AttackRule]:
-    with open(rules_path, encoding="utf-8") as f:
-        raw = json.load(f)
-    return [rule_from_dict(item) for item in raw.get("rules", [])]
 
 
 # 매칭 판정
