@@ -41,7 +41,7 @@ def run_pipeline() -> str:
 
     requester.clear_cookie_store()  # 스캔 시작 시 1회, origin별 쿠키 초기화 (캡쳐 원본 쿠키는 지워지지 않음 -- 이전 스캔에서 누적된 쿠키 상태를 지우기 위함.)
     zap = requester.get_zap_client()
-    headless = HeadlessSession()  # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸
+    headless = HeadlessSession()  # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
 
     results_path = os.path.join(out_dir, "request_results.jsonl") # 실행 결과 (요청, 응답 raw)
     findings_path = os.path.join(out_dir, "findings.jsonl") # 판정 결과
