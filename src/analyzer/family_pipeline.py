@@ -46,7 +46,7 @@ def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool) 
 
 
 # mutation case 1건에 대한 raw 판정 + (필요시) headless 확인
-def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
+def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
     case = case_result["case"]
     technique = family["technique"]
     payload = case.get("payload") or ""
@@ -94,11 +94,6 @@ def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> F
             headless_verdict.executed if headless_verdict else False,
         ),
     )
-
-
-# RequestFamily/CaseResult 객체를 파일 경유 없이 그대로 받아 즉시 판정 (오케스트레이터 라이브 루프용)
-def judge_case_live(family: RequestFamily, case_result: CaseResult, headless: HeadlessSession) -> Finding:
-    return _judge_case(asdict(family), asdict(case_result), headless)
 
 
 # request_results.jsonl을 읽어 XSS family만 판정, xss_findings.jsonl 생성

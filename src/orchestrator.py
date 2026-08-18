@@ -82,18 +82,18 @@ def run_pipeline() -> str:
                     ))
                 total_count += len(case_results)
 
-
                 family_result = FamilyResult(
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
                 )
-                append_jsonl(results_path, asdict(family_result))
+                family_dict = asdict(family_result)
+                append_jsonl(results_path, family_dict)
 
 
-                for case, case_result in zip(family.mutations, case_results[1:]): # baseline은 비교 기준. 그 자체를 판정하지 않음
+                for i, case in enumerate(family.mutations): # baseline은 비교 기준. 그 자체를 판정하지 않음
                     try:
-                        finding = family_pipeline.judge_case_live(family, case_result, headless) # json대신 객체형태로
+                        finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
                         print(f"[ERROR] 판정 실패: family={family.family_id} case={case.case_id} - {e}")
