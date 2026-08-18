@@ -242,22 +242,6 @@ XSS_RULES: list[dict] = [
         },
     },
     {
-        "attack_id": "PL-XSS-OPEN-REDIRECT",
-        "vuln_type": "open_redirect",
-        "technique": "open_redirect",
-        "sequence": ["baseline", "attack"],
-        "payload_templates": {
-            "attack": [
-                "https://attacker.example/",
-                "//attacker.example/",
-                "javascript:alert(1)",
-                "data:text/html,<script>alert(1)</script>",
-                "\\\\attacker.example",
-                "///attacker.example/",
-            ],
-        },
-    },
-    {
         "attack_id": "PL-XSS-DOM",
         "vuln_type": "xss",
         "technique": "dom",

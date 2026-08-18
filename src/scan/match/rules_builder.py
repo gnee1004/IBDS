@@ -9,7 +9,7 @@ _ALL_LOCATIONS = ["query", "form", "json"]
 def _allowed(rule: dict) -> tuple[list[str], list[str]]:
     if rule["vuln_type"] == "sqli":
         return _ALL_LOCATIONS, ["string", "number"]
-    # xss / open_redirect 등 마크업 주입 계열 — 문자열 파라미터만
+    # xss 등 마크업 주입 계열 — 문자열 파라미터만
     return _ALL_LOCATIONS, ["string"]
 
 
