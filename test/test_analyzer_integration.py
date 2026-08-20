@@ -58,6 +58,15 @@ class AnalyzerIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(len(analyze_family(item)), 1)
 
+    def test_order_by_sqli(self):
+        # ORDER BY {큰수} → "Unknown column '100' in 'order clause'" DB 에러로 error-based 판정
+        body = "Unknown column '100' in 'order clause'"
+        findings = analyze_family(
+            family("sqli", "order_by", [case("attack", "1 ORDER BY 100-- ", body)])
+        )
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["technique"], "order_by")
+
     def test_jsonl_to_findings(self):
         payload = "<img src=x onerror=alert(1)>"
         item = family("xss", "body", [case("attack", payload, payload)])
