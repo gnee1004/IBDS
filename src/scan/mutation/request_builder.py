@@ -7,6 +7,7 @@ from typing import Callable
 from scan.match.matcher import AttackRule, match_and_render
 from scan.match.rules_builder import get_rules
 from ..models import DiscoveryResult, RequestFamily, ScanPoint
+from .discovery import _CANDIDATE_SPECIALS
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
@@ -93,13 +94,9 @@ def generate_families(
     return families
 
 
-# discovery.py의 _CANDIDATE_SPECIALS와 반드시 같은 집합을 유지해야 함 — 한 쪽만 수정 시 issubset 비교가 어긋남
-_SPECIAL_CHARS_WATCHLIST = ["<", ">", '"', "'", "=", "(", ")", "/", "\\", "`"]
-
-
 # payload 문자열에 실제로 등장하는 특수문자 집합 — 이 payload가 살아남으려면 필요한 최소 조건
 def _required_specials(payload: str) -> set[str]:
-    return {ch for ch in _SPECIAL_CHARS_WATCHLIST if ch in payload}
+    return {ch for ch in _CANDIDATE_SPECIALS if ch in payload}
 
 
 # reflected XSS 전용 family 생성 — Discovery 결과로 실행 불가능한 payload/family를 사전 제거

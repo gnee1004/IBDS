@@ -86,7 +86,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
     # 수집된 raw 메시지를 scan target으로 정규화
     targets = to_targets(messages)
     targets_path = os.path.join(out_dir, "scan_targets.json")
-    save_json(targets_path, [t.to_dict() for t in targets])
+    save_json(targets_path, targets)
     print(f"[ZAP] scan_targets.json -> {targets_path} ({len(targets)}건)")
 
     meta_path = os.path.join(out_dir, "collection_meta.json")
