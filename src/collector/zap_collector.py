@@ -25,14 +25,6 @@ class ZapCollector:
             api_key=cfg.get("api_key", "changeme"),
         )
 
-    '''
-    # 세션 새로 생성 
-    def new_session(self, name=SESSION_NAME):
-        self.zap.core.new_session(name=name, overwrite=True)
-        print(f"[ZAP] 세션 생성: {name}")
-    '''
-
-
     # target origin(scheme+host+port) 밖 트래픽을 프록시 단에서 전역 제외 (범위 축소용, 위험 URL 필터링과는 별개)
     # 매번 실행시 초기화됨.
     def restrict_to_target_domain(self, target_url: str):

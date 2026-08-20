@@ -72,8 +72,13 @@ def _build_raw_request(case: MutationCase, cookies: dict[str, str]) -> str:
     path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
 
     lines = [f"{case.method} {path} HTTP/1.1"]
+    body_bytes = case.body.encode() if case.body else b""
     for k, v in case.headers.items():
+        if k.lower() == "content-length":
+            continue  # 실제 body 길이로 재계산
         lines.append(f"{k}: {v}")
+    if body_bytes:
+        lines.append(f"Content-Length: {len(body_bytes)}")
     if cookies:  # importer가 헤더에서 빼놓은 cookie, Cookie 헤더로 재조립
         cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
         lines.append(f"Cookie: {cookie_str}")

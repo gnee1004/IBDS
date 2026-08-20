@@ -1,6 +1,6 @@
 import re
 from urllib.parse import urlparse, parse_qs
-from scan.normalize.target import RequestTarget
+from .target import RequestTarget
 
 # 정적 파일 확장자
 _STATIC_EXT = re.compile(
@@ -91,7 +91,7 @@ def _parse_form_body(body: str) -> dict[str, str]:
 # 중복 제거: (method, base_url, param_location, 파라미터 이름 조합) 기준
 def to_targets(messages: list[dict]) -> list[RequestTarget]:
     seen: set[tuple] = set()
-    targets = []
+    targets: list[RequestTarget] = []
 
     for msg in messages:
         req_header_raw = msg.get("requestHeader", "") or ""

@@ -38,16 +38,6 @@ def _body(result: dict | None) -> str:
     return result.get("response_body") or ""
 
 
-def _header(result: dict | None, name: str) -> str:
-    if result is None or not _successful(result):
-        return ""
-    headers = result.get("response_headers") or {}
-    for key, value in headers.items():
-        if key.lower() == name.lower():
-            return value or ""
-    return ""
-
-
 def _finding(family: dict, result: dict, confidence: str, evidence: str) -> dict:
     case = result.get("case") or {}
     return {
@@ -148,33 +138,6 @@ def _analyze_boolean(family: dict) -> list[dict]:
     return [_finding(family, best, "high", evidence)]
 
 
-def _redirects_to_payload(location: str, payload: str) -> bool:
-    loc = location.strip()
-    payload = payload.strip()
-    if not loc or not payload:
-        return False
-    if loc == payload or loc.startswith(payload):
-        return True
-    # 선행 슬래시/백슬래시 정규화 (//, ///, \\ 우회 대응)
-    payload_norm = payload.lstrip("/\\")
-    return bool(payload_norm) and loc.lstrip("/\\").startswith(payload_norm)
-
-
-def _analyze_open_redirect(family: dict) -> list[dict]:
-    base_location = _header(family.get("baseline"), "location")
-    for mutation in family.get("mutations", []):
-        if not _successful(mutation):
-            continue
-        payload = str((mutation.get("case") or {}).get("payload") or "")
-        location = _header(mutation, "location")
-        if not location or location == base_location:
-            continue  # 리다이렉트 없음 or baseline과 동일 → 안전
-        if _redirects_to_payload(location, payload):
-            evidence = f"Open Redirect: Location 헤더가 공격 URL로 이동 ('{location}')"
-            return [_finding(family, mutation, "high", evidence)]
-    return []
-
-
 def _analyze_sqli(family: dict) -> list[dict]:
     technique = str(family.get("technique") or "")
     if technique.startswith("boolean"):
@@ -185,7 +148,7 @@ def _analyze_sqli(family: dict) -> list[dict]:
     baseline_body = _body(baseline)
     baseline_elapsed = float(baseline.get("elapsed") or 0.0)
     mutations = [item for item in family.get("mutations", []) if _successful(item)]
-    if technique.startswith("time") or technique == "stacked":
+    if technique.startswith("time"):
         elapsed = [float(item.get("elapsed") or 0.0) for item in mutations]
         verdict = judge_time_based_sqli(baseline_elapsed, elapsed)
         if verdict.vulnerable and mutations:
@@ -193,6 +156,8 @@ def _analyze_sqli(family: dict) -> list[dict]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
         return []
 
+    # union → 컬럼 수 불일치 에러, 그 외(error_meta·order_by 등) → DB 에러 시그니처로 판정.
+    # order_by 는 "ORDER BY {큰수}" 가 Unknown column 에러를 유발하므로 error 판정기로 낙하한다.
     judge = judge_union_sqli if technique == "union" else judge_error_based_sqli
     for mutation in mutations:
         verdict = judge(baseline_body, _body(mutation))
@@ -209,8 +174,6 @@ def analyze_family(family: dict) -> list[dict]:
         return _analyze_sqli(family)
     if vuln_type == "xss":
         return _analyze_xss(family)
-    if vuln_type == "open_redirect":
-        return _analyze_open_redirect(family)
     return []
 
 

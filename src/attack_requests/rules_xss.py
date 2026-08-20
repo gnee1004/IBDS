@@ -242,31 +242,18 @@ XSS_RULES: list[dict] = [
         },
     },
     {
-        "attack_id": "PL-XSS-OPEN-REDIRECT",
-        "vuln_type": "open_redirect",
-        "technique": "open_redirect",
-        "sequence": ["baseline", "attack"],
-        "payload_templates": {
-            "attack": [
-                "https://attacker.example/",
-                "//attacker.example/",
-                "javascript:alert(1)",
-                "data:text/html,<script>alert(1)</script>",
-                "\\\\attacker.example",
-                "///attacker.example/",
-            ],
-        },
-    },
-    {
         "attack_id": "PL-XSS-DOM",
         "vuln_type": "xss",
         "technique": "dom",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
+                # DOM 계열은 payload를 URL fragment(#뒤)로 주입하고, 주입 시
+                # _inject_fragment가 앞의 "#"를 lstrip 후 다시 붙이므로 "#" 접두 유무는
+                # 소거된다. 따라서 "#<img..>"와 "<img..>"는 동일 URL이 되어 중복이므로
+                # "#" 접두 버전만 정본으로 남긴다.
                 "#<img src=x onerror=alert(1)>",
                 "#<svg onload=alert(1)>",
-                "<img src=x onerror=alert(1)>",
                 "'-alert(1)-'",
             ],
         },

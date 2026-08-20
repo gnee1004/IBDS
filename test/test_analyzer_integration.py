@@ -6,7 +6,7 @@ import unittest
 from analyzer.scan import analyze_family, analyze_results
 
 
-def case(step, payload, body, elapsed=0.1, headers=None):
+def case(step, payload, body, elapsed=0.1):
     return {
         "case": {
             "step": step,
@@ -18,7 +18,6 @@ def case(step, payload, body, elapsed=0.1, headers=None):
         "status": "ok",
         "response_status": 200,
         "response_body": body,
-        "response_headers": headers or {},
         "elapsed": elapsed,
     }
 
@@ -135,20 +134,6 @@ class AnalyzerIntegrationTest(unittest.TestCase):
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["technique"], "order_by")
 
-    def test_stacked_time_sqli(self):
-        # baseline 대비 지연이 재현되면 time-based(stacked) 확인
-        item = family(
-            "sqli",
-            "stacked",
-            [
-                case("attack", "1'; SELECT SLEEP(3)-- ", "", elapsed=3.1),
-                case("attack", "1'; SELECT SLEEP(3)-- ", "", elapsed=3.0),
-            ],
-        )
-        findings = analyze_family(item)
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0]["confidence"], "high")
-
     def test_time_no_false_positive_on_slow_page(self):
         # 원래 느린 페이지(baseline 3s)에서 공격도 3s면 baseline 차이 없음 → 미탐
         item = family(
@@ -158,18 +143,6 @@ class AnalyzerIntegrationTest(unittest.TestCase):
             baseline=case("baseline", None, "", elapsed=3.0),
         )
         self.assertEqual(len(analyze_family(item)), 0)
-
-    def test_open_redirect(self):
-        item = family(
-            "open_redirect",
-            "open_redirect",
-            [case("attack", "https://attacker.example/", "",
-                  headers={"Location": "https://attacker.example/"})],
-            baseline=case("baseline", None, "", headers={"Location": "/home"}),
-        )
-        findings = analyze_family(item)
-        self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0]["vuln_type"], "open_redirect")
 
     def test_jsonl_to_findings(self):
         payload = "<img src=x onerror=alert(1)>"
