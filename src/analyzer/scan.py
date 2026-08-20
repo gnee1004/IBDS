@@ -13,6 +13,8 @@ from .xss.judge import judge_xss
 # diff 비교 시 동적 페이지 노이즈 허용 폭 (true끼리의 자기 유사도 바닥 대비)
 _NOISE_MARGIN = 0.05
 
+_STORED_VERIFY_STEP = "stored_verify"  # 저장형 XSS 재조회 GET case의 step
+
 
 def _load_results(results_path: str) -> list[dict]:
     families = []
@@ -69,6 +71,36 @@ def _analyze_xss(family: dict) -> list[dict]:
         baseline_verdict = judge_xss(baseline_body, payload)
         if verdict.vulnerable and not baseline_verdict.vulnerable:
             return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
+    return []
+
+
+# 저장형 XSS: (주입 POST, 재조회 GET) 쌍으로 판정.
+# POST 응답의 즉시 반사가 아니라 GET 재조회 응답에 payload가 남아 있을 때만 저장형으로 확정한다.
+def _analyze_stored_xss(family: dict) -> list[dict]:
+    baseline_body = _body(family.get("baseline"))
+    verify_by_id = {}
+    attacks = []
+    for mutation in family.get("mutations", []):
+        case = mutation.get("case") or {}
+        if case.get("step") == _STORED_VERIFY_STEP:
+            verify_by_id[case.get("case_id")] = mutation
+        else:
+            attacks.append(mutation)
+
+    for attack in attacks:
+        if not _successful(attack):
+            continue
+        payload = str((attack.get("case") or {}).get("payload") or "")
+        if not payload:
+            continue
+        verify = verify_by_id.get(f"{(attack.get('case') or {}).get('case_id')}_verify")
+        if not _successful(verify):
+            continue  # 재조회 응답이 없으면 저장 확인 불가 → 확정하지 않음
+        verify_verdict = judge_xss(_body(verify), payload)
+        baseline_verdict = judge_xss(baseline_body, payload)
+        if verify_verdict.vulnerable and not baseline_verdict.vulnerable:
+            evidence = f"저장형 XSS: GET 재조회 응답에서 저장분 확인 ({verify_verdict.evidence})"
+            return [_finding(family, attack, verify_verdict.confidence, evidence)]
     return []
 
 
@@ -148,35 +180,3 @@ def _analyze_sqli(family: dict) -> list[dict]:
         verdict = judge(baseline_body, _body(mutation))
         if verdict.vulnerable:
             return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
-    return []
-
-
-def analyze_family(family: dict) -> list[dict]:
-    if not _successful(family.get("baseline")):
-        return []
-    vuln_type = str(family.get("vuln_type") or "").lower()
-    if vuln_type == "sqli":
-        return _analyze_sqli(family)
-    if vuln_type == "xss":
-        return _analyze_xss(family)
-    return []
-
-
-def analyze_results(results_path: str) -> str:
-    findings = []
-    for family in _load_results(results_path):
-        findings.extend(analyze_family(family))
-    output_path = os.path.join(os.path.dirname(os.path.abspath(results_path)), "findings.json")
-    save_json(output_path, findings)
-    print(f"[ANALYZE] findings.json -> {output_path} ({len(findings)} findings)")
-    return output_path
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: python -m analyzer.scan <request_results.jsonl>")
-    analyze_results(sys.argv[1])
-
-
-if __name__ == "__main__":
-    main()

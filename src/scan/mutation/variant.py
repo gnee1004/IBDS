@@ -49,6 +49,35 @@ def _inject_fragment(url: str, payload: str) -> str:
     return f"{base}#{payload.lstrip('#')}"
 
 
+_STORED_VERIFY_STEP = "stored_verify"  # 저장형 XSS: POST 주입 후 저장분을 되읽는 GET 재조회 case의 step
+
+
+# 저장형 XSS 재조회 대상 URL 결정.
+# target.verify_url(명시적 표시 페이지) > base_url(제출 엔드포인트 재-GET) > url 순.
+# 게시판류의 "POST /board 제출 -> GET /board 목록에서 노출" 패턴을 base_url 재-GET로 기본 커버하고,
+# 수집기가 실제 노출 페이지를 알려주면 verify_url로 재정의할 수 있게 열어둠.
+def stored_verify_url(target: dict) -> str:
+    return target.get("verify_url") or target.get("base_url") or target.get("url", "")
+
+
+# 저장형 XSS 검증용 GET 재조회 case 생성.
+# payload를 요청에 싣지 않는 "깨끗한 GET"이지만, judge가 무엇을 찾아야 하는지 알 수 있도록
+# 검증 대상 payload 문자열을 payload 필드에 태깅해 둔다. (요청 본문/URL에는 주입하지 않음)
+def build_stored_verify_case(target: dict, attack_case: MutationCase) -> MutationCase:
+    return MutationCase(
+        case_id=f"{attack_case.case_id}_verify",
+        step=_STORED_VERIFY_STEP,
+        method="GET",
+        url=stored_verify_url(target),
+        headers=dict(target.get("headers") or {}),
+        cookies=dict(target.get("cookies") or {}),
+        body_type="query",
+        body="",
+        payload=attack_case.payload,             # 검증 대상 payload 태깅 (judge_xss가 이 값을 재조회 응답에서 탐색)
+        original_value=attack_case.original_value,
+    )
+
+
 # 원본 target 요청 그대로의 baseline MutationCase 생성
 def build_baseline_case(target: dict, location: str, case_id: str) -> MutationCase:
     return MutationCase(

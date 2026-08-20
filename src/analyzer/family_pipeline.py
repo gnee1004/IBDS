@@ -8,11 +8,14 @@ import json
 import os
 from dataclasses import asdict, dataclass
 
+from scan.models import RequestFamily, CaseResult
 from utilities.file_utils import append_jsonl
 from .headless import HeadlessSession
 from .xss.judge import judge_xss
 
 _DOM_TECHNIQUE = "dom"
+_STORED_TECHNIQUE = "stored"       # 저장형 XSS: POST 주입 + GET 재조회 쌍으로 판정
+_STORED_VERIFY_STEP = "stored_verify"  # 재조회 GET case의 step (request_builder가 주입 case 뒤에 붙임)
 
 
 @dataclass
@@ -95,6 +98,110 @@ def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> F
     )
 
 
+# family dict 공통 필드를 채운 Finding 생성 (저장형 판정에서 반복 서술 줄이기용)
+def _stored_finding(
+    family: dict, attack_case: dict, raw_verdict: dict,
+    headless_checked: bool, headless_verdict, final_status: str,
+) -> Finding:
+    return Finding(
+        family_id=family["family_id"],
+        target_id=family["target_id"],
+        param=family["param"],
+        attack_id=family["attack_id"],
+        technique=family["technique"],
+        case_id=attack_case["case_id"],
+        payload=attack_case.get("payload"),
+        raw_verdict=raw_verdict,
+        headless_checked=headless_checked,
+        headless_verdict=asdict(headless_verdict) if headless_verdict else None,
+        final_status=final_status,
+    )
+
+
+# 저장형 family의 mutations를 (주입 POST, 재조회 GET) 쌍으로 묶는다.
+# 재조회 case의 case_id는 "{attack_case_id}_verify" (build_stored_verify_case 규약)
+def _pair_stored_cases(mutations: list[dict]) -> list[tuple[dict, dict | None]]:
+    verify_by_id: dict[str, dict] = {}
+    attacks: list[dict] = []
+    for case_result in mutations:
+        case = case_result.get("case") or {}
+        if case.get("step") == _STORED_VERIFY_STEP:
+            verify_by_id[case.get("case_id")] = case_result
+        else:
+            attacks.append(case_result)
+    return [
+        (atk, verify_by_id.get(f"{(atk.get('case') or {}).get('case_id')}_verify"))
+        for atk in attacks
+    ]
+
+
+# (주입 POST, 재조회 GET) 한 쌍을 판정.
+# 핵심: POST 응답의 즉시 반사가 아니라 "GET 재조회 응답에 payload가 남아 있는지"로 저장 여부를 결정한다.
+def _judge_stored_pair(family: dict, attack: dict, verify: dict | None, headless: HeadlessSession) -> Finding:
+    attack_case = attack.get("case") or {}
+    payload = attack_case.get("payload") or ""
+
+    if attack.get("status") == "error":  # 주입 자체가 실패 → 재조회 의미 없음, 즉시 safe
+        return _stored_finding(
+            family, attack_case,
+            {"vulnerable": False, "confidence": "", "evidence": "주입 요청 실패로 판정 불가"},
+            headless_checked=False, headless_verdict=None, final_status="safe",
+        )
+
+    post_verdict = judge_xss(attack.get("response_body") or "", payload)
+    verify_ok = verify is not None and verify.get("status") == "ok"
+    verify_body = verify.get("response_body") or "" if verify_ok else ""
+    verify_verdict = judge_xss(verify_body, payload)
+
+    # 1) GET 재조회 응답에 payload가 살아 있음 → 실제 저장 확인 (가장 강한 근거)
+    if verify_ok and verify_verdict.vulnerable:
+        headless_verdict = headless.confirm_via_render(verify_body)  # 저장분이 실제 실행되는지까지 확인
+        executed = headless_verdict.executed
+        return _stored_finding(
+            family, attack_case,
+            {
+                "vulnerable": True,
+                "confidence": "high" if executed else "medium",
+                "evidence": f"저장형 XSS: GET 재조회 응답에서 payload 저장 확인 ({verify_verdict.evidence})",
+            },
+            headless_checked=True, headless_verdict=headless_verdict,
+            final_status="vulnerable" if executed else "stored_reflected",
+        )
+
+    # 2) POST 응답에는 즉시 반사되지만 재조회에는 없음 → 저장 미확인 (반사형 의심, 저장형 아님)
+    if post_verdict.vulnerable:
+        reason = "GET 재조회 미검출" if verify_ok else "GET 재조회 실패/누락"
+        return _stored_finding(
+            family, attack_case,
+            {
+                "vulnerable": False,
+                "confidence": "low",
+                "evidence": f"POST 응답에만 즉시 반사, {reason} → 저장 미확인 ({post_verdict.evidence})",
+            },
+            headless_checked=False, headless_verdict=None, final_status="reflected_only",
+        )
+
+    # 3) 어느 쪽에도 없음 → safe
+    return _stored_finding(
+        family, attack_case,
+        {"vulnerable": False, "confidence": "", "evidence": "POST/GET 재조회 모두 payload 반사 없음"},
+        headless_checked=False, headless_verdict=None, final_status="safe",
+    )
+
+
+# 저장형 family 전체를 판정 → 주입 payload 1건당 Finding 1건
+def _judge_stored_family(family: dict, headless: HeadlessSession) -> list[Finding]:
+    findings: list[Finding] = []
+    for attack, verify in _pair_stored_cases(family.get("mutations") or []):
+        findings.append(_judge_stored_pair(family, attack, verify, headless))
+    return findings
+
+
+# RequestFamily/CaseResult 객체를 파일 경유 없이 그대로 받아 즉시 판정 (오케스트레이터 라이브 루프용)
+def judge_case_live(family: RequestFamily, case_result: CaseResult, headless: HeadlessSession) -> Finding:
+    return _judge_case(asdict(family), asdict(case_result), headless)
+
+
 # request_results.jsonl을 읽어 XSS family만 판정, xss_findings.jsonl 생성
 def run(results_path: str, headless: HeadlessSession | None = None) -> str:
     out_path = os.path.join(os.path.dirname(results_path), "xss_findings.jsonl")
@@ -112,6 +219,16 @@ def run(results_path: str, headless: HeadlessSession | None = None) -> str:
                 if family["vuln_type"] != "xss":
                     non_xss_skipped += 1
                     continue
+
+                # 저장형: (주입 POST, 재조회 GET) 쌍 단위로 판정 → payload당 Finding 1건
+                if family.get("technique") == _STORED_TECHNIQUE:
+                    try:
+                        for finding in _judge_stored_family(family, headless):
+                            append_jsonl(out_path, asdict(finding))
+                    except Exception as e:
+                        print(f"[ERROR] 저장형 XSS 판정 실패: family={family['family_id']} - {e}")
+                    continue
+
                 for case_result in family["mutations"]:
                     try:  # 개별 case 판정 실패는 로그만 남기고 계속 진행
                         finding = _judge_case(family, case_result, headless)

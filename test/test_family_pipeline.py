@@ -173,5 +173,99 @@ class ErrorStatusCaseTests(unittest.TestCase):
         self.assertEqual(finding.final_status, "safe")
 
 
+# ---- 저장형 XSS (POST 주입 + GET 재조회) 판정 ----
+
+_STORED_P = "<script>alert(1)</script>"
+
+
+def _stored_family_dict(mutations: list[dict]) -> dict:
+    return {
+        "family_id": "t0_comment_PL-XSS-STORED", "vuln_type": "xss", "technique": "stored",
+        "target_id": "t0", "param": "comment", "attack_id": "PL-XSS-STORED",
+        "baseline": {"case": {"case_id": "t0_comment_PL-XSS-STORED_baseline"}, "status": "ok",
+                     "response_body": "board"},
+        "mutations": mutations,
+    }
+
+
+def _stored_attack(payload: str, body: str, cid: str) -> dict:
+    return {"case": {"case_id": cid, "step": "attack", "method": "POST",
+                     "url": "http://x/board", "payload": payload},
+            "status": "ok", "response_body": body, "effective_cookies": {}}
+
+
+def _stored_verify(payload: str, body: str, attack_cid: str) -> dict:
+    return {"case": {"case_id": f"{attack_cid}_verify", "step": "stored_verify", "method": "GET",
+                     "url": "http://x/board", "payload": payload},
+            "status": "ok", "response_body": body, "effective_cookies": {}}
+
+
+class JudgeStoredFamilyTests(unittest.TestCase):
+    def test_requery_hit_and_executed_is_vulnerable(self) -> None:
+        cid = "t0_comment_PL-XSS-STORED_a0"
+        family = _stored_family_dict([
+            _stored_attack(_STORED_P, "saved", cid),        # POST 응답엔 반사 없음
+            _stored_verify(_STORED_P, f"<li>{_STORED_P}</li>", cid),
+        ])
+
+        findings = family_pipeline._judge_stored_family(family, _FakeHeadless(executed=True))
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].final_status, "vulnerable")
+        self.assertTrue(findings[0].headless_checked)
+        self.assertIn("재조회", findings[0].raw_verdict["evidence"])
+
+    def test_requery_hit_but_not_executed_is_stored_reflected(self) -> None:
+        cid = "t0_comment_PL-XSS-STORED_a0"
+        family = _stored_family_dict([
+            _stored_attack(_STORED_P, "saved", cid),
+            _stored_verify(_STORED_P, f"<li>{_STORED_P}</li>", cid),
+        ])
+
+        findings = family_pipeline._judge_stored_family(family, _FakeHeadless(executed=False))
+
+        self.assertEqual(findings[0].final_status, "stored_reflected")
+
+    def test_post_reflection_without_requery_is_reflected_only(self) -> None:
+        cid = "t0_comment_PL-XSS-STORED_a0"
+        family = _stored_family_dict([
+            _stored_attack(_STORED_P, f"echo {_STORED_P}", cid),  # POST 즉시 반사
+            _stored_verify(_STORED_P, "clean board", cid),        # 재조회엔 없음
+        ])
+
+        findings = family_pipeline._judge_stored_family(family, _FakeHeadless(executed=True))
+
+        self.assertEqual(findings[0].final_status, "reflected_only")
+        self.assertFalse(findings[0].headless_checked)
+
+    def test_no_reflection_anywhere_is_safe(self) -> None:
+        cid = "t0_comment_PL-XSS-STORED_a0"
+        family = _stored_family_dict([
+            _stored_attack(_STORED_P, "saved", cid),
+            _stored_verify(_STORED_P, "clean board", cid),
+        ])
+
+        findings = family_pipeline._judge_stored_family(family, _FakeHeadless(executed=True))
+
+        self.assertEqual(findings[0].final_status, "safe")
+
+    def test_run_routes_stored_family_through_requery_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            results_path = os.path.join(tmp, "request_results.jsonl")
+            cid = "t0_comment_PL-XSS-STORED_a0"
+            with open(results_path, "w", encoding="utf-8") as f:
+                f.write(json.dumps(_stored_family_dict([
+                    _stored_attack(_STORED_P, "saved", cid),
+                    _stored_verify(_STORED_P, f"<li>{_STORED_P}</li>", cid),
+                ])) + "\n")
+
+            out_path = family_pipeline.run(results_path, headless=_FakeHeadless(executed=True))
+            with open(out_path, encoding="utf-8") as f:
+                lines = [json.loads(line) for line in f]
+
+            self.assertEqual(len(lines), 1)  # 재조회 case가 별도 finding으로 새지 않고 쌍으로 1건
+            self.assertEqual(lines[0]["final_status"], "vulnerable")
+
+
 if __name__ == "__main__":
     unittest.main()
