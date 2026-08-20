@@ -1,6 +1,5 @@
 """
-ver2 오케스트레이터. 
-sqli analyzer가 준비되지 않은 관계로 sqli 관련 코드는 지우고 xss만 연결함.
+ver2 오케스트레이터.
 """
 
 import json
@@ -8,25 +7,30 @@ import os
 from dataclasses import asdict
 
 from collector.main_collector import run_collection
+from scan.match.rules_builder import get_rules
 from scan.mutation.discovery import run_discovery
-from scan.mutation.request_builder import generate_stored_xss_families, generate_xss_families
+from scan.mutation.request_builder import build_families_for_point, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from utilities.file_utils import append_jsonl
 from analyzer import family_pipeline
 from analyzer.headless import HeadlessSession
+from analyzer.scan import analyze_family
 
 
 # ScanPoint 하나를 value_type에 따라  sqli, xss_stored, xss_reflected 경로로 라우팅
-# SQLi는 아직 analyzer가 구현이 덜 되어서 라우팅 하지 않았음.
 def _route_scan_point(sp: ScanPoint, target: dict, zap) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
     if sp.value_type == "string":  # XSS는 문자열 파라미터만 대상
-        discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering. 
+        discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
         families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
         families.extend(generate_stored_xss_families(sp, target))
+
+    # SQLi는 discovery(반사 여부) 판정 없이 string/number 파라미터 모두 대상 (allowed_value_types 참고)
+    sqli_rules = [r for r in get_rules() if r.vuln_type == "sqli"]
+    families.extend(build_families_for_point(sp, target, sqli_rules))
 
     return families
 
@@ -91,13 +95,20 @@ def run_pipeline() -> str:
                 append_jsonl(results_path, asdict(family_result))
 
 
-                for case, case_result in zip(family.mutations, case_results[1:]): # baseline은 비교 기준. 그 자체를 판정하지 않음
+                if family.vuln_type == "sqli":  # boolean 등은 true/false mutation을 함께 봐야 해서 family 단위로 한 번에 판정
                     try:
-                        finding = family_pipeline.judge_case_live(family, case_result, headless) # json대신 객체형태로
-                        append_jsonl(findings_path, asdict(finding))
+                        for finding in analyze_family(asdict(family_result)):
+                            append_jsonl(findings_path, finding)
                     except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
-                        print(f"[ERROR] 판정 실패: family={family.family_id} case={case.case_id} - {e}")
-                        continue
+                        print(f"[ERROR] SQLi 판정 실패: family={family.family_id} - {e}")
+                else:
+                    for case, case_result in zip(family.mutations, case_results[1:]): # baseline은 비교 기준. 그 자체를 판정하지 않음
+                        try:
+                            finding = family_pipeline.judge_case_live(family, case_result, headless) # json대신 객체형태로
+                            append_jsonl(findings_path, asdict(finding))
+                        except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
+                            print(f"[ERROR] 판정 실패: family={family.family_id} case={case.case_id} - {e}")
+                            continue
 
         print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
         print(f"[RUN] findings.jsonl -> {findings_path}")
