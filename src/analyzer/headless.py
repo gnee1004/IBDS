@@ -2,14 +2,10 @@
 Playwright 기반 headless 확인부
 raw HTTP 판정으로는 안 보이는 실제 실행 여부를 확인함
 """
-
 from __future__ import annotations
-
 from dataclasses import dataclass
 from urllib.parse import urlparse
-
 from playwright.sync_api import sync_playwright, Browser, Playwright
-
 
 @dataclass
 class HeadlessVerdict:  # headless 확인 1건의 결과
@@ -19,7 +15,6 @@ class HeadlessVerdict:  # headless 확인 1건의 결과
 
 
 class HeadlessSession:
-
     def __init__(self) -> None:
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
