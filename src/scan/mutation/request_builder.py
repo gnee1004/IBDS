@@ -99,12 +99,26 @@ def _required_specials(payload: str) -> set[str]:
     return {ch for ch in _CANDIDATE_SPECIALS if ch in payload}
 
 
+# injection_context -> 유효한 technique 집합 매핑 (dom은 context 무관하게 항상 포함)
+_CONTEXT_TECHNIQUES: dict[str, set[str]] = {
+    "inHTML":    {"body", "html_comment", "filter_bypass", "template", "json", "css"},
+    "inAttr":    {"attr_value", "attr_event"},
+    "inAttrUrl": {"attr_href"},
+    "inScript":  {"script", "script_raw", "attr_event"},
+}
+
+
 # reflected XSS 전용 family 생성 — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     if not discovery.reflected:
         return []  # 반사 자체가 안 되면 XSS family를 만들 이유가 없음
 
     rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique != "stored"]
+
+    if discovery.injection_context is not None:
+        valid = _CONTEXT_TECHNIQUES.get(discovery.injection_context, set())
+        rules = [r for r in rules if r.technique == "dom" or r.technique in valid]
+
     return build_families_for_point(
         sp, target, rules,
         payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
