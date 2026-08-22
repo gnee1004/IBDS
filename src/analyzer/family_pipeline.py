@@ -46,7 +46,7 @@ def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool) 
 
 
 # mutation case 1건에 대한 raw 판정 + (필요시) headless 확인
-def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
+def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
     case = case_result["case"]
     technique = family["technique"]
     payload = case.get("payload") or ""
@@ -96,11 +96,6 @@ def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> F
     )
 
 
-# RequestFamily/CaseResult 객체를 파일 경유 없이 그대로 받아 즉시 판정 (오케스트레이터 라이브 루프용)
-def judge_case_live(family: RequestFamily, case_result: CaseResult, headless: HeadlessSession) -> Finding:
-    return _judge_case(asdict(family), asdict(case_result), headless)
-
-
 # request_results.jsonl을 읽어 XSS family만 판정, xss_findings.jsonl 생성
 def run(results_path: str, headless: HeadlessSession | None = None) -> str:
     out_path = os.path.join(os.path.dirname(results_path), "xss_findings.jsonl")
@@ -120,7 +115,7 @@ def run(results_path: str, headless: HeadlessSession | None = None) -> str:
                     continue
                 for case_result in family["mutations"]:
                     try:  # 개별 case 판정 실패는 로그만 남기고 계속 진행
-                        finding = _judge_case(family, case_result, headless)
+                        finding = judge_case(family, case_result, headless)
                     except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family['family_id']} case={case_result.get('case', {}).get('case_id')} - {e}")
                         continue

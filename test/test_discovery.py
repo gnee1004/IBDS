@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from scan.models import ScanPoint
-from scan.mutation.discovery import run_discovery
+from scan.mutation.discovery import detect_injection_context, run_discovery
 
 
 class FakeZapCore:  # zap.core.send_request만 흉내내는 최소 stub
@@ -54,6 +54,55 @@ class RunDiscoveryTests(unittest.TestCase):
 
         self.assertTrue(result.reflected)
         self.assertEqual(result.valid_specials, {'"', "'", "=", "(", ")", "/", "\\", "`"})
+
+
+class DetectInjectionContextTests(unittest.TestCase):
+    def test_marker_in_html_text_node(self) -> None:
+        body = "<html><body><div>MARKER</div></body></html>"
+
+        result = detect_injection_context(body, "MARKER")
+
+        self.assertEqual(result, "inHTML")
+
+    def test_marker_in_script_tag(self) -> None:
+        body = "<html><body><script>var x = 'MARKER'</script></body></html>"
+
+        result = detect_injection_context(body, "MARKER")
+
+        self.assertEqual(result, "inScript")
+
+    def test_marker_in_general_attribute(self) -> None:
+        body = '<html><body><input value="MARKER"></body></html>'
+
+        result = detect_injection_context(body, "MARKER")
+
+        self.assertEqual(result, "inAttr")
+
+    def test_marker_in_event_handler_attribute(self) -> None:
+        body = '<html><body><div onclick="doSomething(\'MARKER\')"></div></body></html>'
+
+        result = detect_injection_context(body, "MARKER")
+
+        self.assertEqual(result, "inScript")
+
+    def test_marker_in_url_attribute(self) -> None:
+        body = '<html><body><a href="MARKER">link</a></body></html>'
+
+        result = detect_injection_context(body, "MARKER")
+
+        self.assertEqual(result, "inAttrUrl")
+
+    def test_marker_in_safe_tag_returns_none(self) -> None:
+        body = "<html><body><textarea>MARKER</textarea></body></html>"
+
+        result = detect_injection_context(body, "MARKER")
+
+        self.assertIsNone(result)
+
+    def test_marker_not_present_returns_none(self) -> None:
+        result = detect_injection_context("<html><body></body></html>", "MARKER")
+
+        self.assertIsNone(result)
 
 
 if __name__ == "__main__":
