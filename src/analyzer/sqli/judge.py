@@ -4,7 +4,27 @@ import html
 from dataclasses import dataclass
 from urllib.parse import quote
 
-from .payloads import DB_ERROR_KEYWORDS, UNION_ERROR_KEYWORDS
+# 응답 본문에서 이 문구가 나오면 SQLi로 판정 (error-based / union 판정용 시그니처)
+UNION_ERROR_KEYWORDS: tuple[str, ...] = (
+    "the used select statements have a different number of columns",
+    "column count doesn't match",
+)
+
+DB_ERROR_KEYWORDS: tuple[str, ...] = (
+    "you have an error in your sql syntax",
+    "warning: mysql",
+    "unknown column",
+    "mysql_fetch",
+    "mysqli_",
+    "sql syntax",
+    "mariadb server version",
+    "supplied argument is not a valid mysql",
+    "division by zero",
+    "duplicate entry",
+    "xpath syntax error",
+    "the used select statements have a different number of columns",
+    "column count doesn't match",
+)
 
 # Time-based 기준 — rules_sqli.py 의 _SLEEP 과 짝. (_SLEEP - 0.5 여유 권장)
 SLEEP_THRESHOLD = 2.5   # 공격 응답이 이 값(초) 이상이어야 지연으로 인정

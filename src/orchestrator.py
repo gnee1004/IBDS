@@ -7,6 +7,7 @@ import os
 from dataclasses import asdict
 
 from collector.main_collector import run_collection
+from scan.match.rules_builder import get_rules
 from scan.mutation.discovery import run_discovery
 from scan.mutation.request_builder import generate_sqli_families, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
@@ -106,8 +107,15 @@ def run_pipeline() -> str:
                         finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
-                        print(f"[ERROR] 판정 실패: family={family.family_id} case={case.case_id} - {e}")
-                        continue
+                        print(f"[ERROR] SQLi 판정 실패: family={family.family_id} - {e}")
+                else:
+                    for case, case_result in zip(family.mutations, case_results[1:]): # baseline은 비교 기준. 그 자체를 판정하지 않음
+                        try:
+                            finding = family_pipeline.judge_case_live(family, case_result, headless) # json대신 객체형태로
+                            append_jsonl(findings_path, asdict(finding))
+                        except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
+                            print(f"[ERROR] 판정 실패: family={family.family_id} case={case.case_id} - {e}")
+                            continue
 
         print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
         print(f"[RUN] findings.jsonl -> {findings_path}")
