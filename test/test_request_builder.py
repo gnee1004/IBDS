@@ -57,56 +57,6 @@ class BuildFamiliesForPointTests(unittest.TestCase):
         self.assertEqual(families, [])
 
 
-def _stored_rule() -> AttackRule:
-    return AttackRule(
-        attack_id="PL-XSS-STORED", vuln_type="xss", technique="stored",
-        sequence=["baseline", "attack"],
-        payload_templates={"attack": ["<script>alert(1)</script>", "<img src=x onerror=alert(1)>"]},
-        allowed_locations=["form"], allowed_value_types=["string"],
-    )
-
-
-def _stored_target() -> dict:
-    return {
-        "method": "POST", "url": "http://example.com/board", "base_url": "http://example.com/board",
-        "request_body": "comment=x", "param_location": "body",
-    }
-
-
-class StoredVerifyInterleaveTests(unittest.TestCase):
-    def test_each_stored_attack_is_followed_by_a_verify_get(self) -> None:
-        families = build_families_for_point(_form_point(), _stored_target(), [_stored_rule()])
-
-        self.assertEqual(len(families), 1)
-        mutations = families[0].mutations
-        # 2 payload -> attack/verify 교차로 4 case
-        self.assertEqual(len(mutations), 4)
-        self.assertEqual([m.step for m in mutations],
-                         ["attack", "stored_verify", "attack", "stored_verify"])
-
-    def test_verify_case_is_clean_get_tagged_with_payload(self) -> None:
-        families = build_families_for_point(_form_point(), _stored_target(), [_stored_rule()])
-        attack, verify = families[0].mutations[0], families[0].mutations[1]
-
-        self.assertEqual(verify.case_id, f"{attack.case_id}_verify")
-        self.assertEqual(verify.method, "GET")
-        self.assertEqual(verify.body, "")                 # payload를 요청에 싣지 않는 깨끗한 GET
-        self.assertEqual(verify.payload, attack.payload)  # 무엇을 찾을지 태깅만
-        self.assertEqual(verify.url, _stored_target()["base_url"])
-
-    def test_verify_url_prefers_explicit_verify_url(self) -> None:
-        target = {**_stored_target(), "verify_url": "http://example.com/board/list"}
-        families = build_families_for_point(_form_point(), target, [_stored_rule()])
-        verify = families[0].mutations[1]
-
-        self.assertEqual(verify.url, "http://example.com/board/list")
-
-    def test_non_stored_family_has_no_verify_case(self) -> None:
-        families = build_families_for_point(_point(), _target(), [_rule()])
-
-        self.assertTrue(all(m.step != "stored_verify" for m in families[0].mutations))
-
-
 class GenerateXssFamiliesTests(unittest.TestCase):
     def test_not_reflected_produces_no_families(self) -> None:
         discovery = DiscoveryResult(reflected=False, valid_specials=set())

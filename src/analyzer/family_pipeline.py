@@ -48,7 +48,7 @@ def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool) 
 
 
 # mutation case 1건에 대한 raw 판정 + (필요시) headless 확인
-def _judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
+def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
     case = case_result["case"]
     technique = family["technique"]
     payload = case.get("payload") or ""

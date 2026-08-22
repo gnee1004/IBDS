@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Callable
+from typing import Callable
 
 from scan.match.matcher import AttackRule, match_and_render
 from scan.match.rules_builder import get_rules
@@ -34,7 +35,6 @@ def build_families_for_point(
         family_id = f"{sp.target_id}_{sp.name}_{matched.attack_id}"
         baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
         is_dom = matched.technique == _DOM_TECHNIQUE
-        is_stored = matched.technique == _STORED_TECHNIQUE
 
         mutations = []
         p_idx = 0
@@ -55,12 +55,6 @@ def build_families_for_point(
                     continue
                 seen_cases.add(key)
                 mutations.append(case)
-                # 저장형: 주입 POST 직후에 GET 재조회 case를 이어 붙임.
-                # requester가 [baseline, *mutations]를 순서대로, 쿠키 세션을 공유하며 전송하므로
-                # "POST 주입 -> GET 재조회"가 자연히 같은 세션에서 순차 실행된다 (requester 변경 불필요).
-                # 재조회 case는 (url, body)가 서로 같아 dedup되면 안 되므로 seen_cases에 넣지 않는다.
-                if is_stored:
-                    mutations.append(build_stored_verify_case(target, case))
                 p_idx += 1
 
         if not mutations:
@@ -78,6 +72,56 @@ def build_families_for_point(
         ))
 
     return families
+
+
+# 타겟 목록 -> 모든 ScanPoint에 룰을 매칭해 RequestFamily 목록 생성 (기존 배치 진입점, 동작 변화 없음)
+def generate_families(
+    targets_path: str | Path,
+    vuln_types: list[str] | None = None,
+) -> list[RequestFamily]:
+    with open(targets_path, encoding="utf-8") as f:
+        targets = json.load(f)
+
+    rules = get_rules()
+    if vuln_types is not None:
+        rules = [r for r in rules if r.vuln_type in vuln_types]
+
+    target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)}
+    scan_points = build_scan_points(targets)
+
+    families: list[RequestFamily] = []
+    for sp in scan_points:
+        families.extend(build_families_for_point(sp, target_by_id[sp.target_id], rules))
+    return families
+
+
+# discovery.py의 _CANDIDATE_SPECIALS와 반드시 같은 집합을 유지해야 함 — 한 쪽만 수정 시 issubset 비교가 어긋남
+_SPECIAL_CHARS_WATCHLIST = ["<", ">", '"', "'", "=", "(", ")", "/", "\\", "`"]
+
+
+# payload 문자열에 실제로 등장하는 특수문자 집합 — 이 payload가 살아남으려면 필요한 최소 조건
+def _required_specials(payload: str) -> set[str]:
+    return {ch for ch in _SPECIAL_CHARS_WATCHLIST if ch in payload}
+
+
+# reflected XSS 전용 family 생성 — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
+def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
+    if not discovery.reflected:
+        return []  # 반사 자체가 안 되면 XSS family를 만들 이유가 없음
+
+    rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique != "stored"]
+    return build_families_for_point(
+        sp, target, rules,
+        payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
+    )
+
+
+# Stored XSS 전용 family 생성 — Discovery 없이, form(POST) 파라미터에만, PL-XSS-STORED 룰만 적용
+def generate_stored_xss_families(sp: ScanPoint, target: dict) -> list[RequestFamily]:
+    if sp.location != "form":
+        return []
+    rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == "stored"]
+    return build_families_for_point(sp, target, rules)
 
 
 # 타겟 목록 -> 모든 ScanPoint에 룰을 매칭해 RequestFamily 목록 생성 (기존 배치 진입점, 동작 변화 없음)

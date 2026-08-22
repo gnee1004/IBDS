@@ -2,16 +2,15 @@ import argparse
 import os
 import sys
 from datetime import datetime
-from pprint import pprint
+
+from utilities.file_utils import load_json, save_json, normalize_base_url
+from collector.zap_collector import ZapCollector
+from scan.normalize.importer import to_targets
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SRC_ROOT = os.path.dirname(_THIS_DIR)  # src/
 _PROJECT_ROOT = os.path.dirname(_SRC_ROOT)  # 리포 루트, src 밖 경로용
 sys.path.insert(0, _SRC_ROOT)  # src 루트 패키지 import용
-
-from utilities.file_utils import load_json, save_json, normalize_base_url
-from collector.zap_collector import ZapCollector
-from scan.normalize.importer import to_targets
 
 _ZAP_CONFIG = os.path.join(_PROJECT_ROOT, "config", "zap_config.json")
 _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
