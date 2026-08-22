@@ -102,7 +102,7 @@ def _required_specials(payload: str) -> set[str]:
     return {ch for ch in _SPECIAL_CHARS_WATCHLIST if ch in payload}
 
 
-# reflected XSS 전용 family 생성 — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
+# reflected XSS — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     if not discovery.reflected:
         return []  # 반사 자체가 안 되면 XSS family를 만들 이유가 없음
@@ -114,11 +114,17 @@ def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResul
     )
 
 
-# Stored XSS 전용 family 생성 — Discovery 없이, form(POST) 파라미터에만, PL-XSS-STORED 룰만 적용
+# Stored XSS — Discovery 없이, form(POST) 파라미터에만, PL-XSS-STORED 룰만 적용
 def generate_stored_xss_families(sp: ScanPoint, target: dict) -> list[RequestFamily]:
     if sp.location != "form":
         return []
     rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == "stored"]
+    return build_families_for_point(sp, target, rules)
+
+
+# SQLi
+def generate_sqli_families(sp: ScanPoint, target: dict) -> list[RequestFamily]:
+    rules = [r for r in get_rules() if r.vuln_type == "sqli"]
     return build_families_for_point(sp, target, rules)
 
 
