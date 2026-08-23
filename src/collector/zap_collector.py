@@ -61,7 +61,8 @@ class ZapCollector:
         if len(cap_sess) != 0 :
             fst_sess_name = cap_sess[0]['session'][0] # 가장 최근 세션
             print(f"fst_sess_name: {fst_sess_name}")  # 세션 이름 확인
-            print(f"fst_sess_value: {cap_sess[0]['session'][1]['PHPSESSID']['value']}")
+            cookie_name, cookie_info = next(iter(cap_sess[0]['session'][1].items())) # 쿠키 이름 하드코딩 없이 첫 항목 확인
+            print(f"fst_sess_value: {cookie_name}={cookie_info['value']}")
             try :
                 sess = {}
                 sess = self.zap.httpsessions.set_active_session(site, fst_sess_name)
