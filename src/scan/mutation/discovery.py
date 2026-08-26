@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import re
+from difflib import SequenceMatcher
+
 from bs4 import BeautifulSoup, NavigableString
 
 from scan.models import DiscoveryResult, ScanPoint
-from scan.mutation.variant import build_mutation_case
+from scan.mutation.variant import build_baseline_case, build_mutation_case
 from scan.requester import requester
 
 _CANDIDATE_SPECIALS = ["<", ">", '"', "'", "=", "(", ")", "/", "\\", "`"]
@@ -11,6 +14,9 @@ _SPECIALS_MARK_START = "ibdsA"
 _SPECIALS_MARK_END = "ibdsZ"
 _SAFE_TAGS = {"textarea", "title", "noscript", "xmp", "plaintext"}
 _URL_ATTRS = {"src", "href", "action", "data"}
+
+_MARKER_CONTEXT_LEN = 6  # 흔들리는 구간 앞뒤로 이만큼의 고정 글자를 "경계"로 삼음
+_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]+|[^0-9A-Za-z가-힣]+")  # 값 덩어리 단위로 토큰화 (글자 단위 diff는 숫자 하나만 달라도 우연히 겹쳐 보임)
 
 
 # 파라미터 값이 응답에 그대로 반사되는지 marker 문자열로 확인, body도 함께 반환
@@ -76,6 +82,48 @@ def detect_injection_context(body: str, marker: str) -> str | None:
                 return "inHTML"
 
     return None
+
+
+# idxs 순서대로 토큰을 이어붙여 길이 _MARKER_CONTEXT_LEN을 채움. 토큰이 모자라 못 채우면 None(경계 불안정 -> 제외)
+def _take_tokens(tokens: list[str], idxs: range) -> str | None:
+    collected: list[str] = []
+    length = 0
+    for idx in idxs:
+        collected.append(tokens[idx])
+        length += len(tokens[idx])
+        if length >= _MARKER_CONTEXT_LEN:
+            if idxs.step < 0:  # prefix는 뒤에서부터 모았으므로 원래 순서로 되돌림
+                collected.reverse()
+            return "".join(collected)
+    return None
+
+
+# baseline 두 응답을 diff해서 달라지는 구간의 "위치"(앞뒤 경계 텍스트)만 추출.
+# 값 자체(예: 타임스탬프 "10:23:04")는 이후 요청마다 또 바뀌므로 저장하지 않고,
+# 그 값을 둘러싼 고정된 앞/뒤 텍스트만 저장해 나중에 어떤 값이 오든 그 자리를 찾아 지울 수 있게 함.
+# 글자 단위로 diff하면 "04"/"09"처럼 숫자 하나만 달라도 일부가 우연히 겹쳐 보이므로, 값 덩어리(토큰) 단위로 비교함.
+def _extract_dynamic_markers(body1: str, body2: str) -> list[tuple[str, str]]:
+    tokens1 = _TOKEN_RE.findall(body1)
+    tokens2 = _TOKEN_RE.findall(body2)
+
+    markers: set[tuple[str, str]] = set()
+    for tag, i1, i2, _j1, _j2 in SequenceMatcher(None, tokens1, tokens2).get_opcodes():
+        if tag == "equal":
+            continue
+        prefix = _take_tokens(tokens1, range(i1 - 1, -1, -1))
+        suffix = _take_tokens(tokens1, range(i2, len(tokens1)))
+        if prefix is not None and suffix is not None:
+            markers.add((prefix, suffix))
+    return list(markers)
+
+
+# 같은 baseline을 두 번 보내 응답을 비교, 이 타겟이 원래 갖고 있는 "흔들리는 자리"를 찾음 (ScanPoint당 1회)
+def measure_dynamic_markers(sp: ScanPoint, target: dict, zap) -> list[tuple[str, str]]:
+    case1 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.name}_noise1")
+    case2 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.name}_noise2")
+    body1 = requester.send(case1, zap).get("response_body") or ""
+    body2 = requester.send(case2, zap).get("response_body") or ""
+    return _extract_dynamic_markers(body1, body2)
 
 
 # 반사 확인 -> 반사 안 되면 특수문자 probe 생략 -> DiscoveryResult

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import re
 from dataclasses import dataclass
 from urllib.parse import quote
 
@@ -47,6 +48,17 @@ def _strip_value(body: str, value: str) -> str:
     for v in variants:
         if v:
             body = body.replace(v, "")
+    return body
+
+
+# (prefix, suffix) 경계 사이 내용을 지움 — 값이 매 요청마다 바뀌는 자리(시각/토큰 등)를
+# 비교 대상에서 제외해 boolean SQLi 판정 시 "이 타겟이 원래 흔들리는 노이즈"를 걷어냄
+def _strip_dynamic(body: str, markers: list[tuple[str, str]]) -> str:
+    for prefix, suffix in markers:
+        if not prefix or not suffix:
+            continue
+        pattern = re.escape(prefix) + r".*?" + re.escape(suffix)
+        body = re.sub(pattern, prefix + suffix, body, flags=re.DOTALL)
     return body
 
 

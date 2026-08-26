@@ -7,7 +7,7 @@ from datetime import datetime
 from difflib import SequenceMatcher
 
 from utilities.file_utils import save_json
-from .sqli.judge import judge_error_based_sqli, judge_time_based_sqli, judge_union_sqli, _strip_value
+from .sqli.judge import judge_error_based_sqli, judge_time_based_sqli, judge_union_sqli, _strip_dynamic, _strip_value
 from .xss.judge import judge_xss
 
 # Boolean 판정 문턱
@@ -77,13 +77,14 @@ def _payload_of(mutation: dict) -> str:
     return str((mutation.get("case") or {}).get("payload") or "")
 
 
-def _clean_body(result: dict | None) -> str:
-    # 응답에서 payload 반사분을 제거해 diff 비교의 결정적 노이즈 제거
-    return _strip_value(_body(result), _payload_of(result or {}))
+def _clean_body(family: dict, result: dict | None) -> str:
+    # 응답에서 payload 반사분 + 이 타겟이 원래 흔들리는 자리(dynamic_markers)를 제거해 diff 비교의 노이즈를 걷어냄
+    body = _strip_value(_body(result), _payload_of(result or {}))
+    return _strip_dynamic(body, family.get("dynamic_markers") or [])
 
 
 def _analyze_boolean(family: dict) -> list[dict]:
-    base_clean = _clean_body(family.get("baseline"))
+    base_clean = _clean_body(family, family.get("baseline"))
     true_results = []
     false_results = []
     for mutation in family.get("mutations", []):
@@ -108,8 +109,8 @@ def _analyze_boolean(family: dict) -> list[dict]:
             false_results,
             key=lambda f: SequenceMatcher(None, true_payload, _payload_of(f)).ratio(),
         )
-        true_score = SequenceMatcher(None, base_clean, _clean_body(true_result)).ratio()
-        false_score = SequenceMatcher(None, base_clean, _clean_body(false_result)).ratio()
+        true_score = SequenceMatcher(None, base_clean, _clean_body(family, true_result)).ratio()
+        false_score = SequenceMatcher(None, base_clean, _clean_body(family, false_result)).ratio()
 
         # 방향 무관 처리 — AND 패턴은 true≈baseline·false 다름, OR 패턴은 그 반대.
         # 한쪽(hi)이 baseline과 같은 "정상 응답"이고 다른쪽(lo)이 벗어나면 boolean 분기로 본다.
