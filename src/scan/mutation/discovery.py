@@ -98,10 +98,6 @@ def _take_tokens(tokens: list[str], idxs: range) -> str | None:
     return None
 
 
-# baseline 두 응답을 diff해서 달라지는 구간의 "위치"(앞뒤 경계 텍스트)만 추출.
-# 값 자체(예: 타임스탬프 "10:23:04")는 이후 요청마다 또 바뀌므로 저장하지 않고,
-# 그 값을 둘러싼 고정된 앞/뒤 텍스트만 저장해 나중에 어떤 값이 오든 그 자리를 찾아 지울 수 있게 함.
-# 글자 단위로 diff하면 "04"/"09"처럼 숫자 하나만 달라도 일부가 우연히 겹쳐 보이므로, 값 덩어리(토큰) 단위로 비교함.
 def _extract_dynamic_markers(body1: str, body2: str) -> list[tuple[str, str]]:
     tokens1 = _TOKEN_RE.findall(body1)
     tokens2 = _TOKEN_RE.findall(body2)
