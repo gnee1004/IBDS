@@ -3,7 +3,13 @@ from __future__ import annotations
 import unittest
 
 from scan.models import ScanPoint
-from scan.mutation.discovery import detect_injection_context, run_discovery
+from scan.mutation.discovery import (
+    _extract_dynamic_markers,
+    _take_tokens,
+    detect_injection_context,
+    measure_dynamic_markers,
+    run_discovery,
+)
 
 
 class FakeZapCore:  # zap.core.send_request만 흉내내는 최소 stub
@@ -17,6 +23,20 @@ class FakeZapCore:  # zap.core.send_request만 흉내내는 최소 stub
 class FakeZap:
     def __init__(self, response_body: str):
         self.core = FakeZapCore(response_body)
+
+
+class FakeZapCoreSequence:  # 호출할 때마다 순서대로 다른 응답을 주는 stub (baseline 2회 요청 시뮬레이션용)
+    def __init__(self, response_bodies: list[str]):
+        self._bodies = list(response_bodies)
+
+    def send_request(self, request, followredirects=False):
+        body = self._bodies.pop(0)
+        return [{"responseHeader": "HTTP/1.1 200 OK\r\n", "responseBody": body}]
+
+
+class FakeZapSequence:
+    def __init__(self, response_bodies: list[str]):
+        self.core = FakeZapCoreSequence(response_bodies)
 
 
 def _point() -> ScanPoint:
@@ -103,6 +123,56 @@ class DetectInjectionContextTests(unittest.TestCase):
         result = detect_injection_context("<html><body></body></html>", "MARKER")
 
         self.assertIsNone(result)
+
+
+class ExtractDynamicMarkersTests(unittest.TestCase):
+    def test_random_token_marker_generalizes_to_unseen_value(self) -> None:
+        # 흔한 실제 케이스: CSRF 토큰처럼 완전히 랜덤한 값 -> 나중에 전혀 다른 값이 와도 지워져야 함
+        body1 = "Welcome. token=aX92kLq. items: apple"
+        body2 = "Welcome. token=Zp03mWe. items: apple"
+        markers = _extract_dynamic_markers(body1, body2)
+
+        from analyzer.sqli.judge import _strip_dynamic
+
+        later = "Welcome. token=Q7fT1nZ. items: apple"  # 측정 때 못 본 완전히 새로운 값
+        self.assertEqual(_strip_dynamic(later, markers), _strip_dynamic(body1, markers))
+
+    def test_no_diff_returns_no_markers(self) -> None:
+        body = "완전히 동일한 정적 페이지"
+        self.assertEqual(_extract_dynamic_markers(body, body), [])
+
+    def test_short_diff_near_body_edge_is_excluded(self) -> None:
+        # 경계(prefix/suffix)를 채울 토큰이 모자라면 신뢰 불가로 판단해 마커에서 제외되어야 함
+        markers = _extract_dynamic_markers("a", "b")
+        self.assertEqual(markers, [])
+
+
+class TakeTokensTests(unittest.TestCase):
+    def test_collects_forward_until_min_length(self) -> None:
+        tokens = ["ab", "cd", "ef", "gh"]
+        result = _take_tokens(tokens, range(0, len(tokens)))
+        self.assertEqual(result, "abcdef")  # len>=6 채울 때까지 순서대로 이어붙임
+
+    def test_collects_backward_and_restores_order(self) -> None:
+        tokens = ["ab", "cd", "ef", "gh"]
+        result = _take_tokens(tokens, range(3, -1, -1))
+        self.assertEqual(result, "cdefgh")  # 뒤에서부터 모으지만 결과는 원래 순서
+
+    def test_not_enough_tokens_returns_none(self) -> None:
+        tokens = ["a", "b"]
+        self.assertIsNone(_take_tokens(tokens, range(0, len(tokens))))
+
+
+class MeasureDynamicMarkersTests(unittest.TestCase):
+    def test_sends_baseline_twice_and_extracts_markers(self) -> None:
+        zap = FakeZapSequence([
+            "Welcome. token=aX92kLq. items: apple",
+            "Welcome. token=Zp03mWe. items: apple",
+        ])
+
+        markers = measure_dynamic_markers(_point(), _target(), zap)
+
+        self.assertEqual(markers, [("token=", ". items")])
 
 
 if __name__ == "__main__":

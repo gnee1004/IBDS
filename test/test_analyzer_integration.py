@@ -22,7 +22,7 @@ def case(step, payload, body, elapsed=0.1):
     }
 
 
-def family(vuln_type, technique, mutations, baseline_body="normal page", baseline=None):
+def family(vuln_type, technique, mutations, baseline_body="normal page", baseline=None, dynamic_markers=None):
     return {
         "family_id": f"f-{vuln_type}-{technique}",
         "target_id": "t0",
@@ -31,6 +31,7 @@ def family(vuln_type, technique, mutations, baseline_body="normal page", baselin
         "param": "q",
         "baseline": baseline if baseline is not None else case("baseline", None, baseline_body),
         "mutations": mutations,
+        "dynamic_markers": dynamic_markers or [],
     }
 
 
@@ -62,7 +63,26 @@ class AnalyzerIntegrationTest(unittest.TestCase):
                 case("false_attack", "1 AND 1=2", "access denied with different content"),
             ],
         )
-        self.assertEqual(len(analyze_family(item)), 1)
+        findings = analyze_family(item)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["confidence"], "medium")  # injection 스타일 1개뿐이라 재현성 확인 불가 -> suspected
+
+    def test_boolean_sqli_high_confidence_when_multiple_styles_agree(self):
+        # 서로 다른 injection 스타일(숫자식/따옴표식) 둘 다 같은 true/false 분기를 보이면 재현성 확인됨 -> confirmed
+        item = family(
+            "sqli",
+            "boolean_and",
+            [
+                case("true_attack", "1 AND 1=1", "normal page"),
+                case("true_attack", "1' AND '1'='1", "normal page"),
+                case("false_attack", "1 AND 1=2", "access denied with different content"),
+                case("false_attack", "1' AND '1'='2", "access denied with different content"),
+            ],
+        )
+        findings = analyze_family(item)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["confidence"], "high")
+        self.assertIn("2/2", findings[0]["evidence"])
 
     def test_boolean_blind_sqli(self):
         # 정적 페이지에서 exists/MISSING 미세차 + 스타일 페어링('만 통함)으로 blind 탐지
@@ -77,7 +97,9 @@ class AnalyzerIntegrationTest(unittest.TestCase):
             ],
             baseline_body=_BLIND_EXISTS,
         )
-        self.assertEqual(len(analyze_family(item)), 1)
+        findings = analyze_family(item)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["confidence"], "medium")  # ' 스타일 1개만 재현됨(숫자 스타일은 미해석) -> suspected
 
     def test_boolean_or_sqli(self):
         # OR 패턴: true(OR 1=1)가 baseline과 다름(전체 행 반환), false는 baseline과 같음 → 방향 반대여도 탐지
@@ -118,6 +140,40 @@ class AnalyzerIntegrationTest(unittest.TestCase):
             baseline_body="본문 " + tok(0) + " welcome",
         )
         self.assertEqual(len(analyze_family(item)), 0)
+
+    def test_boolean_sqli_missed_without_dynamic_markers(self):
+        # 응답마다 바뀌는 랜덤 값(세션ID 등)이 페이지에서 큰 비중을 차지하면,
+        # dynamic_markers로 제거하지 않는 한 true 응답조차 baseline과 안 비슷해 보여 게이트를 못 넘고 놓친다.
+        mk = lambda tok: f"정상 목록 시작 {tok} 목록 끝 안내문입니다"
+        item = family(
+            "sqli",
+            "boolean_and",
+            [
+                case("true_attack", "1 AND 1=1", mk("TOKB9C8D7E6F5G4H3I2J1K0")),
+                case("false_attack", "1 AND 1=2", "정상 목록 시작 TOKC5D4E3F2G1H0I9J8K7L6 완전히 다른 에러 페이지입니다"),
+            ],
+            baseline_body=mk("TOKA1B2C3D4E5F6G7H8I9J0"),
+        )
+        self.assertEqual(len(analyze_family(item)), 0)
+
+    def test_boolean_sqli_detected_with_dynamic_markers(self):
+        # 위와 완전히 같은 응답들이지만, baseline 2회 probe로 미리 찾아둔 dynamic_markers를 함께 주면
+        # 그 랜덤 값 자리를 비교에서 제외해서 진짜 boolean 분기를 정상적으로 탐지해야 한다.
+        from scan.mutation.discovery import _extract_dynamic_markers
+
+        mk = lambda tok: f"정상 목록 시작 {tok} 목록 끝 안내문입니다"
+        markers = _extract_dynamic_markers(mk("TOKZ9Y8X7W6V5U4T3S2R1Q0"), mk("TOKQ0W1E2R3T4Y5U6I7O8P9"))
+        item = family(
+            "sqli",
+            "boolean_and",
+            [
+                case("true_attack", "1 AND 1=1", mk("TOKB9C8D7E6F5G4H3I2J1K0")),
+                case("false_attack", "1 AND 1=2", "정상 목록 시작 TOKC5D4E3F2G1H0I9J8K7L6 완전히 다른 에러 페이지입니다"),
+            ],
+            baseline_body=mk("TOKA1B2C3D4E5F6G7H8I9J0"),
+            dynamic_markers=markers,
+        )
+        self.assertEqual(len(analyze_family(item)), 1)
 
     def test_union_sqli(self):
         body = "The used SELECT statements have a different number of columns"

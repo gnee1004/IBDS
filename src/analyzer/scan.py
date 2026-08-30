@@ -7,7 +7,14 @@ from datetime import datetime
 from difflib import SequenceMatcher
 
 from utilities.file_utils import save_json
-from .sqli.judge import judge_error_based_sqli, judge_time_based_sqli, judge_union_sqli, _strip_dynamic, _strip_value
+from .sqli.judge import (
+    MIN_REPEAT_CONFIRM,
+    judge_error_based_sqli,
+    judge_time_based_sqli,
+    judge_union_sqli,
+    _strip_dynamic,
+    _strip_value,
+)
 from .xss.judge import judge_xss
 
 # Boolean 판정 문턱
@@ -99,9 +106,10 @@ def _analyze_boolean(family: dict) -> list[dict]:
     if not base_clean or not true_results or not false_results:
         return []
 
-    best = None
-    best_gap = 0.0
-    best_scores = (0.0, 0.0)
+    # 서로 다른 injection 스타일(예: '1'='1' 방식 vs 1=1 방식)마다 게이트+문턱을 각각 통과하는지 확인.
+    # 하나만 통과하면 노이즈로 우연히 걸렸을 수 있으니, 여러 스타일에서 독립적으로 재현돼야 확신도를 높게 줌
+    # (time-based SQLi의 MIN_REPEAT_CONFIRM 재현성 검증과 동일한 발상).
+    hits: list[tuple[dict, float, float, float]] = []  # (true_result, gap, true_score, false_score)
     for true_result in true_results:
         # 같은 주입 스타일의 false 짝 찾기 — payload 문자열이 가장 유사한 것 (1=1 ↔ 1=2 차이만)
         true_payload = _payload_of(true_result)
@@ -125,18 +133,22 @@ def _analyze_boolean(family: dict) -> list[dict]:
         noise = 1.0 - hi
         threshold = hi - max(noise, _STATIC_EPS)
         gap = hi - lo
-        if lo < threshold and gap > best_gap:
-            best = true_result
-            best_gap = gap
-            best_scores = (true_score, false_score)
+        if lo < threshold:
+            hits.append((true_result, gap, true_score, false_score))
 
-    if best is None:
+    if not hits:
         return []
+
+    best_result, best_gap, best_true_score, best_false_score = max(hits, key=lambda h: h[1])
+    confirmed = len(hits) >= MIN_REPEAT_CONFIRM
+    confidence = "high" if confirmed else "medium"
+    status = "confirmed" if confirmed else "suspected, 재현성 부족 - 추가 검증 필요"
     evidence = (
-        f"Boolean SQLi: true/false 응답 분기 (true={best_scores[0]:.3f}, "
-        f"false={best_scores[1]:.3f}, gap={best_gap:.3f})"
+        f"Boolean SQLi ({status}): true/false 응답 분기, "
+        f"{len(hits)}/{len(true_results)}개 injection 스타일에서 재현 "
+        f"(true={best_true_score:.3f}, false={best_false_score:.3f}, gap={best_gap:.3f})"
     )
-    return [_finding(family, best, "high", evidence)]
+    return [_finding(family, best_result, confidence, evidence)]
 
 
 def _analyze_sqli(family: dict) -> list[dict]:
