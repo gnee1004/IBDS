@@ -76,4 +76,4 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
 class DiscoveryResult:  # XSS family 생성 전 Discovery 단계의 결과
     reflected: bool                        # marker 문자열이 응답에 그대로 반사되는지
     valid_specials: set[str]               # 반사 지점에서 이스케이프 없이 살아남은 특수문자 집합
-    injection_context: str | None = None   # inHTML/inAttr/inScript 판정 — 이번 범위에서는 항상 None (TODO)
+    injection_context: str | None = None   # marker 반사 위치의 HTML 컨텍스트 (inHTML/inAttr/inAttrUrl/inScript), 억제 컨텍스트·미탐지 시 None
