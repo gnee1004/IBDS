@@ -45,6 +45,7 @@ class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대
     baseline: MutationCase        # 원본 요청 — 응답 비교 기준점
     mutations: list[MutationCase] # payload 교체된 요청 목록
     dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # boolean SQLi 판정용 — (prefix, suffix) 형태로 이 타겟이 원래 흔들리는 자리를 표시
+    baseline_match_ratio: float | None = None  # baseline 2회 요청의 유사도 — 이 타겟의 "정상 기준점" (sqlmap의 matchRatio와 동일한 발상)
 
 
 @dataclass
@@ -70,6 +71,7 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     baseline: CaseResult          # baseline 전송 결과
     mutations: list[CaseResult]   # mutation 전송 결과 목록
     dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # RequestFamily에서 그대로 전달됨
+    baseline_match_ratio: float | None = None  # RequestFamily에서 그대로 전달됨
 
 
 @dataclass

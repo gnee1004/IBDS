@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
 
+from scan.match.matcher import CANARY_PREFIX
 from utilities.file_utils import save_json
 from .sqli.judge import (
     MIN_REPEAT_CONFIRM,
@@ -17,8 +19,11 @@ from .sqli.judge import (
 )
 from .xss.judge import judge_xss
 
+_CANARY_RE = re.compile(rf"{CANARY_PREFIX}[0-9a-f]{{8}}")
+
 # Boolean 판정 문턱
-_TRUE_GATE = 0.85    # true 응답이 baseline과 최소 이만큼 유사해야 "주입이 참으로 해석됨" (AND-true 게이트)
+_TRUE_GATE = 0.85    # baseline_match_ratio가 없을 때(구버전 데이터 등)의 폴백 절대 게이트
+_GATE_MARGIN = 0.05  # baseline_match_ratio가 있으면, 그 타겟의 실측 기준점에서 이만큼까지만 봐줌 (sqlmap의 DIFF_TOLERANCE와 동일한 발상)
 _STATIC_EPS = 0.002  # 정적 페이지에서 false를 "다르다"고 볼 최소 차이 (blind SQLi 대응)
 
 
@@ -106,6 +111,12 @@ def _analyze_boolean(family: dict) -> list[dict]:
     if not base_clean or not true_results or not false_results:
         return []
 
+    # baseline_match_ratio(이 타겟에서 baseline을 2번 보내봤을 때 실측된 유사도)가 있으면 그걸 기준점으로,
+    # 없으면(구버전 데이터 등) 고정 절대값(_TRUE_GATE)으로 폴백 — 타겟마다 원래 흔들리는 정도가 다른데
+    # 모든 타겟에 똑같은 절대 기준을 강제하지 않기 위함 (sqlmap의 matchRatio + DIFF_TOLERANCE와 동일한 발상)
+    baseline_match_ratio = family.get("baseline_match_ratio")
+    true_gate = max(0.0, baseline_match_ratio - _GATE_MARGIN) if baseline_match_ratio is not None else _TRUE_GATE
+
     # 서로 다른 injection 스타일(예: '1'='1' 방식 vs 1=1 방식)마다 게이트+문턱을 각각 통과하는지 확인.
     # 하나만 통과하면 노이즈로 우연히 걸렸을 수 있으니, 여러 스타일에서 독립적으로 재현돼야 확신도를 높게 줌
     # (time-based SQLi의 MIN_REPEAT_CONFIRM 재현성 검증과 동일한 발상).
@@ -120,16 +131,14 @@ def _analyze_boolean(family: dict) -> list[dict]:
         true_score = SequenceMatcher(None, base_clean, _clean_body(family, true_result)).ratio()
         false_score = SequenceMatcher(None, base_clean, _clean_body(family, false_result)).ratio()
 
-        # 방향 무관 처리 — AND 패턴은 true≈baseline·false 다름, OR 패턴은 그 반대.
-        # 한쪽(hi)이 baseline과 같은 "정상 응답"이고 다른쪽(lo)이 벗어나면 boolean 분기로 본다.
+
         hi = max(true_score, false_score)
         lo = min(true_score, false_score)
 
-        # (1) 게이트: 한 쪽은 baseline과 충분히 같아야 주입이 SQL 논리로 해석된 것 → 아니면 안전
-        if hi < _TRUE_GATE:
+        # (1) 게이트
+        if hi < true_gate:
             continue
-        # (2) noise-aware 문턱: 정상 쪽이 baseline에서 벗어난 만큼(=페이지 노이즈)만 허용.
-        #     정적 페이지(노이즈≈0)에선 아주 작은 차이도 유의미(_STATIC_EPS) → blind SQLi 커버
+        # (2) noise-aware 문턱
         noise = 1.0 - hi
         threshold = hi - max(noise, _STATIC_EPS)
         gap = hi - lo
@@ -169,13 +178,28 @@ def _analyze_sqli(family: dict) -> list[dict]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
         return []
 
-    # union → 컬럼 수 불일치 에러, 그 외(error_meta·order_by 등) → DB 에러 시그니처로 판정.
-    # order_by 는 "ORDER BY {큰수}" 가 Unknown column 에러를 유발하므로 error 판정기로 낙하한다.
-    judge = judge_union_sqli if technique == "union" else judge_error_based_sqli
     for mutation in mutations:
-        verdict = judge(baseline_body, _body(mutation))
-        if verdict.vulnerable:
-            return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
+        payload = _payload_of(mutation)
+        canary_match = _CANARY_RE.search(payload)
+        if not canary_match:
+            continue
+        canary = canary_match.group(0)
+        body = _body(mutation)
+        # strip() 비교 — 저장형 필드가 앞뒤 공백만 트리밍한 채 그대로 반사하는 경우까지 echo로 잡아내기 위함
+        if canary in body and canary not in baseline_body and payload.strip() not in body:
+            kind = "UNION" if technique == "union" else "Error"
+            evidence = f"{kind}-based SQLi (canary 확인): 주입한 고유 문자열 '{canary}'이 응답에 그대로 반사됨"
+            return [_finding(family, mutation, "high", evidence)]
+
+
+    bodies = {_body(m) for m in mutations}
+    if len(mutations) <= 1 or len(bodies) > 1:
+
+        judge = judge_union_sqli if technique == "union" else judge_error_based_sqli
+        for mutation in mutations:
+            verdict = judge(baseline_body, _body(mutation))
+            if verdict.vulnerable:
+                return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
     return []
 
 

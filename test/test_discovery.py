@@ -170,9 +170,10 @@ class MeasureDynamicMarkersTests(unittest.TestCase):
             "Welcome. token=Zp03mWe. items: apple",
         ])
 
-        markers = measure_dynamic_markers(_point(), _target(), zap)
+        markers, match_ratio = measure_dynamic_markers(_point(), _target(), zap)
 
         self.assertEqual(markers, [("token=", ". items")])
+        self.assertAlmostEqual(match_ratio, 0.8055555555555556)
 
 
 if __name__ == "__main__":

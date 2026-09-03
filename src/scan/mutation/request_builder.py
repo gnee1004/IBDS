@@ -28,6 +28,7 @@ def build_families_for_point(
     rules: list[AttackRule],
     payload_filter: Callable[[str], bool] | None = None,
     dynamic_markers: list[tuple[str, str]] | None = None,
+    baseline_match_ratio: float | None = None,
 ) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
@@ -70,6 +71,7 @@ def build_families_for_point(
             baseline=baseline,
             mutations=mutations,
             dynamic_markers=dynamic_markers or [],
+            baseline_match_ratio=baseline_match_ratio,
         ))
 
     return families
@@ -137,10 +139,15 @@ def generate_stored_xss_families(sp: ScanPoint, target: dict) -> list[RequestFam
 
 # SQLi
 def generate_sqli_families(
-    sp: ScanPoint, target: dict, dynamic_markers: list[tuple[str, str]] | None = None,
+    sp: ScanPoint,
+    target: dict,
+    dynamic_markers: list[tuple[str, str]] | None = None,
+    baseline_match_ratio: float | None = None,
 ) -> list[RequestFamily]:
     rules = [r for r in get_rules() if r.vuln_type == "sqli"]
-    return build_families_for_point(sp, target, rules, dynamic_markers=dynamic_markers)
+    return build_families_for_point(
+        sp, target, rules, dynamic_markers=dynamic_markers, baseline_match_ratio=baseline_match_ratio,
+    )
 
 
 if __name__ == "__main__":

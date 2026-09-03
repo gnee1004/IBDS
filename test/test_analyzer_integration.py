@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from analyzer.scan import analyze_family, analyze_results
+from analyzer.sqli.judge import _strip_value
 
 
 def case(step, payload, body, elapsed=0.1):
@@ -141,6 +142,16 @@ class AnalyzerIntegrationTest(unittest.TestCase):
         )
         self.assertEqual(len(analyze_family(item)), 0)
 
+    def test_strip_value_ignores_short_payload(self):
+        # original_value=""면 "{value}%" 같은 템플릿이 "%" 한 글자만 남는데,
+        # 그런 짧은 값을 페이지 전체에서 무차별로 지우면 "50% 할인" 같은 무관한 콘텐츠까지 훼손됨 -> 이제 무시해야 함
+        body = "오늘의 특가: 50% 할인 안내"
+        self.assertEqual(_strip_value(body, "%"), body)
+
+    def test_strip_value_still_strips_normal_length_payload(self):
+        body = "결과: 1 AND 1=1 -- 이(가) 반사됨"
+        self.assertNotIn("1 AND 1=1 -- ", _strip_value(body, "1 AND 1=1 -- "))
+
     def test_boolean_sqli_missed_without_dynamic_markers(self):
         # 응답마다 바뀌는 랜덤 값(세션ID 등)이 페이지에서 큰 비중을 차지하면,
         # dynamic_markers로 제거하지 않는 한 true 응답조차 baseline과 안 비슷해 보여 게이트를 못 넘고 놓친다.
@@ -174,6 +185,79 @@ class AnalyzerIntegrationTest(unittest.TestCase):
             dynamic_markers=markers,
         )
         self.assertEqual(len(analyze_family(item)), 1)
+
+    def test_error_based_canary_reflected_is_high_confidence(self):
+        # extractvalue 등으로 심어둔 고유 문자열이 에러 메시지에 그대로 반사되면 즉시 고신뢰로 확정
+        canary = "IBDSa1b2c3d4"
+        item = family(
+            "sqli",
+            "error_meta",
+            [
+                case("attack", "1'", "normal page"),
+                case("attack", f"1' AND extractvalue(1,concat(0x7e,'{canary}')) -- ",
+                     f"XPATH syntax error: '~{canary}'"),
+            ],
+        )
+        findings = analyze_family(item)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["confidence"], "high")
+        self.assertIn(canary, findings[0]["evidence"])
+
+    def test_error_based_generic_fallback_page_is_not_false_positive(self):
+        # instructions.php 실전 오탐 재현: doc 파라미터가 깨지면 canary와 무관하게
+        # DB 에러 키워드(mysqli_)를 우연히 담은 "동일한" 도움말 페이지로 폴백함.
+        # canary는 반사 안 되고, 모든 mutation 응답이 완전히 동일 -> 오탐 없어야 함.
+        canary = "IBDSdeadbeef"
+        fallback_page = "도움말: 에러 예시로 mysqli_sql_exception 같은 게 있습니다"
+        item = family(
+            "sqli",
+            "error_meta",
+            [
+                case("attack", "PDF'", fallback_page),
+                case("attack", "PDF;", fallback_page),
+                case("attack", f"PDF' AND extractvalue(1,concat(0x7e,'{canary}')) -- ", fallback_page),
+            ],
+        )
+        self.assertEqual(len(analyze_family(item)), 0)
+
+    def test_error_based_canary_not_trusted_when_whole_payload_is_echoed(self):
+        # xss_r류 실전 오탐 재현: 페이지가 payload를 SQL 처리 없이 그대로 반사(echo)하면
+        # canary도 그냥 딸려서 반사될 뿐 -> payload 원문이 그대로 남아있으면 신뢰하면 안 됨
+        canary = "IBDS12345678"
+        payload = f"ZAP' AND extractvalue(1,concat(0x7e,'{canary}')) -- "
+        item = family(
+            "sqli",
+            "error_meta",
+            [case("attack", payload, f"Hello {payload}")],
+        )
+        self.assertEqual(len(analyze_family(item)), 0)
+
+    def test_error_based_canary_not_trusted_when_payload_echoed_with_trimmed_whitespace(self):
+        # 실전 오탐 재현: 저장형 필드(guestbook 등)가 payload를 저장할 때 끝 공백만 트리밍해서
+        # 그대로 반사함 -> exact match로는 못 걸러지므로 strip() 비교로 잡아내야 함
+        canary = "IBDS87654321"
+        payload = f"ZAP' AND extractvalue(1,concat(0x7e,'{canary}')) -- "  # 끝에 공백 있음
+        stored_body = f"Name: ZAP' AND extractvalue(1,concat(0x7e,'{canary}')) --<br />"  # 끝 공백 트리밍됨
+        item = family(
+            "sqli",
+            "error_meta",
+            [case("attack", payload, stored_body)],
+        )
+        self.assertEqual(len(analyze_family(item)), 0)
+
+    def test_error_based_varying_responses_still_detected_without_canary(self):
+        # canary가 안 통해도(WAF 등으로), payload마다 응답이 달라지는 진짜 DB 에러는 기존처럼 키워드로 탐지돼야 함
+        item = family(
+            "sqli",
+            "error_meta",
+            [
+                case("attack", "1'", "You have an error in your SQL syntax near '1''"),
+                case("attack", "1;", "You have an error in your SQL syntax near '1;'"),
+            ],
+        )
+        findings = analyze_family(item)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["confidence"], "high")
 
     def test_union_sqli(self):
         body = "The used SELECT statements have a different number of columns"

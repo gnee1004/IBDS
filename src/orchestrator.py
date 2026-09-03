@@ -4,7 +4,7 @@ ver2 오케스트레이터.
 
 import json
 import os
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from collector.main_collector import run_collection
 from scan.match.rules_builder import get_rules
@@ -28,9 +28,9 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap) -> list[RequestFamily]:
         families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
         families.extend(generate_stored_xss_families(sp, target))
 
-    # SQLi boolean 판정용 — 이 ScanPoint가 원래 흔들리는 자리를 baseline 2회 요청으로 실측 (family마다 X, ScanPoint당 1회)
-    dynamic_markers = measure_dynamic_markers(sp, target, zap)
-    families.extend(generate_sqli_families(sp, target, dynamic_markers))  # SQLi는 string/number 공통 대상, value_type 제한 없음
+    # SQLi boolean 판정용 — 이 ScanPoint가 원래 흔들리는 자리 + baseline 2회 요청의 유사도(이 타겟의 정상 기준점)를 실측 (family마다 X, ScanPoint당 1회)
+    dynamic_markers, baseline_match_ratio = measure_dynamic_markers(sp, target, zap)
+    families.extend(generate_sqli_families(sp, target, dynamic_markers, baseline_match_ratio))  # SQLi는 string/number 공통 대상, value_type 제한 없음
 
     return families
 
@@ -65,9 +65,34 @@ def run_pipeline() -> str:
                 print(f"[ERROR] ScanPoint 라우팅 실패: target={sp.target_id} param={sp.name} - {e}")
                 continue
 
+            # 같은 ScanPoint의 모든 family는 baseline이 완전히 동일한 요청(같은 target/location, payload 없음)이므로
+            # ScanPoint당 한 번만 실제로 보내고, 각 family는 자기 case_id를 붙인 채로 그 결과를 재사용.
+            baseline_result: CaseResult | None = None
+            if families:
+                baseline_case = families[0].baseline
+                try:
+                    sent = requester.send(baseline_case, zap)
+                except Exception as e:  # baseline 요청 실패는 이 ScanPoint의 모든 family에 동일하게 반영
+                    baseline_result = CaseResult(case=baseline_case, status="error", error=str(e))
+                    print(f"[ERROR] baseline 요청 실패: target={sp.target_id} param={sp.name} - {e}")
+                else:
+                    baseline_result = CaseResult(
+                        case=baseline_case, status="ok",
+                        response_status=sent["response_status"],
+                        response_headers=sent["response_headers"],
+                        response_body=sent["response_body"],
+                        elapsed=sent["elapsed"],
+                        effective_cookies=sent["effective_cookies"],
+                    )
+
             for family in families:
-                case_results: list[CaseResult] = []
-                for case in [family.baseline, *family.mutations]: # 각 패밀리마다 원형 -> 변형 순서로 순회하고 요청 전송.
+                assert baseline_result is not None  # families가 비어있지 않으면 위에서 반드시 채워짐
+                # baseline 슬롯은 위에서 미리 보낸 결과를 family 고유 case_id로만 갈아끼워 재사용 (재요청 없음)
+                case_results: list[CaseResult] = [replace(baseline_result, case=family.baseline)]
+                if case_results[0].status == "error":
+                    fail_count += 1
+
+                for case in family.mutations: # 원형 -> 변형 순서로 순회하고 요청 전송.
                     try:
                         sent = requester.send(case, zap)
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
@@ -91,6 +116,7 @@ def run_pipeline() -> str:
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
                     dynamic_markers=family.dynamic_markers,
+                    baseline_match_ratio=family.baseline_match_ratio,
                 )
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)

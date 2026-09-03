@@ -113,13 +113,17 @@ def _extract_dynamic_markers(body1: str, body2: str) -> list[tuple[str, str]]:
     return list(markers)
 
 
-# 같은 baseline을 두 번 보내 응답을 비교, 이 타겟이 원래 갖고 있는 "흔들리는 자리"를 찾음 (ScanPoint당 1회)
-def measure_dynamic_markers(sp: ScanPoint, target: dict, zap) -> list[tuple[str, str]]:
+# 같은 baseline을 두 번 보내 응답을 비교, 이 타겟이 원래 갖고 있는 "흔들리는 자리"를 찾음 (ScanPoint당 1회).
+# 두 응답의 전체 유사도(match_ratio)도 같이 반환 — "완전히 같은 요청인데도 원래 이만큼은 달라 보인다"는
+# 이 타겟만의 기준점(sqlmap의 matchRatio와 동일한 발상)이 되어, boolean 판정의 고정 절대 임계값을 대체함.
+def measure_dynamic_markers(sp: ScanPoint, target: dict, zap) -> tuple[list[tuple[str, str]], float]:
     case1 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.name}_noise1")
     case2 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.name}_noise2")
     body1 = requester.send(case1, zap).get("response_body") or ""
     body2 = requester.send(case2, zap).get("response_body") or ""
-    return _extract_dynamic_markers(body1, body2)
+    markers = _extract_dynamic_markers(body1, body2)
+    match_ratio = SequenceMatcher(None, body1, body2).ratio()
+    return markers, match_ratio
 
 
 # 반사 확인 -> 반사 안 되면 특수문자 probe 생략 -> DiscoveryResult
