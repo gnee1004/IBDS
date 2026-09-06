@@ -8,7 +8,7 @@ from dataclasses import asdict
 
 from collector.main_collector import run_collection
 from scan.match.rules_builder import get_rules
-from scan.mutation.discovery import run_discovery
+from scan.mutation.discovery import measure_dynamic_markers, run_discovery
 from scan.mutation.request_builder import generate_sqli_families, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
 from scan.requester import requester
@@ -28,7 +28,9 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap) -> list[RequestFamily]:
         families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
         families.extend(generate_stored_xss_families(sp, target))
 
-    families.extend(generate_sqli_families(sp, target))  # SQLi는 string/number 공통 대상, value_type 제한 없음
+    # SQLi boolean 판정용 — 이 ScanPoint가 원래 흔들리는 자리를 baseline 2회 요청으로 실측 (family마다 X, ScanPoint당 1회)
+    dynamic_markers = measure_dynamic_markers(sp, target, zap)
+    families.extend(generate_sqli_families(sp, target, dynamic_markers))  # SQLi는 string/number 공통 대상, value_type 제한 없음
 
     return families
 
@@ -88,6 +90,7 @@ def run_pipeline() -> str:
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
+                    dynamic_markers=family.dynamic_markers,
                 )
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)
@@ -107,15 +110,7 @@ def run_pipeline() -> str:
                         finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
-                        print(f"[ERROR] SQLi 판정 실패: family={family.family_id} - {e}")
-                else:
-                    for case, case_result in zip(family.mutations, case_results[1:]): # baseline은 비교 기준. 그 자체를 판정하지 않음
-                        try:
-                            finding = family_pipeline.judge_case_live(family, case_result, headless) # json대신 객체형태로
-                            append_jsonl(findings_path, asdict(finding))
-                        except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
-                            print(f"[ERROR] 판정 실패: family={family.family_id} case={case.case_id} - {e}")
-                            continue
+                        print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")
 
         print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
         print(f"[RUN] findings.jsonl -> {findings_path}")
