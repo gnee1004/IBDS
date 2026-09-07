@@ -30,19 +30,22 @@ def build_scan_points(targets: list[dict]) -> list[ScanPoint]:
     for idx, target in enumerate(targets):
         target_id = f"t{idx}"
         params = target.get("params") or {}
-        scannable = set(target.get("scannable_params") or params.keys())
+        raw_scannable = target.get("scannable_params")
+        scannable = set(params.keys() if raw_scannable is None else raw_scannable)
         location = _normalize_location(target.get("param_location", "query"))
 
-        for name, value in params.items():
+        for name, values in params.items():
             if name not in scannable:
                 continue
 
-            scan_points.append(ScanPoint(
-                target_id=target_id,
-                name=name,
-                location=location,
-                original_value=str(value),
-                value_type="number" if _is_numeric(value) else "string",
-            ))
+            for idx, value in enumerate(values):
+                scan_points.append(ScanPoint(
+                    target_id=target_id,
+                    name=name,
+                    location=location,
+                    original_value=str(value),
+                    value_type="number" if _is_numeric(value) else "string",
+                    value_index=idx,
+                ))
 
     return scan_points

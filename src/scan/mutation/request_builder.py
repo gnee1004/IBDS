@@ -33,7 +33,7 @@ def build_families_for_point(
     families: list[RequestFamily] = []
 
     for matched in match_and_render(sp, rules):
-        family_id = f"{sp.target_id}_{sp.name}_{matched.attack_id}"
+        family_id = f"{sp.target_id}_{sp.tag}_{matched.attack_id}"
         baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
         is_dom = matched.technique == _DOM_TECHNIQUE
 
@@ -49,7 +49,7 @@ def build_families_for_point(
                 case = build_mutation_case(
                     target, sp.location, sp.name, sp.original_value,
                     payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
-                    inject_fragment=is_dom,
+                    value_index=sp.value_index, inject_fragment=is_dom,
                 )
                 key = (case.url, case.body)
                 if key in seen_cases:
@@ -104,11 +104,14 @@ def _required_specials(payload: str) -> set[str]:
 
 
 # injection_context -> 유효한 technique 집합 매핑 (dom은 context 무관하게 항상 포함)
+# "suppressed"는 명시적으로 빈 집합 -> dom 외 모든 technique 억제
 _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
-    "inHTML":    {"body", "html_comment", "filter_bypass", "template", "json", "css"},
-    "inAttr":    {"attr_value", "attr_event"},
-    "inAttrUrl": {"attr_href"},
-    "inScript":  {"script", "script_raw", "attr_event"},
+    "inHTML":     {"body", "html_comment", "filter_bypass", "template", "json", "css"},
+    "inAttr":     {"attr_value", "attr_event"},
+    "inAttrUrl":  {"attr_href"},
+    "inScript":   {"script", "script_raw", "attr_event"},
+    "inRawText":  {"raw_text_escape"},
+    "suppressed": set(),
 }
 
 

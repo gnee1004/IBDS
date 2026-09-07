@@ -22,10 +22,9 @@ from .xss.judge import judge_xss
 _CANARY_RE = re.compile(rf"{CANARY_PREFIX}[0-9a-f]{{8}}")
 
 # Boolean 판정 문턱
-_TRUE_GATE = 0.85    # baseline_match_ratio가 없을 때(구버전 데이터 등)의 폴백 절대 게이트
-_GATE_MARGIN = 0.05  # baseline_match_ratio가 있으면, 그 타겟의 실측 기준점에서 이만큼까지만 봐줌 (sqlmap의 DIFF_TOLERANCE와 동일한 발상)
-_STATIC_EPS = 0.002  # 정적 페이지에서 false를 "다르다"고 볼 최소 차이 (blind SQLi 대응)
-
+_TRUE_GATE = 0.85   
+_GATE_MARGIN = 0.05 
+_STATIC_EPS = 0.002  
 
 def _load_results(results_path: str) -> list[dict]:
     families = []
@@ -111,15 +110,11 @@ def _analyze_boolean(family: dict) -> list[dict]:
     if not base_clean or not true_results or not false_results:
         return []
 
-    # baseline_match_ratio(이 타겟에서 baseline을 2번 보내봤을 때 실측된 유사도)가 있으면 그걸 기준점으로,
-    # 없으면(구버전 데이터 등) 고정 절대값(_TRUE_GATE)으로 폴백 — 타겟마다 원래 흔들리는 정도가 다른데
-    # 모든 타겟에 똑같은 절대 기준을 강제하지 않기 위함 (sqlmap의 matchRatio + DIFF_TOLERANCE와 동일한 발상)
+
     baseline_match_ratio = family.get("baseline_match_ratio")
     true_gate = max(0.0, baseline_match_ratio - _GATE_MARGIN) if baseline_match_ratio is not None else _TRUE_GATE
 
-    # 서로 다른 injection 스타일(예: '1'='1' 방식 vs 1=1 방식)마다 게이트+문턱을 각각 통과하는지 확인.
-    # 하나만 통과하면 노이즈로 우연히 걸렸을 수 있으니, 여러 스타일에서 독립적으로 재현돼야 확신도를 높게 줌
-    # (time-based SQLi의 MIN_REPEAT_CONFIRM 재현성 검증과 동일한 발상).
+
     hits: list[tuple[dict, float, float, float]] = []  # (true_result, gap, true_score, false_score)
     for true_result in true_results:
         # 같은 주입 스타일의 false 짝 찾기 — payload 문자열이 가장 유사한 것 (1=1 ↔ 1=2 차이만)

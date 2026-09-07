@@ -9,6 +9,11 @@ class ScanPoint:  # RequestTarget에서 공격 대상 파라미터를 하나씩 
     location: str        # 파라미터 위치 ("query", "form", "json")
     original_value: str  # 파라미터 원본값 — payload 템플릿의 {value} 자리에 들어감
     value_type: str      # 값 타입 ("string" or "number") — 2번이 룰 매칭 시 사용
+    value_index: int = 0  # 같은 이름의 파라미터가 여러 개(다중값)일 때 몇 번째 occurrence인지 (0부터)
+
+    @property
+    def tag(self) -> str:
+        return f"{self.name}__occ{self.value_index}"
 
 
 @dataclass
@@ -78,4 +83,4 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
 class DiscoveryResult:  # XSS family 생성 전 Discovery 단계의 결과
     reflected: bool                        # marker 문자열이 응답에 그대로 반사되는지
     valid_specials: set[str]               # 반사 지점에서 이스케이프 없이 살아남은 특수문자 집합
-    injection_context: str | None = None   # inHTML/inAttr/inScript 판정 — 이번 범위에서는 항상 None (TODO)
+    injection_context: str | None = None

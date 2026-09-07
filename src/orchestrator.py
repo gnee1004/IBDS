@@ -2,9 +2,15 @@
 ver2 오케스트레이터.
 """
 
+import io
 import json
 import os
+import sys
 from dataclasses import asdict, replace
+
+for _stream in (sys.stdout, sys.stderr):
+    if isinstance(_stream, io.TextIOWrapper):
+        _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 from collector.main_collector import run_collection
 from scan.match.rules_builder import get_rules
