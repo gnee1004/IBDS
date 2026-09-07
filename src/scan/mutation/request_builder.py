@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 from scan.match.matcher import AttackRule, match_and_render
 from scan.match.rules_builder import get_rules
@@ -125,6 +126,18 @@ def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResul
         sp, target, rules,
         payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
     )
+
+
+# Phase 1 프로브가 마커 반사를 확인할 URL 결정
+# 우선순위: 명시된 revisit_url → 동일 호스트 referer → base_url → url
+def resolve_revisit_url(target: dict) -> str:
+    if explicit := target.get("revisit_url"):
+        return explicit
+    target_host = urlparse(target.get("url", "")).netloc
+    referer = target.get("headers", {}).get("referer", "")
+    if referer and urlparse(referer).netloc == target_host:
+        return referer
+    return target.get("base_url") or target.get("url", "")
 
 
 # Stored XSS — Discovery 없이, form(POST) 파라미터에만, PL-XSS-STORED 룰만 적용
