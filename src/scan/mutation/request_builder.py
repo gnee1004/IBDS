@@ -4,10 +4,12 @@ import json
 from pathlib import Path
 from typing import Callable
 from typing import Callable
+from urllib.parse import urlparse
 
 from scan.match.matcher import AttackRule, match_and_render
 from scan.match.rules_builder import get_rules
 from ..models import DiscoveryResult, RequestFamily, ScanPoint
+from .discovery import _CANDIDATE_SPECIALS
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case, build_stored_verify_case
 
@@ -28,6 +30,7 @@ def build_families_for_point(
     target: dict,
     rules: list[AttackRule],
     payload_filter: Callable[[str], bool] | None = None,
+    dynamic_markers: list[tuple[str, str]] | None = None,
 ) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
@@ -69,6 +72,7 @@ def build_families_for_point(
             technique=matched.technique,
             baseline=baseline,
             mutations=mutations,
+            dynamic_markers=dynamic_markers or [],
         ))
 
     return families
@@ -145,33 +149,63 @@ def generate_families(
     return families
 
 
-# discovery.py의 _CANDIDATE_SPECIALS와 반드시 같은 집합을 유지해야 함 — 한 쪽만 수정 시 issubset 비교가 어긋남
-_SPECIAL_CHARS_WATCHLIST = ["<", ">", '"', "'", "=", "(", ")", "/", "\\", "`"]
-
-
 # payload 문자열에 실제로 등장하는 특수문자 집합 — 이 payload가 살아남으려면 필요한 최소 조건
 def _required_specials(payload: str) -> set[str]:
-    return {ch for ch in _SPECIAL_CHARS_WATCHLIST if ch in payload}
+    return {ch for ch in _CANDIDATE_SPECIALS if ch in payload}
 
 
-# reflected XSS 전용 family 생성 — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
+# injection_context -> 유효한 technique 집합 매핑 (dom은 context 무관하게 항상 포함)
+_CONTEXT_TECHNIQUES: dict[str, set[str]] = {
+    "inHTML":    {"body", "html_comment", "filter_bypass", "template", "json", "css"},
+    "inAttr":    {"attr_value", "attr_event"},
+    "inAttrUrl": {"attr_href"},
+    "inScript":  {"script", "script_raw", "attr_event"},
+}
+
+
+# reflected XSS — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     if not discovery.reflected:
         return []  # 반사 자체가 안 되면 XSS family를 만들 이유가 없음
 
     rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique != "stored"]
+
+    if discovery.injection_context is not None:
+        valid = _CONTEXT_TECHNIQUES.get(discovery.injection_context, set())
+        rules = [r for r in rules if r.technique == "dom" or r.technique in valid]
+
     return build_families_for_point(
         sp, target, rules,
         payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
     )
 
 
-# Stored XSS 전용 family 생성 — Discovery 없이, form(POST) 파라미터에만, PL-XSS-STORED 룰만 적용
+# Phase 1 프로브가 마커 반사를 확인할 URL 결정
+# 우선순위: 명시된 revisit_url → 동일 호스트 referer → base_url → url
+def resolve_revisit_url(target: dict) -> str:
+    if explicit := target.get("revisit_url"):
+        return explicit
+    target_host = urlparse(target.get("url", "")).netloc
+    referer = target.get("headers", {}).get("referer", "")
+    if referer and urlparse(referer).netloc == target_host:
+        return referer
+    return target.get("base_url") or target.get("url", "")
+
+
+# Stored XSS — Discovery 없이, form(POST) 파라미터에만, PL-XSS-STORED 룰만 적용
 def generate_stored_xss_families(sp: ScanPoint, target: dict) -> list[RequestFamily]:
     if sp.location != "form":
         return []
     rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == "stored"]
     return build_families_for_point(sp, target, rules)
+
+
+# SQLi
+def generate_sqli_families(
+    sp: ScanPoint, target: dict, dynamic_markers: list[tuple[str, str]] | None = None,
+) -> list[RequestFamily]:
+    rules = [r for r in get_rules() if r.vuln_type == "sqli"]
+    return build_families_for_point(sp, target, rules, dynamic_markers=dynamic_markers)
 
 
 if __name__ == "__main__":

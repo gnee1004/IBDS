@@ -231,7 +231,7 @@ def run(results_path: str, headless: HeadlessSession | None = None) -> str:
 
                 for case_result in family["mutations"]:
                     try:  # 개별 case 판정 실패는 로그만 남기고 계속 진행
-                        finding = _judge_case(family, case_result, headless)
+                        finding = judge_case(family, case_result, headless)
                     except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family['family_id']} case={case_result.get('case', {}).get('case_id')} - {e}")
                         continue

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -44,6 +44,7 @@ class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대
     technique: str                # 공격 기법
     baseline: MutationCase        # 원본 요청 — 응답 비교 기준점
     mutations: list[MutationCase] # payload 교체된 요청 목록
+    dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # boolean SQLi 판정용 — (prefix, suffix) 형태로 이 타겟이 원래 흔들리는 자리를 표시
 
 
 @dataclass
@@ -68,10 +69,19 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     attack_id: str                # 적용된 룰 식별자
     baseline: CaseResult          # baseline 전송 결과
     mutations: list[CaseResult]   # mutation 전송 결과 목록
+    dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # RequestFamily에서 그대로 전달됨
 
 
 @dataclass
 class DiscoveryResult:  # XSS family 생성 전 Discovery 단계의 결과
     reflected: bool                        # marker 문자열이 응답에 그대로 반사되는지
     valid_specials: set[str]               # 반사 지점에서 이스케이프 없이 살아남은 특수문자 집합
-    injection_context: str | None = None   # inHTML/inAttr/inScript 판정 — 이번 범위에서는 항상 None (TODO)
+    injection_context: str | None = None   # marker 반사 위치의 HTML 컨텍스트 (inHTML/inAttr/inAttrUrl/inScript), 억제 컨텍스트·미탐지 시 None
+
+
+@dataclass
+class SinkProbeResult:  # Phase 1 sink 확인 프로브 결과 — stored XSS 재조회 착수 전 저장 여부 확인
+    param: str           # 어느 파라미터에 대한 프로브인지
+    revisit_url: str     # 마커 반사 확인을 위해 GET 날린 URL
+    sink_confirmed: bool # 마커가 revisit_url 응답에 반사됐으면 True → Phase 2 진행
+    inconclusive: bool   # 재시도까지 소진했는데도 판단 불가 → safe로 뭉개지 않고 inconclusive 유지
