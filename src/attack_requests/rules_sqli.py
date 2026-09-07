@@ -34,11 +34,6 @@ SQLI_RULES: list[dict] = [
                 "{value})",
                 "{value}(",
                 "{value}'\"",
-                # canary(고유 문자열) 확인용 — extractvalue 에러 메시지에 canary가 그대로 반사되면
-                # 일반 키워드 매칭과 달리 우연히 일치할 수 없는 직접 증거가 됨
-                "{value}' AND extractvalue(1,concat(0x7e,'{canary}')) -- ",
-                '{value}" AND extractvalue(1,concat(0x7e,\'{canary}\')) -- ',
-                "{value} AND extractvalue(1,concat(0x7e,'{canary}')) -- ",
             ],
         },
     },
@@ -87,11 +82,6 @@ SQLI_RULES: list[dict] = [
                 "{value}) UNION ALL SELECT NULL -- ",
                 "{value}') UNION ALL SELECT NULL -- ",
                 '{value}") UNION ALL SELECT NULL -- ',
-                # canary 확인용 — NULL 대신 고유 문자열을 SELECT해서, 그게 응답에 그대로 반사되면
-                # "컬럼 수 에러 없음" 같은 간접 증거가 아니라 실제 데이터 유출이 되는 직접 증거가 됨
-                "{value} UNION ALL SELECT '{canary}' -- ",
-                "{value}' UNION ALL SELECT '{canary}' -- ",
-                '{value}" UNION ALL SELECT \'{canary}\' -- ',
             ],
         },
     },

@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import sys
 from datetime import datetime
 from difflib import SequenceMatcher
 
-from scan.match.matcher import CANARY_PREFIX
 from utilities.file_utils import save_json
 from .sqli.judge import (
     MIN_REPEAT_CONFIRM,
@@ -18,8 +16,6 @@ from .sqli.judge import (
     _strip_value,
 )
 from .xss.judge import judge_xss
-
-_CANARY_RE = re.compile(rf"{CANARY_PREFIX}[0-9a-f]{{8}}")
 
 # Boolean 판정 문턱
 _TRUE_GATE = 0.85   
@@ -173,28 +169,13 @@ def _analyze_sqli(family: dict) -> list[dict]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
         return []
 
+    # union → 컬럼 수 불일치 에러, 그 외(error_meta·order_by 등) → DB 에러 시그니처로 판정.
+    # order_by 는 "ORDER BY {큰수}" 가 Unknown column 에러를 유발하므로 error 판정기로 낙하한다.
+    judge = judge_union_sqli if technique == "union" else judge_error_based_sqli
     for mutation in mutations:
-        payload = _payload_of(mutation)
-        canary_match = _CANARY_RE.search(payload)
-        if not canary_match:
-            continue
-        canary = canary_match.group(0)
-        body = _body(mutation)
-        # strip() 비교 — 저장형 필드가 앞뒤 공백만 트리밍한 채 그대로 반사하는 경우까지 echo로 잡아내기 위함
-        if canary in body and canary not in baseline_body and payload.strip() not in body:
-            kind = "UNION" if technique == "union" else "Error"
-            evidence = f"{kind}-based SQLi (canary 확인): 주입한 고유 문자열 '{canary}'이 응답에 그대로 반사됨"
-            return [_finding(family, mutation, "high", evidence)]
-
-
-    bodies = {_body(m) for m in mutations}
-    if len(mutations) <= 1 or len(bodies) > 1:
-
-        judge = judge_union_sqli if technique == "union" else judge_error_based_sqli
-        for mutation in mutations:
-            verdict = judge(baseline_body, _body(mutation))
-            if verdict.vulnerable:
-                return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
+        verdict = judge(baseline_body, _body(mutation))
+        if verdict.vulnerable:
+            return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
     return []
 
 

@@ -1,16 +1,8 @@
 from __future__ import annotations
 
-import secrets
 from dataclasses import dataclass, field
 
 from ..models import MatchedRule, ScanPoint
-
-CANARY_PREFIX = "IBDS"  # 응답 반사 확인용 고유 문자열의 식별 접두사 (analyzer._extract_canary와 짝)
-
-
-# 응답에 그대로 반사되는지 확인할 고유 문자열 생성 — 페이지 어디에도 우연히 존재할 수 없는 값
-def _generate_canary() -> str:
-    return f"{CANARY_PREFIX}{secrets.token_hex(4)}"
 
 # 룰 스키마
 @dataclass
@@ -52,11 +44,10 @@ def _render_templates(
     original_value: str,
 ) -> dict[str, list[str]]:
 
-    canary = _generate_canary()  # 이 룰(family) 안에서 공유 — mutation별 payload에서 그대로 추출 가능
     rendered: dict[str, list[str]] = {}
     for step, templates in payload_templates.items():
         rendered[step] = [
-            tmpl.replace("{value}", str(original_value)).replace("{canary}", canary)
+            tmpl.replace("{value}", str(original_value))
             for tmpl in templates
         ]
     return rendered
