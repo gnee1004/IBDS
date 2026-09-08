@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -33,6 +34,32 @@ def _load_danger_patterns(path: str) -> list[str]:
         return []
     with open(path, encoding="utf-8") as f:
         return [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+
+# ZAP 메시지에서 요청 URL 추출 (url 필드 우선, 없으면 requestHeader 첫 줄 2번째 토큰)
+def _msg_url(msg: dict) -> str:
+    url = (msg.get("url") or "").strip()
+    if url:
+        return url
+    first = (msg.get("requestHeader") or "").replace("\r\n", "\n").split("\n", 1)[0] # 첫줄 꺼내기
+    parts = first.strip().split(" ") 
+    return parts[1] if len(parts) >= 2 else "" # 두번쨰 토큰 꺼내기
+
+
+# 위험 URL 패턴 매칭 메시지를 프록시 히스토리에서도 제외
+def _drop_danger_messages(messages: list[dict], patterns: list[str]) -> tuple[list[dict], list[str]]:
+    if not patterns:
+        return messages, []
+    compiled = [re.compile(p) for p in patterns]
+    keep: list[dict] = []
+    drop: list[str] = []
+    for msg in messages:
+        url = _msg_url(msg)
+        if url and any(rx.search(url) for rx in compiled):  
+            drop.append(url)                             
+        else:
+            keep.append(msg)                                # url 파싱 실패일 경우 keep으로 넘김
+    return keep, drop                                    # 남긴 메시지 리스트, 제외된 URL 리스트
 
 
 # ZAP 수집 + normalize 실행, (out_dir, scan_targets.json 경로) 반환. 실패 시 예외를 그대로 던짐
@@ -75,7 +102,12 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
         ajax_meta["ajax_spider_elapsed_seconds"] = result["elapsed_seconds"]
 
 
-    messages = collector.get_all_messages(target_url)
+    messages = collector.get_all_messages(target_url)                  # 프록시 히스토리 
+    messages, drop = _drop_danger_messages(messages, danger_patterns)  # 프록시 히스토리에도 위험 패턴 적용
+    if drop:
+        print(f"[ZAP] 위험 패턴 매칭 {len(drop)}건 프록시 히스토리에서 제외")
+        for u in drop:
+            print(f"       - {u}")
 
     print(f"[ZAP] 전체 메시지 {len(messages)}건 수집")
     messages_path = os.path.join(out_dir, "zap_messages.json")

@@ -10,6 +10,9 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))                       # s
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_THIS_DIR))) # repo root
 _ZAP_CONFIG = os.path.join(_PROJECT_ROOT, "config", "zap_config.json")
 
+_SEND_MAX_RETRIES = 2
+_SEND_RETRY_DELAY_SECS = 0.5
+
 # site(origin)별 최신 쿠키 저장소, target이 아닌 origin 단위 공유
 _cookie_store: dict[str, dict[str, str]] = {}
 
@@ -89,17 +92,34 @@ def _build_raw_request(case: MutationCase, cookies: dict[str, str]) -> str:
     return request_text
 
 
-# case를 현재 쿠키로 전송, 응답의 Set-Cookie 반영 후 결과 dict 리턴
-def send(case: MutationCase, zap) -> dict:
-    origin = _origin(case.url)
-    cookies = _get_cookies(case)
-    raw_request = _build_raw_request(case, cookies)
+def _send_once(raw_request: str, zap) -> tuple[dict, float]:
     started = time.perf_counter()
     result = zap.core.send_request(request=raw_request, followredirects=False)
     elapsed = time.perf_counter() - started
     if not isinstance(result, list) or not result or not isinstance(result[0], dict):     # [{...}] 형태 아니면 원인 파악 위해 실제 응답값 그대로 예외 메시지에 포함
         raise RuntimeError(f"ZAP send_request 실패, 응답: {result!r}")
-    msg = result[0]
+    return result[0], elapsed
+
+
+# case를 현재 쿠키로 전송, 응답의 Set-Cookie 반영 후 결과 dict 리턴
+def send(case: MutationCase, zap) -> dict:
+    origin = _origin(case.url)
+    cookies = _get_cookies(case)
+    raw_request = _build_raw_request(case, cookies)
+
+    last_error: Exception | None = None
+    msg = elapsed = None
+    for attempt in range(_SEND_MAX_RETRIES + 1):
+        if attempt > 0:
+            time.sleep(_SEND_RETRY_DELAY_SECS)
+        try:
+            msg, elapsed = _send_once(raw_request, zap)
+            break
+        except Exception as e:
+            last_error = e
+    else:
+        raise last_error
+
     response_header = msg.get("responseHeader", "")
 
     _update_cookies_from_response(origin, response_header)  # 다음 요청부터 갱신된 쿠키 사용

