@@ -36,7 +36,7 @@ class RequestTarget:
     method: str                      # HTTP 메서드
     url: str                         # 쿼리 포함 전체 URL
     base_url: str                    # 쿼리 없는 base URL
-    params: dict[str, str]           # 주입 대상 파라미터 (키 → 첫 번째 값), GET은 쿼리스트링/POST는 폼바디에서 추출
+    params: dict[str, list[str]]     # 주입 대상 파라미터 (키 → 값 목록, 같은 이름이 여러 번 나오면 등장 순서대로), GET은 쿼리스트링/POST는 폼바디에서 추출
     param_location: str              # 파라미터 위치: "query" 또는 "body"
     headers: dict[str, str]          # 요청 헤더 (cookie 키 제외)
     cookies: dict[str, str]          # 쿠키
@@ -49,10 +49,10 @@ class RequestTarget:
     # CSRF/token 계열, 액션 버튼, 보안 토큰 값 제외한 스캔 대상 파라미터 목록
     def scannable_params(self) -> list[str]:
         return [
-            k for k, v in self.params.items()
+            k for k, values in self.params.items()
             if not any(kw in k.lower() for kw in _NOSCAN_KEYWORDS)
-            and not _is_control_param(v)
-            and not _is_security_token(v)
+            and not any(_is_control_param(v) for v in values)
+            and not any(_is_security_token(v) for v in values)
         ]
 
     def to_dict(self) -> dict:

@@ -78,12 +78,11 @@ def _safe_int(value) -> int:
         return 0
 
 
-# POST 폼 바디(application/x-www-form-urlencoded) -> 파라미터 dict (첫 번째 값만)
-def _parse_form_body(body: str) -> dict[str, str]:
+# POST 폼 바디(application/x-www-form-urlencoded) -> 파라미터 dict (같은 이름의 값 전부 보존)
+def _parse_form_body(body: str) -> dict[str, list[str]]:
     if not body:
         return {}
-    raw = parse_qs(body, keep_blank_values=True)
-    return {k: v[0] for k, v in raw.items()}
+    return parse_qs(body, keep_blank_values=True)
 
 
 # ZAP 메시지 목록 -> RequestTarget 목록
@@ -118,12 +117,12 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
 
         base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
-        # 값이 여러 개인 파라미터는 첫 번째 값만 저장 (mvp형태. 나중에 달라질 수 있음.)
+        # 같은 이름의 파라미터가 여러 개면(HPP, 다중선택 등) 값 전부를 리스트로 보존
         if method == "GET":
             raw_params = parse_qs(parsed.query, keep_blank_values=True)
             if not raw_params:
                 continue
-            params = {k: v[0] for k, v in raw_params.items()}
+            params = raw_params
             param_location = "query"
         else:  # POST
             content_type = req_headers.get("content-type", "")
@@ -134,8 +133,8 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
                 continue
             param_location = "body"
 
-        # (method, base_url, param_location, 파라미터 이름 조합) 기준 중복 제거
-        dedup_key = (method, base_url, param_location, frozenset(params.keys()))
+        param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
+        dedup_key = (method, base_url, param_location, param_shape)
         if dedup_key in seen:
             continue
         seen.add(dedup_key)
