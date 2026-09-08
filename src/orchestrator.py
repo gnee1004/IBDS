@@ -17,7 +17,7 @@ from scan.match.rules_builder import get_rules
 from scan.mutation.discovery import measure_dynamic_markers, run_discovery
 from scan.mutation.request_builder import generate_sqli_families, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
-from scan.normalize.target import has_destructive_action
+from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from utilities.file_utils import append_jsonl
