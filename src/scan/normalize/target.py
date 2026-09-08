@@ -7,23 +7,39 @@ _NOSCAN_KEYWORDS = frozenset({
     "viewstate", "__requestverificationtoken",
 })
 
-# 폼 제출/액션 의미를 가진 값 모음 — Submit=Submit 같은 control 파라미터 판별용
+# 토큰처럼 생긴거 거르기
+_HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]{16,}$')
+
+# 폼 제출/액션 값 (control 파라미터)
 _CONTROL_ACTION_WORDS = frozenset({
     "submit", "login", "search", "change", "update", "delete",
     "create", "register", "logout", "reset", "cancel", "sign",
     "upload", "clear", "add", "remove",
 })
 
-_HEX_TOKEN_RE = re.compile(r'^[0-9a-fA-F]{16,}$')
+# 기존 상태 피괴 액션 값
+_DESTRUCTIVE_ACTION_WORDS = frozenset({
+    "clear", "delete", "reset", "remove", "logout", "remove"
+})
+
+
+# 파라미터 값을 소문자 토큰 집합으로 분해 (단어매칭용 헬퍼)
+def _value_words(value: str) -> set[str]:
+    return set((value or "").strip().lower().replace("+", " ").split()) # "+" 는 공백 취급
 
 
 # 값에 control 액션 단어가 포함되어 있으면 control 파라미터로 판정
 def _is_control_param(value: str) -> bool:
-    v = (value or "").strip().lower()
-    if not v:
-        return False
-    words = set(v.replace("+", " ").split())
-    return bool(words & _CONTROL_ACTION_WORDS)
+    return bool(_value_words(value) & _CONTROL_ACTION_WORDS)
+
+
+# 파라미터 값에서 파괴적 단어 검사
+def has_destructive_action(params: dict) -> bool:
+    for value in params.values():
+        candidates = value if isinstance(value, (list, tuple)) else [value] # 스칼라 문자열, 문자열 리스트 양쪽 다 허용
+        if any(_value_words(v) & _DESTRUCTIVE_ACTION_WORDS for v in candidates): # 파괴적 액션 단어가 하나라도 있으면 True
+            return True
+    return False
 
 
 # 16자 이상 hex 문자열이면 보안 토큰(세션 ID 등)으로 판정
