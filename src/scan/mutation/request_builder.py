@@ -29,11 +29,12 @@ def build_families_for_point(
     rules: list[AttackRule],
     payload_filter: Callable[[str], bool] | None = None,
     dynamic_markers: list[tuple[str, str]] | None = None,
+    baseline_match_ratio: float | None = None,
 ) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
     for matched in match_and_render(sp, rules):
-        family_id = f"{sp.target_id}_{sp.name}_{matched.attack_id}"
+        family_id = f"{sp.target_id}_{sp.tag}_{matched.attack_id}"
         baseline = build_baseline_case(target, sp.location, f"{family_id}_baseline")
         is_dom = matched.technique == _DOM_TECHNIQUE
 
@@ -49,7 +50,7 @@ def build_families_for_point(
                 case = build_mutation_case(
                     target, sp.location, sp.name, sp.original_value,
                     payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
-                    inject_fragment=is_dom,
+                    value_index=sp.value_index, inject_fragment=is_dom,
                 )
                 key = (case.url, case.body)
                 if key in seen_cases:
@@ -71,6 +72,7 @@ def build_families_for_point(
             baseline=baseline,
             mutations=mutations,
             dynamic_markers=dynamic_markers or [],
+            baseline_match_ratio=baseline_match_ratio,
         ))
 
     return families
@@ -103,11 +105,14 @@ def _required_specials(payload: str) -> set[str]:
 
 
 # injection_context -> 유효한 technique 집합 매핑 (dom은 context 무관하게 항상 포함)
+# "suppressed"는 명시적으로 빈 집합 -> dom 외 모든 technique 억제
 _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
-    "inHTML":    {"body", "html_comment", "filter_bypass", "template", "json", "css"},
-    "inAttr":    {"attr_value", "attr_event"},
-    "inAttrUrl": {"attr_href"},
-    "inScript":  {"script", "script_raw", "attr_event"},
+    "inHTML":     {"body", "html_comment", "filter_bypass", "template", "json", "css"},
+    "inAttr":     {"attr_value", "attr_event"},
+    "inAttrUrl":  {"attr_href"},
+    "inScript":   {"script", "script_raw", "attr_event"},
+    "inRawText":  {"raw_text_escape"},
+    "suppressed": set(),
 }
 
 
@@ -150,10 +155,15 @@ def generate_stored_xss_families(sp: ScanPoint, target: dict) -> list[RequestFam
 
 # SQLi
 def generate_sqli_families(
-    sp: ScanPoint, target: dict, dynamic_markers: list[tuple[str, str]] | None = None,
+    sp: ScanPoint,
+    target: dict,
+    dynamic_markers: list[tuple[str, str]] | None = None,
+    baseline_match_ratio: float | None = None,
 ) -> list[RequestFamily]:
     rules = [r for r in get_rules() if r.vuln_type == "sqli"]
-    return build_families_for_point(sp, target, rules, dynamic_markers=dynamic_markers)
+    return build_families_for_point(
+        sp, target, rules, dynamic_markers=dynamic_markers, baseline_match_ratio=baseline_match_ratio,
+    )
 
 
 if __name__ == "__main__":

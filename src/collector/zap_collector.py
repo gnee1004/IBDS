@@ -30,8 +30,7 @@ class ZapCollector:
     # target origin(scheme+host+port) 밖 트래픽을 프록시 단에서 전역 제외
     # 매번 실행시 초기화됨.
     def restrict_to_target_domain(self, target_url: str):
-        parts = urlsplit(target_url)
-        origin = f"{parts.scheme}://{parts.netloc}" # target_url에 path가 있어도 origin 기준
+        origin = f"{urlsplit(target_url).scheme}://{urlsplit(target_url).netloc}" # target_url에 path가 있어도 origin 기준
         regex = f"^(?:(?!{re.escape(origin)}).)*$"
 
         self.zap.core.clear_excluded_from_proxy() # refresh

@@ -7,13 +7,20 @@ from datetime import datetime
 from difflib import SequenceMatcher
 
 from utilities.file_utils import save_json
-from .sqli.judge import judge_error_based_sqli, judge_time_based_sqli, judge_union_sqli, _strip_dynamic, _strip_value
+from .sqli.judge import (
+    MIN_REPEAT_CONFIRM,
+    judge_error_based_sqli,
+    judge_time_based_sqli,
+    judge_union_sqli,
+    _strip_dynamic,
+    _strip_value,
+)
 from .xss.judge import judge_xss
 
 # Boolean 판정 문턱
-_TRUE_GATE = 0.85    # true 응답이 baseline과 최소 이만큼 유사해야 "주입이 참으로 해석됨" (AND-true 게이트)
-_STATIC_EPS = 0.002  # 정적 페이지에서 false를 "다르다"고 볼 최소 차이 (blind SQLi 대응)
-
+_TRUE_GATE = 0.85   
+_GATE_MARGIN = 0.05 
+_STATIC_EPS = 0.002  
 
 def _load_results(results_path: str) -> list[dict]:
     families = []
@@ -99,9 +106,12 @@ def _analyze_boolean(family: dict) -> list[dict]:
     if not base_clean or not true_results or not false_results:
         return []
 
-    best = None
-    best_gap = 0.0
-    best_scores = (0.0, 0.0)
+
+    baseline_match_ratio = family.get("baseline_match_ratio")
+    true_gate = max(0.0, baseline_match_ratio - _GATE_MARGIN) if baseline_match_ratio is not None else _TRUE_GATE
+
+
+    hits: list[tuple[dict, float, float, float]] = []  # (true_result, gap, true_score, false_score)
     for true_result in true_results:
         # 같은 주입 스타일의 false 짝 찾기 — payload 문자열이 가장 유사한 것 (1=1 ↔ 1=2 차이만)
         true_payload = _payload_of(true_result)
@@ -112,31 +122,33 @@ def _analyze_boolean(family: dict) -> list[dict]:
         true_score = SequenceMatcher(None, base_clean, _clean_body(family, true_result)).ratio()
         false_score = SequenceMatcher(None, base_clean, _clean_body(family, false_result)).ratio()
 
-        # 방향 무관 처리 — AND 패턴은 true≈baseline·false 다름, OR 패턴은 그 반대.
-        # 한쪽(hi)이 baseline과 같은 "정상 응답"이고 다른쪽(lo)이 벗어나면 boolean 분기로 본다.
+
         hi = max(true_score, false_score)
         lo = min(true_score, false_score)
 
-        # (1) 게이트: 한 쪽은 baseline과 충분히 같아야 주입이 SQL 논리로 해석된 것 → 아니면 안전
-        if hi < _TRUE_GATE:
+        # (1) 게이트
+        if hi < true_gate:
             continue
-        # (2) noise-aware 문턱: 정상 쪽이 baseline에서 벗어난 만큼(=페이지 노이즈)만 허용.
-        #     정적 페이지(노이즈≈0)에선 아주 작은 차이도 유의미(_STATIC_EPS) → blind SQLi 커버
+        # (2) noise-aware 문턱
         noise = 1.0 - hi
         threshold = hi - max(noise, _STATIC_EPS)
         gap = hi - lo
-        if lo < threshold and gap > best_gap:
-            best = true_result
-            best_gap = gap
-            best_scores = (true_score, false_score)
+        if lo < threshold:
+            hits.append((true_result, gap, true_score, false_score))
 
-    if best is None:
+    if not hits:
         return []
+
+    best_result, best_gap, best_true_score, best_false_score = max(hits, key=lambda h: h[1])
+    confirmed = len(hits) >= MIN_REPEAT_CONFIRM
+    confidence = "high" if confirmed else "medium"
+    status = "confirmed" if confirmed else "suspected, 재현성 부족 - 추가 검증 필요"
     evidence = (
-        f"Boolean SQLi: true/false 응답 분기 (true={best_scores[0]:.3f}, "
-        f"false={best_scores[1]:.3f}, gap={best_gap:.3f})"
+        f"Boolean SQLi ({status}): true/false 응답 분기, "
+        f"{len(hits)}/{len(true_results)}개 injection 스타일에서 재현 "
+        f"(true={best_true_score:.3f}, false={best_false_score:.3f}, gap={best_gap:.3f})"
     )
-    return [_finding(family, best, "high", evidence)]
+    return [_finding(family, best_result, confidence, evidence)]
 
 
 def _analyze_sqli(family: dict) -> list[dict]:

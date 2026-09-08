@@ -40,19 +40,20 @@ class SqliVerdict:
     evidence: str
 
 
+_MIN_STRIP_LEN = 4
+
+
 # 응답 본문에서 payload/입력값 반사분을 제거 (동적 diff 비교 시 반사 노이즈 제거용)
 def _strip_value(body: str, value: str) -> str:
     if not value:
         return body
     variants = {value, quote(value), html.escape(value), html.escape(quote(value))}
     for v in variants:
-        if v:
+        if v and len(v) >= _MIN_STRIP_LEN:
             body = body.replace(v, "")
     return body
 
 
-# (prefix, suffix) 경계 사이 내용을 지움 — 값이 매 요청마다 바뀌는 자리(시각/토큰 등)를
-# 비교 대상에서 제외해 boolean SQLi 판정 시 "이 타겟이 원래 흔들리는 노이즈"를 걷어냄
 def _strip_dynamic(body: str, markers: list[tuple[str, str]]) -> str:
     for prefix, suffix in markers:
         if not prefix or not suffix:
@@ -87,8 +88,7 @@ def judge_error_based_sqli(baseline_body: str, attack_body: str) -> SqliVerdict:
 
 
 def judge_time_based_sqli(baseline_elapsed: float, attack_elapsed_list: list[float]) -> SqliVerdict:
-    # 절대 임계(SLEEP_THRESHOLD)와 baseline 대비 증분(DELAY_MARGIN)을 모두 만족해야 지연으로 인정
-    # → 원래부터 느린 엔드포인트에서 baseline까지 느린 경우의 오탐을 방지
+
     def _is_delayed(e: float) -> bool:
         return e >= SLEEP_THRESHOLD and (e - baseline_elapsed) >= DELAY_MARGIN
 

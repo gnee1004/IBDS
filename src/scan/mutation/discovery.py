@@ -12,7 +12,8 @@ from scan.requester import requester
 _CANDIDATE_SPECIALS = ["<", ">", '"', "'", "=", "(", ")", "/", "\\", "`"]
 _SPECIALS_MARK_START = "ibdsA"
 _SPECIALS_MARK_END = "ibdsZ"
-_SAFE_TAGS = {"textarea", "title", "noscript", "xmp", "plaintext"}
+_RAW_TEXT_TAGS = {"textarea", "title", "noscript", "xmp"}
+_SUPPRESSED_TAGS = {"plaintext"}
 _URL_ATTRS = {"src", "href", "action", "data"}
 
 _MARKER_CONTEXT_LEN = 6  # 흔들리는 구간 앞뒤로 이만큼의 고정 글자를 "경계"로 삼음
@@ -21,10 +22,11 @@ _TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]+|[^0-9A-Za-z가-힣]+")  # 값 덩�
 
 # 파라미터 값이 응답에 그대로 반사되는지 marker 문자열로 확인, body도 함께 반환
 def probe_reflected(sp: ScanPoint, target: dict, zap) -> tuple[bool, str]:
-    marker = f"ibdsreflect{sp.target_id}{sp.name}"
+    marker = f"ibdsreflect{sp.target_id}{sp.tag}"
     case = build_mutation_case(
         target, sp.location, sp.name, sp.original_value, marker,
-        "discovery_reflect", f"{sp.target_id}_{sp.name}_discovery_reflect",
+        "discovery_reflect", f"{sp.target_id}_{sp.tag}_discovery_reflect",
+        value_index=sp.value_index,
     )
     result = requester.send(case, zap)
     body = result.get("response_body") or ""
@@ -36,7 +38,8 @@ def probe_specials(sp: ScanPoint, target: dict, zap) -> set[str]:
     payload = f"{_SPECIALS_MARK_START}{''.join(_CANDIDATE_SPECIALS)}{_SPECIALS_MARK_END}"
     case = build_mutation_case(
         target, sp.location, sp.name, sp.original_value, payload,
-        "discovery_specials", f"{sp.target_id}_{sp.name}_discovery_specials",
+        "discovery_specials", f"{sp.target_id}_{sp.tag}_discovery_specials",
+        value_index=sp.value_index,
     )
     result = requester.send(case, zap)
     body = result.get("response_body") or ""
@@ -51,13 +54,13 @@ def probe_specials(sp: ScanPoint, target: dict, zap) -> set[str]:
 
 
 # 마커가 반사된 위치의 HTML 컨텍스트 탐지
-# 반환값: "inHTML" / "inAttr" / "inAttrUrl" / "inScript" / None(억제 컨텍스트 또는 미탐지)
 def detect_injection_context(body: str, marker: str) -> str | None:
     if marker not in body:
         return None
 
     soup = BeautifulSoup(body, "html.parser")
 
+    contexts: set[str] = set()
     for tag in soup.find_all(True):
         # 속성값에서 탐색
         for attr_name, attr_value in tag.attrs.items():
@@ -66,21 +69,30 @@ def detect_injection_context(body: str, marker: str) -> str | None:
             if marker not in attr_value:
                 continue
             if attr_name.startswith("on"):
-                return "inScript"
-            if attr_name in _URL_ATTRS:
-                return "inAttrUrl"
-            return "inAttr"
+                contexts.add("inScript")
+            elif attr_name in _URL_ATTRS:
+                contexts.add("inAttrUrl")
+            else:
+                contexts.add("inAttr")
 
         # 텍스트 노드에서 탐색
         for child in tag.children:
             if isinstance(child, NavigableString) and marker in str(child):
                 tag_name = tag.name.lower()
                 if tag_name == "script":
-                    return "inScript"
-                if tag_name in _SAFE_TAGS:
-                    return None
-                return "inHTML"
+                    contexts.add("inScript")
+                elif tag_name in _RAW_TEXT_TAGS:
+                    contexts.add("inRawText")
+                elif tag_name in _SUPPRESSED_TAGS:
+                    contexts.add("suppressed")
+                else:
+                    contexts.add("inHTML")
 
+    attackable = contexts - {"suppressed"}
+    if len(attackable) == 1:
+        return next(iter(attackable))
+    if not attackable and contexts == {"suppressed"}:
+        return "suppressed"
     return None
 
 
@@ -113,13 +125,17 @@ def _extract_dynamic_markers(body1: str, body2: str) -> list[tuple[str, str]]:
     return list(markers)
 
 
-# 같은 baseline을 두 번 보내 응답을 비교, 이 타겟이 원래 갖고 있는 "흔들리는 자리"를 찾음 (ScanPoint당 1회)
-def measure_dynamic_markers(sp: ScanPoint, target: dict, zap) -> list[tuple[str, str]]:
-    case1 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.name}_noise1")
-    case2 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.name}_noise2")
+# 같은 baseline을 두 번 보내 응답을 비교, 이 타겟이 원래 갖고 있는 "흔들리는 자리"를 찾음 (ScanPoint당 1회).
+# 두 응답의 전체 유사도(match_ratio)도 같이 반환 — "완전히 같은 요청인데도 원래 이만큼은 달라 보인다"는
+# 이 타겟만의 기준점(sqlmap의 matchRatio와 동일한 발상)이 되어, boolean 판정의 고정 절대 임계값을 대체함.
+def measure_dynamic_markers(sp: ScanPoint, target: dict, zap) -> tuple[list[tuple[str, str]], float]:
+    case1 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.tag}_noise1")
+    case2 = build_baseline_case(target, sp.location, f"{sp.target_id}_{sp.tag}_noise2")
     body1 = requester.send(case1, zap).get("response_body") or ""
     body2 = requester.send(case2, zap).get("response_body") or ""
-    return _extract_dynamic_markers(body1, body2)
+    markers = _extract_dynamic_markers(body1, body2)
+    match_ratio = SequenceMatcher(None, body1, body2).ratio()
+    return markers, match_ratio
 
 
 # 반사 확인 -> 반사 안 되면 특수문자 probe 생략 -> DiscoveryResult
@@ -127,7 +143,7 @@ def run_discovery(sp: ScanPoint, target: dict, zap) -> DiscoveryResult:
     reflected, body = probe_reflected(sp, target, zap)
     if not reflected:
         return DiscoveryResult(reflected=False, valid_specials=set())
-    marker = f"ibdsreflect{sp.target_id}{sp.name}"
+    marker = f"ibdsreflect{sp.target_id}{sp.tag}"
     return DiscoveryResult(
         reflected=True,
         valid_specials=probe_specials(sp, target, zap),
