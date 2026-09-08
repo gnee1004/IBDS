@@ -1,14 +1,9 @@
 from __future__ import annotations
-
 import secrets
 import threading
-
-try:
-    from scan.models import MutationCase, SinkProbeResult
-    from scan.mutation.variant import build_mutation_case
-    from scan.mutation.request_builder import resolve_revisit_url
-except Exception:  # pragma: no cover - 단독 테스트용
-    MutationCase = SinkProbeResult = build_mutation_case = resolve_revisit_url = None
+from scan.models import MutationCase, SinkProbeResult
+from scan.mutation.variant import build_mutation_case
+from scan.mutation.request_builder import resolve_revisit_url
 
 MARKER_PREFIX = "ibds"
 
