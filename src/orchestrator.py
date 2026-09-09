@@ -51,7 +51,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                 for f in stored:
                     f.sink_confirmed = probe_result.sink_confirmed
                     f.revisit_url = probe_result.revisit_url
-                    f.sink_note = probe_result.probe_marker
+                    f.probe_marker = probe_result.probe_marker
                 families.extend(stored)
             elif probe_result is not None and probe_result.inconclusive and findings_path:
                 append_jsonl(findings_path, {
@@ -59,6 +59,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     "stage": "probe", "status": "inconclusive",
                     "probe_marker": probe_result.probe_marker,
                     "revisit_url": probe_result.revisit_url,
+                    "sink_note": "revisit_url GET 미반사 (base_url 강등 재시도 포함)",
                 })
         else:
             families.extend(generate_stored_xss_families(sp, target))
@@ -155,7 +156,7 @@ def run_pipeline() -> str:
                     baseline_match_ratio=family.baseline_match_ratio,
                     sink_confirmed=family.sink_confirmed,
                     revisit_url=family.revisit_url,
-                    sink_note=family.sink_note,
+                    probe_marker=family.probe_marker,
                 )
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)
