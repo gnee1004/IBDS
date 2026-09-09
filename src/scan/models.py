@@ -55,6 +55,7 @@ class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대
     sink_confirmed: bool | None = None   # True: 마커 반사 확인 / False: 미확인 / None: 프로브 안 함
     revisit_url: str | None = None       # Phase 1에서 GET 날린 URL — Phase 2 재조회 기준점
     probe_marker: str | None = None      # sink_confirmed=True 시 사용한 마커 — 재현·디버깅용
+    sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
 @dataclass
@@ -85,6 +86,7 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     sink_confirmed: bool | None = None
     revisit_url: str | None = None
     probe_marker: str | None = None      # sink_confirmed=True 시 사용한 마커 — 재현·디버깅용
+    sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
 @dataclass

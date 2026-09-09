@@ -157,6 +157,7 @@ def run_pipeline() -> str:
                     sink_confirmed=family.sink_confirmed,
                     revisit_url=family.revisit_url,
                     probe_marker=family.probe_marker,
+                    sink_note=family.sink_note,
                 )
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)
