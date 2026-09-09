@@ -17,6 +17,7 @@ from scan.match.rules_builder import get_rules
 from scan.mutation.discovery import measure_dynamic_markers, run_discovery
 from scan.mutation.request_builder import generate_sqli_families, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
+from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from utilities.file_utils import append_jsonl
@@ -27,6 +28,9 @@ from analyzer.scan import analyze_family
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
 def _route_scan_point(sp: ScanPoint, target: dict, zap) -> list[RequestFamily]:
+    if has_destructive_action(target.get("params", {})):
+        return []   # 파괴적 액션 있는 타겟은 검사 안함
+
     families: list[RequestFamily] = []
 
     if sp.value_type == "string":  # XSS는 문자열 파라미터만 대상
