@@ -23,11 +23,12 @@ from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from utilities.file_utils import append_jsonl
 from analyzer import family_pipeline
 from analyzer.headless import HeadlessSession
+from analyzer.revisit import probe_sink, new_run_marker_factory
 from analyzer.scan import analyze_family
 
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
-def _route_scan_point(sp: ScanPoint, target: dict, zap) -> list[RequestFamily]:
+def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, findings_path: str | None = None) -> list[RequestFamily]:
     if has_destructive_action(target.get("params", {})):
         return []   # 파괴적 액션 있는 타겟은 검사 안함
 
@@ -36,7 +37,32 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap) -> list[RequestFamily]:
     if sp.value_type == "string":  # XSS는 문자열 파라미터만 대상
         discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
         families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
-        families.extend(generate_stored_xss_families(sp, target))
+
+        # Phase 1: form 파라미터에만 sink probe — 마커가 저장·반사되면 stored XSS family 생성
+        if marker_factory is not None and sp.location == "form":
+            marker = marker_factory(sp.name)
+            try:
+                probe_result = probe_sink(sp, target, marker, requester, zap)
+            except Exception as e:
+                probe_result = None
+                print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+            if probe_result is not None and probe_result.sink_confirmed:
+                stored = generate_stored_xss_families(sp, target)
+                for f in stored:
+                    f.sink_confirmed = probe_result.sink_confirmed
+                    f.revisit_url = probe_result.revisit_url
+                    f.probe_marker = probe_result.probe_marker
+                families.extend(stored)
+            elif probe_result is not None and probe_result.inconclusive and findings_path:
+                append_jsonl(findings_path, {
+                    "target_id": sp.target_id, "param": sp.name,
+                    "stage": "probe", "status": "inconclusive",
+                    "probe_marker": probe_result.probe_marker,
+                    "revisit_url": probe_result.revisit_url,
+                    "sink_note": "revisit_url GET 미반사 (base_url 강등 재시도 포함)",
+                })
+        else:
+            families.extend(generate_stored_xss_families(sp, target))
 
     # SQLi boolean 판정용 — 이 ScanPoint가 원래 흔들리는 자리 + baseline 2회 요청의 유사도(이 타겟의 정상 기준점)를 실측 (family마다 X, ScanPoint당 1회)
     dynamic_markers, baseline_match_ratio = measure_dynamic_markers(sp, target, zap)
@@ -55,6 +81,7 @@ def run_pipeline() -> str:
 
     requester.clear_cookie_store()  # 스캔 시작 시 1회, origin별 쿠키 초기화 (캡쳐 원본 쿠키는 지워지지 않음 -- 이전 스캔에서 누적된 쿠키 상태를 지우기 위함.)
     zap = requester.get_zap_client()
+    marker_factory = new_run_marker_factory()  # 이번 스캔 실행 전체에서 고유 마커를 발급하는 팩토리 (ScanPoint당 1개)
     headless = HeadlessSession()  # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
 
     results_path = os.path.join(out_dir, "request_results.jsonl") # 실행 결과 (요청, 응답 raw)
@@ -66,7 +93,7 @@ def run_pipeline() -> str:
         for sp in scan_points:
             target = target_by_id[sp.target_id]
             try:
-                families = _route_scan_point(sp, target, zap)
+                families = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path)
             except Exception as e:  # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김.
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id, "param": sp.name,
@@ -127,6 +154,10 @@ def run_pipeline() -> str:
                     baseline=case_results[0], mutations=case_results[1:],
                     dynamic_markers=family.dynamic_markers,
                     baseline_match_ratio=family.baseline_match_ratio,
+                    sink_confirmed=family.sink_confirmed,
+                    revisit_url=family.revisit_url,
+                    probe_marker=family.probe_marker,
+                    sink_note=family.sink_note,
                 )
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)

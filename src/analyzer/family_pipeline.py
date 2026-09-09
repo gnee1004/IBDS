@@ -28,7 +28,7 @@ class Finding:  # xss_findings.jsonl 한 줄에 대응하는 case 단위 판정 
     raw_verdict: dict              # judge_xss 결과 (asdict)
     headless_checked: bool         # headless 대상이었는지
     headless_verdict: dict | None  # headless 결과 (asdict), 대상 아니면 None
-    final_status: str              # "vulnerable" | "reflected_only" | "safe"
+    final_status: str              # "vulnerable" | "reflected_only" | "safe" | "inconclusive"
 
 
 # raw 판정에서 걸렸거나, raw로는 원천적으로 확인이 안 되는 기법(dom)이면 headless 대상

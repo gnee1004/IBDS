@@ -51,6 +51,11 @@ class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대
     mutations: list[MutationCase] # payload 교체된 요청 목록
     dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # boolean SQLi 판정용 — (prefix, suffix) 형태로 이 타겟이 원래 흔들리는 자리를 표시
     baseline_match_ratio: float | None = None  # baseline 2회 요청의 유사도 — 이 타겟의 "정상 기준점" (sqlmap의 matchRatio와 동일한 발상)
+    # Phase 1 sink probe 결과 — stored XSS family에만 설정, 나머지는 None
+    sink_confirmed: bool | None = None   # True: 마커 반사 확인 / False: 미확인 / None: 프로브 안 함
+    revisit_url: str | None = None       # Phase 1에서 GET 날린 URL — Phase 2 재조회 기준점
+    probe_marker: str | None = None      # sink_confirmed=True 시 사용한 마커 — 재현·디버깅용
+    sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
 @dataclass
@@ -77,6 +82,11 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     mutations: list[CaseResult]   # mutation 전송 결과 목록
     dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # RequestFamily에서 그대로 전달됨
     baseline_match_ratio: float | None = None  # RequestFamily에서 그대로 전달됨
+    # Phase 1 sink probe 결과 — RequestFamily에서 그대로 전달됨
+    sink_confirmed: bool | None = None
+    revisit_url: str | None = None
+    probe_marker: str | None = None      # sink_confirmed=True 시 사용한 마커 — 재현·디버깅용
+    sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
 @dataclass
