@@ -92,3 +92,4 @@ class SinkProbeResult:  # Phase 1 sink 확인 프로브 결과 — stored XSS �
     revisit_url: str     # 마커 반사 확인을 위해 GET 날린 URL
     sink_confirmed: bool # 마커가 revisit_url 응답에 반사됐으면 True → Phase 2 진행
     inconclusive: bool   # 재시도까지 소진했는데도 판단 불가 → safe로 뭉개지 않고 inconclusive 유지
+    probe_marker: str    # 이번 프로브에 사용한 마커 — 재현·디버깅용
