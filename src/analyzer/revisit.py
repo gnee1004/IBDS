@@ -70,7 +70,8 @@ def probe_sink(sp, target: dict, marker: str, requester, zap):
         original_value=sp.original_value,
         payload=marker,
         step="probe_post",
-        case_id=f"probe_{sp.target_id}_{param}",
+        case_id=f"probe_{sp.target_id}_{sp.tag}",   # ← param → sp.tag (occurrence까지 구분)
+        value_index=sp.value_index,                 # ← 추가: 해당 occurrence만 교체
     )
     requester.send(post_case, zap)  # stored 유도. POST 응답 본문은 보지 않는다(에코 오판 방지)
 
