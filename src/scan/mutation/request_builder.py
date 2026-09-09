@@ -150,7 +150,11 @@ def generate_stored_xss_families(sp: ScanPoint, target: dict) -> list[RequestFam
     if sp.location != "form":
         return []
     rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == "stored"]
-    return build_families_for_point(sp, target, rules)
+    families = build_families_for_point(sp, target, rules)
+    revisit_url = resolve_revisit_url(target)
+    for f in families:
+        f.revisit_url = revisit_url
+    return families
 
 
 # SQLi

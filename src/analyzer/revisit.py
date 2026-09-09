@@ -79,14 +79,14 @@ def probe_sink(sp, target: dict, marker: str, requester, zap):
     revisit_url = resolve_revisit_url(target)
     used_url = revisit_url
     confirmed = _reflect_at(target, revisit_url, marker, requester, zap,
-                            case_id=f"probe_{sp.target_id}_{param}_revisit")
+                            case_id=f"probe_{sp.target_id}_{sp.tag}_revisit")
 
     # 3) 미반사 시 base_url로 강등 재시도 1회
     if not confirmed:
         base_url = target.get("base_url") or ""
         if base_url and base_url != revisit_url:
             if _reflect_at(target, base_url, marker, requester, zap,
-                           case_id=f"probe_{sp.target_id}_{param}_revisit_base"):
+                           case_id=f"probe_{sp.target_id}_{sp.tag}_revisit_base"):
                 confirmed = True
                 used_url = base_url
 
