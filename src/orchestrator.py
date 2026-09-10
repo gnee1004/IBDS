@@ -41,25 +41,33 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
         # Phase 1: form 파라미터에만 sink probe — 마커가 저장·반사되면 stored XSS family 생성
         if marker_factory is not None and sp.location == "form":
             marker = marker_factory(sp.name)
+            probe_result = None
+            probe_err = None
             try:
                 probe_result = probe_sink(sp, target, marker, requester, zap)
-            except Exception as e:
-                probe_result = None
+            except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
+                probe_err = str(e)
                 print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+
             if probe_result is not None and probe_result.sink_confirmed:
                 stored = generate_stored_xss_families(sp, target)
-                for f in stored:
+                for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
                     f.sink_confirmed = probe_result.sink_confirmed
                     f.revisit_url = probe_result.revisit_url
                     f.probe_marker = probe_result.probe_marker
                 families.extend(stored)
-            elif probe_result is not None and probe_result.inconclusive and findings_path:
+            elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
+                                    # 프로브가 터진 경우와 마커가 끝내 안 보인 경우 -> 사유 구분함
+                if probe_err is not None:
+                    sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
+                else:
+                    sink_note = "판정 불가 - sink 미확인 (마커 재조회 미반사)"
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id, "param": sp.name,
                     "stage": "probe", "status": "inconclusive",
-                    "probe_marker": probe_result.probe_marker,
-                    "revisit_url": probe_result.revisit_url,
-                    "sink_note": "revisit_url GET 미반사 (base_url 강등 재시도 포함)",
+                    "probe_marker": marker,
+                    "revisit_url": probe_result.revisit_url if probe_result is not None else None,
+                    "sink_note": sink_note,
                 })
         else:
             families.extend(generate_stored_xss_families(sp, target))
