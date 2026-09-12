@@ -23,7 +23,7 @@ from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from utilities.file_utils import append_jsonl
 from analyzer import family_pipeline
 from analyzer.headless import HeadlessSession
-from analyzer.revisit import probe_sink, new_run_marker_factory
+from analyzer.revisit import probe_sink, new_run_marker_factory, refetch
 from analyzer.scan import analyze_family
 
 
@@ -138,6 +138,22 @@ def run_pipeline() -> str:
                     fail_count += 1
 
                 for case in family.mutations: # 원형 -> 변형 순서로 순회하고 요청 전송.
+                    needs_revisit = bool(     # stored XSS + 마커 반사 확인된 family만 재조회
+                        family.technique == "stored" and family.sink_confirmed and family.revisit_url
+                    )
+
+                    revisit_before = None
+                    before_note = None
+                    if needs_revisit:
+                        try:
+                            revisit_before = refetch(   # 공격 요청 전 스냅샷 - mutation마다 새로 찍음
+                                family.revisit_url, target.get("cookies"), None, requester, zap,
+                                target=target, max_retry=1, # 재시도 없이 딱 1회만 GET 요청
+                            )
+                        except Exception as e:  # 스냅샷 실패해도 diff만 포기 — after는 그대로 시도해 반사 여부는 확보 (게시판류는 이거라도 의미 있음)
+                            before_note = "공격 전 스냅샷 실패 — diff 신뢰 불가, 반사 여부만 기록"
+                            print(f"[WARN] 공격 전 스냅샷 실패, diff 신뢰 불가(반사 여부만 기록): family={family.family_id} case={case.case_id} - {e}")
+
                     try:
                         sent = requester.send(case, zap)
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
@@ -146,6 +162,36 @@ def run_pipeline() -> str:
                         print(f"[ERROR] 요청 실패: family={family.family_id} case={case.case_id} - {e}")
                         continue
 
+                    revisit_fields = {}
+                    if needs_revisit:
+                        try:
+                            # 공격 POST 직후 재조회
+                            # before 실패 여부와 무관하게 항상 시도 (반사 여부만이라도 기록하기 위함)
+                            revisit_after = refetch(
+                                family.revisit_url, target.get("cookies"), case.payload, requester, zap,
+                                target=target,
+                            )
+                        except Exception as e:  # 공격 후 재조회 실패 -> 반사 여부도 확인 불가, 사유만 기록
+                            after_note = "공격 후 재조회 실패 — 반사 여부 확인 불가"
+                            revisit_fields = dict(revisit_note=f"{before_note}; {after_note}" if before_note else after_note)
+                            print(f"[WARN] 재조회 후 요청 실패: family={family.family_id} case={case.case_id} - {e}")
+                        else:
+                            revisit_fields = dict(
+                                revisit_status=revisit_after.status,
+                                revisit_url_used=family.revisit_url,
+                                revisit_attempts=revisit_after.attempts,
+                                revisit_found=revisit_after.found,  # payload가 after에 반사됐는지 — before 성공 여부와 무관하게 항상 기록
+                            )
+                            if revisit_before is not None:
+                                # before/after 둘 다 확보 -> diff 게이트가 실제로 비교 가능
+                                revisit_fields.update(
+                                    before_revisit_body=revisit_before.body,
+                                    revisit_body=revisit_after.body,
+                                )
+                            else:
+                                # before 없음 -> before_revisit_body/revisit_body는 비워서 judge_case가 "재조회 실패"로 보고 inconclusive 반환하도록
+                                revisit_fields["revisit_note"] = before_note
+
                     case_results.append(CaseResult(
                         case=case, status="ok",
                         response_status=sent["response_status"],
@@ -153,6 +199,7 @@ def run_pipeline() -> str:
                         response_body=sent["response_body"],
                         elapsed=sent["elapsed"],
                         effective_cookies=sent["effective_cookies"],  # headless가 재현 시 쓸 쿠키값
+                        **revisit_fields,
                     ))
                 total_count += len(case_results)
 

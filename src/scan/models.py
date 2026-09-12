@@ -67,13 +67,15 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_body: str | None = None
     elapsed: float | None = None
     error: str | None = None                             # status="error"일 때 예외 메시지
-    effective_cookies: dict[str, str] | None = None       # 요청 전송 시점에 실제로 실린 누적 쿠키
-    # stored 재조회(Phase2) 결과 — orch가 family 루프에서 채움, judge_case stored 분기가 소비 (평면 스칼라)
-    before_revisit_body: str | None = None                # A: 공격 주입 전 재조회 본문
-    revisit_body: str | None = None                       # B: 공격 주입 후 재조회 본문
-    revisit_status: int | None = None                     # 재조회 GET 응답 상태코드
-    revisit_url_used: str | None = None                   # 실제 재조회한 URL
-    revisit_attempts: int | None = None                   # refetch 재시도 횟수
+    effective_cookies: dict[str, str] | None = None      # 요청 전송 시점에 실제로 실린 누적 쿠키
+    # stored 공격 후 재조회 결과
+    before_revisit_body: str | None = None               # 공격 주입 전 본문
+    revisit_body: str | None = None                      # 공격 주입 후 재조회 본문
+    revisit_status: int | None = None                    # 재조회 GET 응답 상태코드
+    revisit_url_used: str | None = None                  # 실제 재조회한 URL
+    revisit_attempts: int | None = None                  # 재시도 횟수
+    revisit_found: bool | None = None                    # after 응답에 payload 반사됐는지 (before 실패로 diff 못 해도 기록)
+    revisit_note: str | None = None                      # 재조회 특이사항 메모 (예: before 스냅샷 실패로 diff 신뢰 불가)
 
 
 @dataclass
@@ -91,8 +93,8 @@ class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mut
     # Phase 1 sink probe 결과 — RequestFamily에서 그대로 전달됨
     sink_confirmed: bool | None = None
     revisit_url: str | None = None
-    probe_marker: str | None = None      # sink_confirmed=True 시 사용한 마커 — 재현·디버깅용
-    sink_note: str | None = None         # inconclusive 시 실패 이유
+    probe_marker: str | None = None            # sink_confirmed=True 시 사용한 마커 (재현, 디버깅용)
+    sink_note: str | None = None               # inconclusive 시 실패 이유
 
 
 @dataclass
