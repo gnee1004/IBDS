@@ -80,6 +80,7 @@ def probe_sink(sp, target: dict, marker: str, requester, zap):
         payload=marker,
         step="probe_post",
         case_id=f"probe_{sp.target_id}_{sp.tag}",
+        value_index=sp.value_index,
     )
     requester.send(post_case, zap)  # POST 응답 본문은 보지 않음(에코 오판 방지)
 
