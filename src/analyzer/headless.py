@@ -40,7 +40,12 @@ class HeadlessSession:
         browser = self._ensure_browser()
         page = browser.new_page()
         dialog_messages: list[str] = []
-        page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
+
+        def _on_dialog(dialog):  # dialog 발생 시 메시지 기록 후 닫기 (None 반환 — page.on 시그니처)
+            dialog_messages.append(dialog.message)
+            dialog.dismiss()
+
+        page.on("dialog", _on_dialog)
         try:
             page.set_content(response_body or "", timeout=5000)
             page.wait_for_timeout(500)  # 지연 실행 payload 대비 짧은 대기
@@ -52,7 +57,7 @@ class HeadlessSession:
             return HeadlessVerdict(executed=True, method="render", evidence=f"dialog fired: {dialog_messages[0]}")
         return HeadlessVerdict(executed=False, method="render", evidence="dialog 없음")
 
-    # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (DOM 기법 전용)
+    # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (DOM 기법·stored 재조회 공용, GET만)
     def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str) -> HeadlessVerdict:
         if method != "GET":  # POST 폼 재현은 ver1 범위 밖 (design doc 참고)
             return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)")
@@ -69,7 +74,12 @@ class HeadlessSession:
                 ])
             page = context.new_page()
             dialog_messages: list[str] = []
-            page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
+
+            def _on_dialog(dialog):  # dialog 발생 시 메시지 기록 후 닫기 (None 반환 — page.on 시그니처)
+                dialog_messages.append(dialog.message)
+                dialog.dismiss()
+
+            page.on("dialog", _on_dialog)
             page.goto(url, timeout=10000)
             page.wait_for_timeout(500)
         except Exception as e:
