@@ -79,7 +79,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
 
 
 # 공격 전 스냅샷
-def _revisit_before(family, requester, zap, target):
+def _revisit_before(family, case, requester, zap, target):
     try:
         return refetch(
             family.revisit_url, target.get("cookies"), None, requester, zap,
@@ -87,7 +87,7 @@ def _revisit_before(family, requester, zap, target):
         ), None
     except Exception as e:  # 스냅샷 실패해도 diff만 포기 (뒤는 그대로 진행해 반사 여부 확인함)
         note = "공격 전 스냅샷 실패 — diff 신뢰 불가, 반사 여부만 기록"
-        print(f"[WARN] 공격 전 스냅샷 실패, diff 신뢰 불가 (반사 여부만 기록): family={family.family_id} - {type(e).__name__}: {e}")
+        print(f"[WARN] 공격 전 스냅샷 실패, diff 신뢰 불가(반사 여부만 기록): family={family.family_id} case={case.case_id} - {e}")
         return None, note
 
 
@@ -100,7 +100,7 @@ def _revisit_after_fields(family, case, requester, zap, target, revisit_before, 
         )
     except Exception as e:  # 공격 후 재조회 실패 -> 반사 여부도 확인 불가, 사유만 기록
         after_note = "공격 후 재조회 실패 — 반사 여부 확인 불가"
-        print(f"[WARN] 재조회 후 요청 실패: family={family.family_id} case={case.case_id} - {type(e).__name__}: {e}")
+        print(f"[WARN] 재조회 후 요청 실패: family={family.family_id} case={case.case_id} - {e}")
         return dict(revisit_note=f"{before_note}; {after_note}" if before_note else after_note)
 
     fields = dict(
@@ -182,7 +182,7 @@ def run_pipeline() -> str:
 
                     revisit_before = before_note = None
                     if needs_revisit:  # 공격 요청 전 스냅샷 - mutation마다 새로 찍음
-                        revisit_before, before_note = _revisit_before(family, requester, zap, target)
+                        revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
 
                     try:
                         sent = requester.send(case, zap)

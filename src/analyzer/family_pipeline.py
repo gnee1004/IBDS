@@ -70,15 +70,10 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     if not family.get("sink_confirmed"):
         return _mk_finding(family, case, "inconclusive", evidence="sink 미확인")
 
-    before_raw = case_result.get("before_revisit_body")
-    before = before_raw or ""
+    before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
 
-    # 공격 전 "스냅샷 만" 실패한 경우 : after는 성공해도 diff 비교 불가라 판정 불가 -> 재조회 실패로 오인되지 않도록 구분
-    if before_raw is None and payload and payload in after:
-        return _mk_finding(family, case, "inconclusive", evidence="공격 전 스냅샷 실패(diff 비교 불가, 재조회 자체는 성공)")
-
-    # 공격 요청 이후 재조회 N회 실패(payload 안 뜸/네트워크, URL 오류 등..) → 판정불가
+    # 재조회 N회 실패(payload 끝내 안 뜸/네트워크·URL 오류) → inconclusive (조용한 safe 강등 금지)
     if not payload or payload not in after:
         return _mk_finding(family, case, "inconclusive", evidence="재조회 N회 실패(payload 미확인)")
 
