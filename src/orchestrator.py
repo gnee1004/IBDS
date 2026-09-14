@@ -38,7 +38,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
         discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
         families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
 
-        # Phase 1: form 파라미터에만 sink probe — 마커가 저장·반사되면 stored XSS family 생성
+        # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
         if marker_factory is not None and sp.location == "form":
             marker = marker_factory(sp.name)
             probe_result = None
@@ -57,7 +57,6 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     f.probe_marker = probe_result.probe_marker
                 families.extend(stored)
             elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
-                                    # 프로브가 터진 경우와 마커가 끝내 안 보인 경우 -> 사유 구분함
                 if probe_err is not None:
                     sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
                 else:
@@ -72,25 +71,64 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
         else:
             families.extend(generate_stored_xss_families(sp, target))
 
-    # SQLi boolean 판정용 — 이 ScanPoint가 원래 흔들리는 자리 + baseline 2회 요청의 유사도(이 타겟의 정상 기준점)를 실측 (family마다 X, ScanPoint당 1회)
+    # SQLi boolean 판정용
     dynamic_markers, baseline_match_ratio = measure_dynamic_markers(sp, target, zap)
-    families.extend(generate_sqli_families(sp, target, dynamic_markers, baseline_match_ratio))  # SQLi는 string/number 공통 대상, value_type 제한 없음
+    families.extend(generate_sqli_families(sp, target, dynamic_markers, baseline_match_ratio))
 
     return families
 
 
+# 공격 전 스냅샷
+def _revisit_before(family, case, requester, zap, target):
+    try:
+        return refetch(
+            family.revisit_url, target.get("cookies"), None, requester, zap,
+            target=target, max_retry=1,  # 재시도 없이 딱 1회만 GET 요청
+        ), None
+    except Exception as e:  # 스냅샷 실패해도 diff만 포기 (뒤는 그대로 진행해 반사 여부 확인함)
+        note = "공격 전 스냅샷 실패 — diff 신뢰 불가, 반사 여부만 기록"
+        print(f"[WARN] 공격 전 스냅샷 실패, diff 신뢰 불가(반사 여부만 기록): family={family.family_id} case={case.case_id} - {e}")
+        return None, note
+
+
+# 공격 후 재조회 - before 성공 여부와 무관하게 항상 시도, CaseResult에 병합할 revisit 필드 생성
+def _revisit_after_fields(family, case, requester, zap, target, revisit_before, before_note):
+    try:
+        revisit_after = refetch(
+            family.revisit_url, target.get("cookies"), case.payload, requester, zap,
+            target=target,
+        )
+    except Exception as e:  # 공격 후 재조회 실패 -> 반사 여부도 확인 불가, 사유만 기록
+        after_note = "공격 후 재조회 실패 — 반사 여부 확인 불가"
+        print(f"[WARN] 재조회 후 요청 실패: family={family.family_id} case={case.case_id} - {e}")
+        return dict(revisit_note=f"{before_note}; {after_note}" if before_note else after_note)
+
+    fields = dict(
+        revisit_status=revisit_after.status,
+        revisit_url_used=family.revisit_url,
+        revisit_attempts=revisit_after.attempts,
+        revisit_found=revisit_after.found,      # payload가 after에 반사됐는지 (항상 기록)
+    )
+    if revisit_before is not None:
+        fields.update(before_revisit_body=revisit_before.body, revisit_body=revisit_after.body)
+    else:
+        # before 없을 경우: revisit_note만 남겨 judge_case가 diff 불가와 재조회 실패를 구분하도록
+        fields["revisit_note"] = before_note
+    return fields
+
+
 # collector ->  ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 ScanPoint 단위로 실행
 def run_pipeline() -> str:
-    out_dir, targets_path = run_collection() # 수집 시작
+    out_dir, targets_path = run_collection()
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
-    target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)} # targets에 ID 부여 (ex. t0)
-    scan_points = build_scan_points(targets) # Targets를 파라미터 단위로 쪼갬.
+    target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)} # 타겟에 ID 부여 (ex. t0)
+    scan_points = build_scan_points(targets)   # 타겟들을 파라미터 단위로 쪼갬.
 
-    requester.clear_cookie_store()  # 스캔 시작 시 1회, origin별 쿠키 초기화 (캡쳐 원본 쿠키는 지워지지 않음 -- 이전 스캔에서 누적된 쿠키 상태를 지우기 위함.)
+    requester.clear_cookie_store()             # 스캔 시작 시 이전 스캔에서 누적된 쿠키 초기화 (origin별로 1회 진행, 캡쳐한 원본 쿠키 안지움)
     zap = requester.get_zap_client()
-    marker_factory = new_run_marker_factory()  # 이번 스캔 실행 전체에서 고유 마커를 발급하는 팩토리 (ScanPoint당 1개)
-    headless = HeadlessSession()  # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
+    marker_factory = new_run_marker_factory()  # 이번 스캔 실행 전체에서 고유 마커를 발급 (ScanPoint당 1개)
+    headless = HeadlessSession()               # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
 
     results_path = os.path.join(out_dir, "request_results.jsonl") # 실행 결과 (요청, 응답 raw)
     findings_path = os.path.join(out_dir, "findings.jsonl") # 판정 결과
@@ -102,7 +140,7 @@ def run_pipeline() -> str:
             target = target_by_id[sp.target_id]
             try:
                 families = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path)
-            except Exception as e:  # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김.
+            except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김.
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id, "param": sp.name,
                     "status": "error", "stage": "route", "error": str(e),
@@ -142,17 +180,9 @@ def run_pipeline() -> str:
                         family.technique == "stored" and family.sink_confirmed and family.revisit_url
                     )
 
-                    revisit_before = None
-                    before_note = None
-                    if needs_revisit:
-                        try:
-                            revisit_before = refetch(   # 공격 요청 전 스냅샷 - mutation마다 새로 찍음
-                                family.revisit_url, target.get("cookies"), None, requester, zap,
-                                target=target, max_retry=1, # 재시도 없이 딱 1회만 GET 요청
-                            )
-                        except Exception as e:  # 스냅샷 실패해도 diff만 포기 — after는 그대로 시도해 반사 여부는 확보 (게시판류는 이거라도 의미 있음)
-                            before_note = "공격 전 스냅샷 실패 — diff 신뢰 불가, 반사 여부만 기록"
-                            print(f"[WARN] 공격 전 스냅샷 실패, diff 신뢰 불가(반사 여부만 기록): family={family.family_id} case={case.case_id} - {e}")
+                    revisit_before = before_note = None
+                    if needs_revisit:  # 공격 요청 전 스냅샷 - mutation마다 새로 찍음
+                        revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
 
                     try:
                         sent = requester.send(case, zap)
@@ -163,34 +193,8 @@ def run_pipeline() -> str:
                         continue
 
                     revisit_fields = {}
-                    if needs_revisit:
-                        try:
-                            # 공격 POST 직후 재조회
-                            # before 실패 여부와 무관하게 항상 시도 (반사 여부만이라도 기록하기 위함)
-                            revisit_after = refetch(
-                                family.revisit_url, target.get("cookies"), case.payload, requester, zap,
-                                target=target,
-                            )
-                        except Exception as e:  # 공격 후 재조회 실패 -> 반사 여부도 확인 불가, 사유만 기록
-                            after_note = "공격 후 재조회 실패 — 반사 여부 확인 불가"
-                            revisit_fields = dict(revisit_note=f"{before_note}; {after_note}" if before_note else after_note)
-                            print(f"[WARN] 재조회 후 요청 실패: family={family.family_id} case={case.case_id} - {e}")
-                        else:
-                            revisit_fields = dict(
-                                revisit_status=revisit_after.status,
-                                revisit_url_used=family.revisit_url,
-                                revisit_attempts=revisit_after.attempts,
-                                revisit_found=revisit_after.found,  # payload가 after에 반사됐는지 — before 성공 여부와 무관하게 항상 기록
-                            )
-                            if revisit_before is not None:
-                                # before/after 둘 다 확보 -> diff 게이트가 실제로 비교 가능
-                                revisit_fields.update(
-                                    before_revisit_body=revisit_before.body,
-                                    revisit_body=revisit_after.body,
-                                )
-                            else:
-                                # before 없음 -> before_revisit_body/revisit_body는 비워서 judge_case가 "재조회 실패"로 보고 inconclusive 반환하도록
-                                revisit_fields["revisit_note"] = before_note
+                    if needs_revisit:  # 공격 POST 직후 재조회
+                        revisit_fields = _revisit_after_fields(family, case, requester, zap, target, revisit_before, before_note)
 
                     case_results.append(CaseResult(
                         case=case, status="ok",

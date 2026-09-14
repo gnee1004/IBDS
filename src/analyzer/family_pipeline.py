@@ -66,23 +66,23 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     case = case_result["case"]
     payload = case.get("payload") or ""
 
-    # 3.4: Phase 1 sink 미확인 → inconclusive
+    # 마커 반사 미확인 → inconclusive
     if not family.get("sink_confirmed"):
         return _mk_finding(family, case, "inconclusive", evidence="sink 미확인")
 
     before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
 
-    # 3.4: Phase 2 재조회 N회 실패(payload 끝내 안 뜸/네트워크·URL 오류) → inconclusive (조용한 safe 강등 금지)
+    # 재조회 N회 실패(payload 끝내 안 뜸/네트워크·URL 오류) → inconclusive (조용한 safe 강등 금지)
     if not payload or payload not in after:
         return _mk_finding(family, case, "inconclusive", evidence="재조회 N회 실패(payload 미확인)")
 
-    # P0-3: diff로 새로 생긴 영역(추가된 줄) 추출 — 없으면 과거 잔재 → safe
+    # diff로 새로 생긴 영역(추가된 줄) 추출 
     new_region = diff_new_region(before, after)
     if not new_region:
         return _mk_finding(family, case, "safe", evidence="diff 새 영역 없음(잔재)")
 
-    # P0-3: 추가된 줄(새 영역)만 judge_xss에 넘김 (마커로 payload 유일 → 새 줄에 잡힘)
+    # 추가된 줄(새 영역)만 judge_xss에 넘김 (마커로 payload 유일 → 새 줄에 잡힘)
     raw = judge_xss(new_region, payload)
     if not raw.vulnerable:
         return _mk_finding(family, case, "safe", raw=raw, evidence="새 영역에 실행가능 반사 없음")
