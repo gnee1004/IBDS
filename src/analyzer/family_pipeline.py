@@ -73,7 +73,13 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
 
-    # 3.4: Phase 2 재조회 N회 실패(payload 끝내 안 뜸/네트워크·URL 오류) → inconclusive (조용한 safe 강등 금지)
+    # 재조회는 정상인데 payload 없음 + 등록 응답엔 실행가능 에코 → 저장 안 된 에코백 → reflected_only (기존 오탐)
+    if payload and case_result.get("revisit_found") is False:
+        echo = judge_xss(case_result.get("response_body") or "", payload)
+        if echo.vulnerable:
+            return _mk_finding(family, case, "reflected_only", raw=echo)
+
+    # 재조회 N회 실패(payload 끝내 안 뜸/네트워크·URL 오류) → inconclusive (조용한 safe 강등 금지)
     if not payload or payload not in after:
         return _mk_finding(family, case, "inconclusive", evidence="재조회 N회 실패(payload 미확인)")
 
