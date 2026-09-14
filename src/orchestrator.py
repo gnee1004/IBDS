@@ -176,7 +176,7 @@ def run_pipeline() -> str:
 
             for family in families:
                 assert baseline_result is not None  # families가 비어있지 않으면 위에서 반드시 채워짐
-                # 위에서 보낸 baseline 결과를 family 고유 case_id로 걸아끼위 재사용
+                # 위에서 보낸 baseline 결과를 family 고유 case_id로 갈아끼워 재사용
                 case_results: list[CaseResult] = [replace(baseline_result, case=family.baseline)]
                 if case_results[0].status == "error":
                     fail_count += 1
