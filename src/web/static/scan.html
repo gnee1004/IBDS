@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>IBDS 스캔</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="mark">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+            <div class="name">IBDS</div>
+        </div>
+
+        <a href="/" class="nav-item">
+            <span class="nav-tile">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+            </span>
+            스캔 설정
+        </a>
+        <a href="/run" class="nav-item">
+            <span class="nav-tile">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg>
+            </span>
+            스캔 실행
+        </a>
+        <a href="/scan" class="nav-item active">
+            <span class="nav-tile">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h6M4 15h10M4 11h16M4 7h16"></path></svg>
+            </span>
+            리포트
+        </a>
+
+        <div class="sidebar-box">
+            <div class="label" style="margin-bottom:10px">심각도</div>
+            <div id="legend"></div>
+        </div>
+    </div>
+
+    <div class="main wide">
+        <div class="run-bar">
+            <div class="body">
+                <div class="page-title">리포트</div>
+                <div class="page-sub" id="runSub">불러오는 중…</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px">
+                <select class="run-select" id="runSelect" onchange="onRunSelect()"></select>
+                <a href="/run" class="btn-ghost" style="display:inline-flex; align-items:center; gap:6px">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1D1D1F" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                    새 스캔
+                </a>
+            </div>
+        </div>
+
+        <div class="kpi-grid" id="kpiGrid"></div>
+
+        <div class="section-label">파라미터별 결과</div>
+        <div class="card result-card" id="results"></div>
+    </div>
+</div>
+
+<script>
+const STATUS = {
+    vulnerable:     { label: '취약',      color: '#FF3B30', tint: '#FFEDEC' },
+    reflected_only: { label: '반사만 됨', color: '#FF9500', tint: '#FFF3E0' },
+    safe:           { label: '안전',      color: '#34C759', tint: '#E9F9EE' },
+    inconclusive:   { label: '판정 불가', color: '#8E8E93', tint: '#F0F0F2' },
+};
+const STATUS_ORDER = ["vulnerable", "reflected_only", "inconclusive", "safe"];
+const params = new URLSearchParams(location.search);
+let currentRun = params.get("run");  // 없으면 최신 실행
+
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+}
+
+function worstStatus(items) {
+    for (const s of STATUS_ORDER) if (items.some(i => i.final_status === s)) return s;
+    return "safe";
+}
+
+function renderKpisAndLegend(groups) {
+    const counts = { vulnerable: 0, reflected_only: 0, safe: 0, inconclusive: 0 };
+    let total = 0;
+    for (const g of groups) for (const i of g.items) {
+        total++;
+        if (counts[i.final_status] !== undefined) counts[i.final_status]++;
+    }
+
+    const kpiGrid = document.getElementById("kpiGrid");
+    kpiGrid.innerHTML = `
+        <div class="card kpi"><div class="value">${total}</div><div class="label">TOTAL</div></div>
+        ${STATUS_ORDER.map(s => `
+            <div class="card kpi" style="background:${STATUS[s].tint}">
+                <div class="value" style="color:${STATUS[s].color}">${counts[s]}</div>
+                <div class="label">${STATUS[s].label}</div>
+            </div>
+        `).join("")}
+    `;
+
+    const legend = document.getElementById("legend");
+    legend.innerHTML = STATUS_ORDER.map(s => `
+        <div class="legend-row">
+            <div style="display:flex; align-items:center;"><span class="dot" style="background:${STATUS[s].color}"></span><span class="label">${STATUS[s].label}</span></div>
+            <span class="count">${counts[s]}</span>
+        </div>
+    `).join("");
+}
+
+function renderResults(groups) {
+    const root = document.getElementById("results");
+    if (!groups.length) {
+        root.innerHTML = '<div class="empty">아직 결과가 없습니다.</div>';
+        return;
+    }
+    root.innerHTML = "";
+    groups.forEach((g, gi) => {
+        const worst = worstStatus(g.items);
+        const s = STATUS[worst] || STATUS.inconclusive;
+        const wrap = document.createElement("div");
+        wrap.innerHTML = `
+            <div class="result-row" data-idx="${gi}">
+                <span class="dot" style="background:${s.color}"></span>
+                <span class="mono param">${escapeHtml(g.param)}</span>
+                <span class="mono url">${escapeHtml(g.url || "")}</span>
+                <span class="pill" style="background:${s.tint}; color:${s.color}">${s.label} · ${g.items.length}</span>
+            </div>
+            <div class="mono detail" id="detail-${gi}">
+                ${g.items.map(i => {
+                    const si = STATUS[i.final_status] || STATUS.inconclusive;
+                    return `
+                        <div class="detail-row">
+                            <span class="pill technique">${escapeHtml(i.technique || "-")}</span>
+                            <span class="payload">${escapeHtml(i.payload || "")}</span>
+                            <span class="pill" style="background:${si.tint}; color:${si.color}">${si.label}</span>
+                        </div>
+                    `;
+                }).join("")}
+            </div>
+        `;
+        wrap.querySelector(".result-row").onclick = () => {
+            document.getElementById(`detail-${gi}`).classList.toggle("open");
+        };
+        root.appendChild(wrap);
+    });
+}
+
+async function loadResults() {
+    const url = currentRun ? `/api/results?run=${encodeURIComponent(currentRun)}` : "/api/results";
+    const res = await fetch(url);
+    const data = await res.json();
+    const groups = data.groups || [];
+    currentRun = data.run || currentRun;
+    renderKpisAndLegend(groups);
+    renderResults(groups);
+    document.getElementById("runSub").textContent = groups.length
+        ? `${groups.reduce((n, g) => n + g.items.length, 0)}건 판정됨`
+        : "아직 스캔 결과 없음";
+}
+
+async function loadRunSelect() {
+    const res = await fetch("/api/scans");
+    const data = await res.json();
+    const select = document.getElementById("runSelect");
+    select.innerHTML = (data.runs || []).map(r =>
+        `<option value="${r.id}">${r.label} · ${r.count}건</option>`
+    ).join("");
+    if (currentRun) select.value = currentRun;
+}
+
+function onRunSelect() {
+    const id = document.getElementById("runSelect").value;
+    window.location.href = `/scan?run=${encodeURIComponent(id)}`;
+}
+
+loadRunSelect();
+loadResults();
+</script>
+</body>
+</html>

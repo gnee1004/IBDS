@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>IBDS 스캔 실행</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <div class="mark">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </div>
+            <div class="name">IBDS</div>
+        </div>
+
+        <a href="/" class="nav-item">
+            <span class="nav-tile">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
+            </span>
+            스캔 설정
+        </a>
+        <a href="/run" class="nav-item active">
+            <span class="nav-tile">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg>
+            </span>
+            스캔 실행
+        </a>
+        <a href="/scan" class="nav-item">
+            <span class="nav-tile">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h6M4 15h10M4 11h16M4 7h16"></path></svg>
+            </span>
+            리포트
+        </a>
+    </div>
+
+    <div class="main narrow">
+        <div style="margin-bottom:24px">
+            <div class="page-title">스캔 실행</div>
+            <div class="page-sub" id="pageSub">불러오는 중…</div>
+        </div>
+
+        <div class="card" style="padding:20px 24px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
+            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1">
+                <span class="dot" id="stateDot" style="width:10px; height:10px; border-radius:50%; background:#8E8E93; flex-shrink:0"></span>
+                <span id="stateText" style="font-size:14px; font-weight:600; min-width:0">대기 중</span>
+            </div>
+            <button class="btn-primary" id="startBtn" onclick="startScan()" style="flex-shrink:0; white-space:nowrap">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"></path></svg>
+                스캔 시작
+            </button>
+        </div>
+
+        <div class="section-label">로그</div>
+        <div class="log-panel" id="log"></div>
+    </div>
+</div>
+
+<script>
+function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+}
+
+const STAGE_LABEL = { collecting: "ZAP 수집 중…", scanning: "공격 요청 · 판정 진행 중…", done: "완료" };
+const logEl = document.getElementById("log");
+const btn = document.getElementById("startBtn");
+const stateDot = document.getElementById("stateDot");
+const stateText = document.getElementById("stateText");
+const pageSub = document.getElementById("pageSub");
+
+function appendLogLines(lines) {
+    for (const line of lines) {
+        const row = document.createElement("div");
+        row.className = "log-line";
+        if (line.includes("[ERROR]")) row.classList.add("err");
+        else if (line.includes("[WARN]")) row.classList.add("warn");
+        row.textContent = line;
+        logEl.appendChild(row);
+    }
+    if (lines.length) logEl.scrollTop = logEl.scrollHeight;
+}
+
+async function loadConfigSub() {
+    const res = await fetch("/api/config");
+    const cfg = await res.json();
+    pageSub.textContent = cfg.target_url || "타겟 URL이 설정되지 않았습니다";
+}
+
+function connect() {
+    let sawRunning = false;
+    const ev = new EventSource("/api/scan/stream");
+    ev.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        if (data.running) sawRunning = true;
+
+        appendLogLines(data.logs || []);
+        if (data.running) {
+            stateText.textContent = (STAGE_LABEL[data.stage] || data.stage) + ` · 판정 ${data.findings_count}건`;
+            stateDot.style.background = "#F2A93B";
+        } else if (data.error) {
+            // sawRunning 여부와 무관하게 표시 — 연결 즉시 실패처럼 "실행 중"을 한 번도 못 본 경우도 있음
+            stateText.textContent = "오류: " + data.error;
+            stateDot.style.background = "#FF3B30";
+        } else {
+            stateText.textContent = "대기 중";
+            stateDot.style.background = "#8E8E93";
+        }
+        btn.disabled = data.running;
+
+        if (!data.running) {
+            ev.close();
+            if (sawRunning && !data.error) {
+                // 방금 이 화면에서 스캔이 정상적으로 끝남 -> 리포트로 자동 이동
+                stateText.textContent = "완료 — 리포트로 이동합니다…";
+                stateDot.style.background = "#34C759";
+                setTimeout(() => {
+                    window.location.href = data.run ? `/scan?run=${encodeURIComponent(data.run)}` : "/scan";
+                }, 600);
+            }
+        }
+    };
+    ev.onerror = () => { ev.close(); btn.disabled = false; };
+}
+
+function startScan() {
+    fetch("/api/scan/start", { method: "POST" }).then(res => {
+        if (!res.ok) return res.text().then(t => alert(t));
+        logEl.innerHTML = "";
+        btn.disabled = true;
+        connect();
+    });
+}
+
+loadConfigSub();
+connect();  // 이미 진행 중인 스캔이 있으면 이어서 보여줌 (없으면 첫 이벤트 받고 바로 대기 상태로 표시)
+</script>
+</body>
+</html>

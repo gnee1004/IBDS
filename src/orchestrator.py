@@ -20,11 +20,14 @@ from scan.mutation.scan_point import build_scan_points
 from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
-from utilities.file_utils import append_jsonl
+from utilities.file_utils import append_jsonl, load_json
 from analyzer import family_pipeline
 from analyzer.headless import HeadlessSession
 from analyzer.revisit import probe_sink, new_run_marker_factory, refetch
 from analyzer.scan import analyze_family
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
@@ -117,11 +120,25 @@ def _revisit_after_fields(family, case, requester, zap, target, revisit_before, 
     return fields
 
 
+# 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
+# (target["revisit_url"]에 채워두면 analyzer.revisit.resolve_revisit_url이 최우선으로 사용함)
+def _apply_revisit_overrides(targets: list[dict]) -> None:
+    overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
+    if not overrides:
+        return
+    for target in targets:
+        match = overrides.get(target.get("url")) or overrides.get(target.get("base_url"))
+        if match:
+            target["revisit_url"] = match
+
+
 # collector ->  ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 ScanPoint 단위로 실행
-def run_pipeline() -> str:
+# on_paths_ready: (results_path, findings_path)를 알게 되는 즉시 호출되는 콜백 (로컬 웹의 진행 상황 조회용, 없으면 무시)
+def run_pipeline(on_paths_ready=None) -> str:
     out_dir, targets_path = run_collection()
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
+    _apply_revisit_overrides(targets)
     target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)} # 타겟에 ID 부여 (ex. t0)
     scan_points = build_scan_points(targets)   # 타겟들을 파라미터 단위로 쪼갬.
 
@@ -132,6 +149,8 @@ def run_pipeline() -> str:
 
     results_path = os.path.join(out_dir, "request_results.jsonl") # 실행 결과 (요청, 응답 raw)
     findings_path = os.path.join(out_dir, "findings.jsonl") # 판정 결과
+    if on_paths_ready is not None:
+        on_paths_ready(results_path, findings_path)
     total_count = 0
     fail_count = 0
 
