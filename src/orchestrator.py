@@ -7,6 +7,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, replace
+from urllib.parse import urljoin
 
 for _stream in (sys.stdout, sys.stderr):
     if isinstance(_stream, io.TextIOWrapper):
@@ -91,11 +92,11 @@ def _revisit_before(family, case, requester, zap, target):
         return None, note
 
 
-# 공격 후 재조회 - before 성공 여부와 무관하게 항상 시도, CaseResult에 병합할 revisit 필드 생성
-def _revisit_after_fields(family, case, requester, zap, target, revisit_before, before_note):
+# 공격 후 재조회 - before 성공 여부와 무관하게 항상 시도
+def _revisit_after_fields(revisit_url, family, case, requester, zap, target, revisit_before, before_note):
     try:
         revisit_after = refetch(
-            family.revisit_url, target.get("cookies"), case.payload, requester, zap,
+            revisit_url, target.get("cookies"), case.payload, requester, zap,
             target=target,
         )
     except Exception as e:  # 공격 후 재조회 실패 -> 반사 여부도 확인 불가, 사유만 기록
@@ -103,9 +104,9 @@ def _revisit_after_fields(family, case, requester, zap, target, revisit_before, 
         print(f"[WARN] 재조회 후 요청 실패: family={family.family_id} case={case.case_id} - {e}")
         return dict(revisit_note=f"{before_note}; {after_note}" if before_note else after_note)
 
-    fields = dict(
+    fields = dict(                              # CaseResult에 병합할 revisit 필드 생성
         revisit_status=revisit_after.status,
-        revisit_url_used=family.revisit_url,
+        revisit_url_used=revisit_url,           # 이번 case가 실제로 조회한 주소
         revisit_attempts=revisit_after.attempts,
         revisit_found=revisit_after.found,      # payload가 after에 반사됐는지 (항상 기록)
     )
@@ -115,6 +116,12 @@ def _revisit_after_fields(family, case, requester, zap, target, revisit_before, 
         # before 없을 경우: revisit_note만 남겨 judge_case가 diff 불가와 재조회 실패를 구분하도록
         fields["revisit_note"] = before_note
     return fields
+
+
+# 공격 응답 Location에서 이번 case가 쓸 재방문 주소 추출 (상대경로면 case.url 기준 절대주소로 변환, 없으면 None)
+def _resolve_case_revisit_url(sent: dict, case) -> str | None:
+    location = sent["response_headers"].get("location")
+    return urljoin(case.url, location) if location else None
 
 
 # collector ->  ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 ScanPoint 단위로 실행
@@ -148,8 +155,7 @@ def run_pipeline() -> str:
                 print(f"[ERROR] ScanPoint 라우팅 실패: target={sp.target_id} param={sp.name} - {e}")
                 continue
 
-            # 같은 ScanPoint의 모든 family는 baseline이 완전히 동일한 요청(같은 target/location, payload 없음)이므로
-            # ScanPoint당 한 번만 실제로 보내고, 각 family는 자기 case_id를 붙인 채로 그 결과를 재사용.
+            # 같은 ScanPoint의 모든 family는 baseline이 완전히 동일한 요청이라 스캔포인트당 한번만 보냄.
             baseline_result: CaseResult | None = None
             if families:
                 baseline_case = families[0].baseline
@@ -170,7 +176,7 @@ def run_pipeline() -> str:
 
             for family in families:
                 assert baseline_result is not None  # families가 비어있지 않으면 위에서 반드시 채워짐
-                # baseline 슬롯은 위에서 미리 보낸 결과를 family 고유 case_id로만 갈아끼워 재사용 (재요청 없음)
+                # 위에서 보낸 baseline 결과를 family 고유 case_id로 걸아끼위 재사용
                 case_results: list[CaseResult] = [replace(baseline_result, case=family.baseline)]
                 if case_results[0].status == "error":
                     fail_count += 1
@@ -181,7 +187,7 @@ def run_pipeline() -> str:
                     )
 
                     revisit_before = before_note = None
-                    if needs_revisit:  # 공격 요청 전 스냅샷 - mutation마다 새로 찍음
+                    if needs_revisit:  # 공격 요청 전 스냅샷 - 마커로 미리 확인한 재방문 주소 기준으로 변형마다 새로 찍음
                         revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
 
                     try:
@@ -194,7 +200,10 @@ def run_pipeline() -> str:
 
                     revisit_fields = {}
                     if needs_revisit:  # 공격 POST 직후 재조회
-                        revisit_fields = _revisit_after_fields(family, case, requester, zap, target, revisit_before, before_note)
+                        case_revisit_url = _resolve_case_revisit_url(sent, case) or family.revisit_url
+                        if case_revisit_url != family.revisit_url:  # 응답 주소가 이전 주소와 다름 -> 이 변형 전용 새 주소, 이전에 찍은 사전 스냅샷은 무효
+                            revisit_before, before_note = None, "이전과 재방문 주소가 다름 (사전 스냅샷 무효)"
+                        revisit_fields = _revisit_after_fields(case_revisit_url, family, case, requester, zap, target, revisit_before, before_note)
 
                     case_results.append(CaseResult(
                         case=case, status="ok",
@@ -221,12 +230,12 @@ def run_pipeline() -> str:
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)
 
-                # SQLi 판정.
+                # SQLi 판정
                 if family.vuln_type == "sqli":  
                     try:
                         for finding_dict in analyze_family(family_dict): 
                             append_jsonl(findings_path, finding_dict)
-                    except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
+                    except Exception as e:
                         print(f"[ERROR] 판정 실패: family={family.family_id} - {e}")
                     continue
 
@@ -235,13 +244,13 @@ def run_pipeline() -> str:
                     try:
                         finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
-                    except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
+                    except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")
 
         print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
         print(f"[RUN] findings.jsonl -> {findings_path}")
     finally:
-        headless.close()  # 스캔 전체가 끝나면 브라우저/Playwright 프로세스 정리
+        headless.close()  # 스캔 전체가 끝나면 헤드리스 프로세스 정리
 
     return results_path
 
