@@ -109,11 +109,12 @@ def _revisit_after_fields(revisit_url, family, case, requester, zap, target, rev
         revisit_url_used=revisit_url,           # 이번 case가 실제로 조회한 주소
         revisit_attempts=revisit_after.attempts,
         revisit_found=revisit_after.found,      # payload가 after에 반사됐는지 (항상 기록)
+        revisit_body=revisit_after.body,
     )
     if revisit_before is not None:
-        fields.update(before_revisit_body=revisit_before.body, revisit_body=revisit_after.body)
+        fields["before_revisit_body"] = revisit_before.body
     else:
-        # before 없을 경우: revisit_note만 남겨 judge_case가 diff 불가와 재조회 실패를 구분하도록
+        # before 없을 경우: revisit_note만 추가로 남겨 judge_case가 diff 불가와 재조회 실패를 구분하도록
         fields["revisit_note"] = before_note
     return fields
 
