@@ -122,6 +122,12 @@ def _revisit_after_fields(revisit_url, family, case, requester, zap, target, rev
     return fields
 
 
+# 공격 응답 Location에서 이번 case가 쓸 재방문 주소 추출 (상대경로면 case.url 기준 절대주소로 변환, 없으면 None)
+def _resolve_case_revisit_url(sent: dict, case) -> str | None:
+    location = sent["response_headers"].get("location")
+    return urljoin(case.url, location) if location else None
+
+
 # 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
 # (target["revisit_url"]에 채워두면 analyzer.revisit.resolve_revisit_url이 최우선으로 사용함)
 def _apply_revisit_overrides(targets: list[dict]) -> None:
