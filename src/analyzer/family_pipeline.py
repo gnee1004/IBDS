@@ -73,7 +73,21 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
 
-    # 재조회 N회 실패(payload 끝내 안 뜸/네트워크·URL 오류) → inconclusive (조용한 safe 강등 금지)
+    # 재조회 성공했는데 payload 없음(저장 안 됨) → 등록 응답 에코를 headless로 실제 발화 확인
+    if case_result.get("revisit_found") is False:
+        echo = judge_xss(case_result.get("response_body") or "", payload) if payload else None
+        if echo and echo.vulnerable:
+            # 등록 응답을 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render해서 실제 발화하면 reflected_only (실행되는 반사, 저장은 아님)
+            hv = headless.confirm_via_render(
+                case_result.get("response_body") or "",
+                url=case["url"], headers=case_result.get("response_headers"),
+            )
+            # 발화 안 함 → safe지만 raw/headless 근거는 남김
+            return _mk_finding(family, case, "reflected_only" if hv.executed else "safe", raw=echo, hv=hv)
+        # 에코 없음 / escape로 raw 미적중 → 앱이 정상 방어 → safe
+        return _mk_finding(family, case, "safe", evidence="재조회에 payload 없음(정상 방어)")
+
+    # 재조회 자체 실패(revisit_found None 등)로 payload 확인 불가 → inconclusive (조용한 safe 강등 금지)
     if not payload or payload not in after:
         return _mk_finding(family, case, "inconclusive", evidence="재조회 N회 실패(payload 미확인)")
 
@@ -128,8 +142,11 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             headless_verdict = headless.confirm_via_navigate(
                 case["url"], case_result.get("effective_cookies") or {}, case["method"],
             )
-        else:
-            headless_verdict = headless.confirm_via_render(case_result.get("response_body") or "")
+        else:  # 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render
+            headless_verdict = headless.confirm_via_render(
+                case_result.get("response_body") or "",
+                url=case["url"], headers=case_result.get("response_headers"),
+            )
 
     return Finding(
         family_id=family["family_id"],
