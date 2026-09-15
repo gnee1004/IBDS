@@ -1,185 +1,70 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-<meta charset="utf-8">
-<title>IBDS 스캔</title>
-<link rel="stylesheet" href="/static/style.css">
-</head>
+    <head>
+        <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>리포트 · IBDS</title><link rel="stylesheet" href="/static/style.css">
+        <script type="module" src="/static/report.js"></script>
+    </head>
 <body>
-<div class="app">
-    <div class="sidebar">
-        <div class="sidebar-logo">
-            <div class="mark">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            </div>
-            <div class="name">IBDS</div>
+    <a class="skip" href="#main">본문으로 이동</a>
+    <header>
+        <a class="brand" href="/">IBDS <span>LOCAL</span></a>
+        <nav aria-label="주 메뉴">
+            <a href="/">스캔 설정</a>
+            <a href="/run">스캔 실행</a>
+            <a href="/scan" aria-current="page">리포트</a>
+        </nav>
+        <span class="local">로컬 워크스페이스</span>
+    </header>
+
+    <main id="main">
+        <div class="heading">
+            <p class="eyebrow">SCAN REPORT</p>
+            <h1>리포트</h1>
+            <p>판정 결과를 살펴보고, 검토할 항목의 근거를 확인하세요.</p>
         </div>
-
-        <a href="/" class="nav-item">
-            <span class="nav-tile">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
-            </span>
-            스캔 설정
-        </a>
-        <a href="/run" class="nav-item">
-            <span class="nav-tile">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg>
-            </span>
-            스캔 실행
-        </a>
-        <a href="/scan" class="nav-item active">
-            <span class="nav-tile">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h6M4 15h10M4 11h16M4 7h16"></path></svg>
-            </span>
-            리포트
-        </a>
-
-        <div class="sidebar-box">
-            <div class="label" style="margin-bottom:10px">심각도</div>
-            <div id="legend"></div>
+        <div id="message" class="notice" role="status" hidden></div>
+        <div class="run-picker"><label for="runs">실행 기록</label>
+            <select id="runs"><option>불러오는 중…</option></select>
+            <button id="refresh" class="secondary">새로고침</button>
         </div>
-    </div>
-
-    <div class="main wide">
-        <div class="run-bar">
-            <div class="body">
-                <div class="page-title">리포트</div>
-                <div class="page-sub" id="runSub">불러오는 중…</div>
+        <p id="run-meta" class="hint"></p>
+        <div id="run-error" class="notice danger" role="alert" hidden></div>
+        <section class="report-summary" aria-label="판정 요약"><div id="kpis" class="kpis"></div></section>
+        <section id="error-panel" class="section" hidden>
+            <div class="section-bar">
+                <h2>오류 상세</h2>
+                <button id="close-errors" class="secondary">닫기</button>
             </div>
-            <div style="display:flex; align-items:center; gap:10px">
-                <select class="run-select" id="runSelect" onchange="onRunSelect()"></select>
-                <a href="/run" class="btn-ghost" style="display:inline-flex; align-items:center; gap:6px">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1D1D1F" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
-                    새 스캔
-                </a>
+            <div id="errors"></div>
+        </section>
+        <section class="results-section">
+            <div class="filters"><div>
+                <label for="status-filter">판정기준</label>
+                <select id="status-filter"><option value="">모든 판정</option></select>
             </div>
+            <div>
+                <label for="technique-filter">공격기법</label>
+                <select id="technique-filter">
+                    <option value="">모든 기법</option>
+                </select>
+            </div>
+            <div>
+                <label for="sort">정렬</label>
+                <select id="sort"><option value="severity">심각도 순</option>
+                    <option value="name">URL / 파라미터 이름순</option>
+                </select>
+            </div>
+            <button id="reset" class="secondary">초기화</button>
         </div>
-
-        <div class="kpi-grid" id="kpiGrid"></div>
-
-        <div class="section-label">파라미터별 결과</div>
-        <div class="card result-card" id="results"></div>
-    </div>
-</div>
-
-<script>
-const STATUS = {
-    vulnerable:     { label: '취약',      color: '#FF3B30', tint: '#FFEDEC' },
-    reflected_only: { label: '반사만 됨', color: '#FF9500', tint: '#FFF3E0' },
-    safe:           { label: '안전',      color: '#34C759', tint: '#E9F9EE' },
-    inconclusive:   { label: '판정 불가', color: '#8E8E93', tint: '#F0F0F2' },
-};
-const STATUS_ORDER = ["vulnerable", "reflected_only", "inconclusive", "safe"];
-const params = new URLSearchParams(location.search);
-let currentRun = params.get("run");  // 없으면 최신 실행
-
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-}
-
-function worstStatus(items) {
-    for (const s of STATUS_ORDER) if (items.some(i => i.final_status === s)) return s;
-    return "safe";
-}
-
-function renderKpisAndLegend(groups) {
-    const counts = { vulnerable: 0, reflected_only: 0, safe: 0, inconclusive: 0 };
-    let total = 0;
-    for (const g of groups) for (const i of g.items) {
-        total++;
-        if (counts[i.final_status] !== undefined) counts[i.final_status]++;
-    }
-
-    const kpiGrid = document.getElementById("kpiGrid");
-    kpiGrid.innerHTML = `
-        <div class="card kpi"><div class="value">${total}</div><div class="label">TOTAL</div></div>
-        ${STATUS_ORDER.map(s => `
-            <div class="card kpi" style="background:${STATUS[s].tint}">
-                <div class="value" style="color:${STATUS[s].color}">${counts[s]}</div>
-                <div class="label">${STATUS[s].label}</div>
-            </div>
-        `).join("")}
-    `;
-
-    const legend = document.getElementById("legend");
-    legend.innerHTML = STATUS_ORDER.map(s => `
-        <div class="legend-row">
-            <div style="display:flex; align-items:center;"><span class="dot" style="background:${STATUS[s].color}"></span><span class="label">${STATUS[s].label}</span></div>
-            <span class="count">${counts[s]}</span>
+        <div class="section-bar result-heading">
+            <h2>검사 결과</h2>
+            <span id="result-count" class="hint"></span>
         </div>
-    `).join("");
-}
-
-function renderResults(groups) {
-    const root = document.getElementById("results");
-    if (!groups.length) {
-        root.innerHTML = '<div class="empty">아직 결과가 없습니다.</div>';
-        return;
-    }
-    root.innerHTML = "";
-    groups.forEach((g, gi) => {
-        const worst = worstStatus(g.items);
-        const s = STATUS[worst] || STATUS.inconclusive;
-        const wrap = document.createElement("div");
-        wrap.innerHTML = `
-            <div class="result-row" data-idx="${gi}">
-                <span class="dot" style="background:${s.color}"></span>
-                <span class="mono param">${escapeHtml(g.param)}</span>
-                <span class="mono url">${escapeHtml(g.url || "")}</span>
-                <span class="pill" style="background:${s.tint}; color:${s.color}">${s.label} · ${g.items.length}</span>
-            </div>
-            <div class="mono detail" id="detail-${gi}">
-                ${g.items.map(i => {
-                    const si = STATUS[i.final_status] || STATUS.inconclusive;
-                    return `
-                        <div class="detail-row">
-                            <span class="pill technique">${escapeHtml(i.technique || "-")}</span>
-                            <span class="payload">${escapeHtml(i.payload || "")}</span>
-                            <span class="pill" style="background:${si.tint}; color:${si.color}">${si.label}</span>
-                        </div>
-                    `;
-                }).join("")}
-            </div>
-        `;
-        wrap.querySelector(".result-row").onclick = () => {
-            document.getElementById(`detail-${gi}`).classList.toggle("open");
-        };
-        root.appendChild(wrap);
-    });
-}
-
-async function loadResults() {
-    const url = currentRun ? `/api/results?run=${encodeURIComponent(currentRun)}` : "/api/results";
-    const res = await fetch(url);
-    const data = await res.json();
-    const groups = data.groups || [];
-    currentRun = data.run || currentRun;
-    renderKpisAndLegend(groups);
-    renderResults(groups);
-    document.getElementById("runSub").textContent = groups.length
-        ? `${groups.reduce((n, g) => n + g.items.length, 0)}건 판정됨`
-        : "아직 스캔 결과 없음";
-}
-
-async function loadRunSelect() {
-    const res = await fetch("/api/scans");
-    const data = await res.json();
-    const select = document.getElementById("runSelect");
-    select.innerHTML = (data.runs || []).map(r =>
-        `<option value="${r.id}">${r.label} · ${r.count}건</option>`
-    ).join("");
-    if (currentRun) select.value = currentRun;
-}
-
-function onRunSelect() {
-    const id = document.getElementById("runSelect").value;
-    window.location.href = `/scan?run=${encodeURIComponent(id)}`;
-}
-
-loadRunSelect();
-loadResults();
-</script>
+        <div id="groups"></div>
+        <div id="empty" class="empty" hidden><div class="empty-icon" aria-hidden="true">≡</div><h2>아직 스캔 결과가 없습니다</h2><p>스캔을 실행하면 URL과 파라미터별 결과가 표시됩니다.</p><a href="/run" class="button primary">스캔 실행으로</a></div>
+        </section>
+        <footer>IBDS · 웹 취약점 검사 <span></span></footer>
+    </main>
 </body>
 </html>

@@ -1,141 +1,76 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<title>IBDS 스캔 실행</title>
-<link rel="stylesheet" href="/static/style.css">
-</head>
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>스캔 실행 · IBDS</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/run.js"></script>
+  </head>
 <body>
-<div class="app">
-    <div class="sidebar">
-        <div class="sidebar-logo">
-            <div class="mark">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            </div>
-            <div class="name">IBDS</div>
-        </div>
+  <a class="skip" href="#main">본문으로 이동</a>
+  <header>
+    <a class="brand" href="/">IBDS <span>LOCAL</span></a>
+    <nav aria-label="주 메뉴">
+      <a href="/">스캔 설정</a>
+      <a href="/run" aria-current="page">스캔 실행</a>
+      <a href="/scan">리포트</a>
+    </nav>
+    <span class="local">로컬 워크스페이스</span>
+  </header>
 
-        <a href="/" class="nav-item">
-            <span class="nav-tile">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"></path></svg>
-            </span>
-            스캔 설정
-        </a>
-        <a href="/run" class="nav-item active">
-            <span class="nav-tile">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg>
-            </span>
-            스캔 실행
-        </a>
-        <a href="/scan" class="nav-item">
-            <span class="nav-tile">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h6M4 15h10M4 11h16M4 7h16"></path></svg>
-            </span>
-            리포트
-        </a>
+  <main id="main">
+    <div class="heading">
+      <p class="eyebrow">SCAN ACTIVITY</p>
+      <h1>스캔 실행</h1>
+      <p>검사 진행 상황과 요청 로그를 한곳에서 확인하세요.</p>
     </div>
-
-    <div class="main narrow">
-        <div style="margin-bottom:24px">
-            <div class="page-title">스캔 실행</div>
-            <div class="page-sub" id="pageSub">불러오는 중…</div>
-        </div>
-
-        <div class="card" style="padding:20px 24px; margin-bottom:20px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
-            <div style="display:flex; align-items:center; gap:12px; min-width:0; flex:1">
-                <span class="dot" id="stateDot" style="width:10px; height:10px; border-radius:50%; background:#8E8E93; flex-shrink:0"></span>
-                <span id="stateText" style="font-size:14px; font-weight:600; min-width:0">대기 중</span>
-            </div>
-            <button class="btn-primary" id="startBtn" onclick="startScan()" style="flex-shrink:0; white-space:nowrap">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"></path></svg>
-                스캔 시작
-            </button>
-        </div>
-
-        <div class="section-label">로그</div>
-        <div class="log-panel" id="log"></div>
+  <div id="fatal" class="notice danger" role="alert" hidden></div>
+  <div id="message" class="notice" role="status" hidden></div>
+  <section class="section execution">
+    <div class="section-bar target-header">
+      <div class="target-info">
+        <p class="eyebrow">TARGET · 검사 대상</p>
+        <p id="target" class="target">설정을 불러오는 중…</p>
+        <div class="target-scope">
+          <span>검사 항목</span>
+          <span class="tag">XSS</span><span class="tag">SQLi</span></div>
+      </div>
+      <a href="/" class="text-link">설정 변경</a>
     </div>
-</div>
+    <p id="settings-note" class="hint" hidden>설정 화면으로 이동해도 스캔은 계속됩니다. 설정 저장은 스캔 종료 후 가능합니다.</p>
+    <div class="progress-heading">
+      <h2 id="stage" aria-live="polite">실행 대기</h2><strong id="percent">—</strong>
+    </div>
+    <progress id="progress" max="100" value="0" aria-label="완료된 ScanPoint 기준 진행률"></progress>
+    <div class="metrics">
+      <span id="count">검사 시작 전</span>
+      <span class="failure-count">요청 실패 <strong id="failed">0</strong>건</span>
+    </div>
+    <p class="hint">진행률은 완료된 ScanPoint / 전체 ScanPoint 기준입니다. 각 항목의 요청 수에 따라 진행 속도가 달라집니다.</p>
+    <p id="stop-note" class="notice" hidden>중지 요청을 접수했습니다. 현재 요청과 재조회 처리를 마친 뒤 중단합니다. 수집 중에는 수집이 끝날 때까지 기다립니다.</p>
+    <div class="actions">
+      <button id="start" class="primary">스캔 시작</button>
+      <button id="stop" class="secondary" disabled>중지</button>
+      <a id="report-link" class="button secondary" href="/scan" hidden>리포트 보기 →</a>
+    </div>
+  </section>
+  <section class="section logs-section">
+    <div class="section-bar">
+      <div>
+        <h2>실행 로그</h2>
+        <p id="connection" class="hint">실시간 연결 중…</p>
+      </div>
+      <label class="check">
+        <input id="autoscroll" type="checkbox" checked> 자동 스크롤</label>
+      </div>
+      <div id="logs" class="logs" role="log" aria-label="스캔 실행 로그" tabindex="0">
+        <p class="log-placeholder">스캔을 시작하면 로그가 여기에 표시됩니다.</p>
+      </div>
+      <p class="hint">화면에는 최근 로그 최대 2,000줄이 표시됩니다.</p>
+    </section>
+    <footer>IBDS · 웹 취약점 검사 <span>
 
-<script>
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, c => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
-}
-
-const STAGE_LABEL = { collecting: "ZAP 수집 중…", scanning: "공격 요청 · 판정 진행 중…", done: "완료" };
-const logEl = document.getElementById("log");
-const btn = document.getElementById("startBtn");
-const stateDot = document.getElementById("stateDot");
-const stateText = document.getElementById("stateText");
-const pageSub = document.getElementById("pageSub");
-
-function appendLogLines(lines) {
-    for (const line of lines) {
-        const row = document.createElement("div");
-        row.className = "log-line";
-        if (line.includes("[ERROR]")) row.classList.add("err");
-        else if (line.includes("[WARN]")) row.classList.add("warn");
-        row.textContent = line;
-        logEl.appendChild(row);
-    }
-    if (lines.length) logEl.scrollTop = logEl.scrollHeight;
-}
-
-async function loadConfigSub() {
-    const res = await fetch("/api/config");
-    const cfg = await res.json();
-    pageSub.textContent = cfg.target_url || "타겟 URL이 설정되지 않았습니다";
-}
-
-function connect() {
-    let sawRunning = false;
-    const ev = new EventSource("/api/scan/stream");
-    ev.onmessage = (e) => {
-        const data = JSON.parse(e.data);
-        if (data.running) sawRunning = true;
-
-        appendLogLines(data.logs || []);
-        if (data.running) {
-            stateText.textContent = (STAGE_LABEL[data.stage] || data.stage) + ` · 판정 ${data.findings_count}건`;
-            stateDot.style.background = "#F2A93B";
-        } else if (data.error) {
-            // sawRunning 여부와 무관하게 표시 — 연결 즉시 실패처럼 "실행 중"을 한 번도 못 본 경우도 있음
-            stateText.textContent = "오류: " + data.error;
-            stateDot.style.background = "#FF3B30";
-        } else {
-            stateText.textContent = "대기 중";
-            stateDot.style.background = "#8E8E93";
-        }
-        btn.disabled = data.running;
-
-        if (!data.running) {
-            ev.close();
-            if (sawRunning && !data.error) {
-                // 방금 이 화면에서 스캔이 정상적으로 끝남 -> 리포트로 자동 이동
-                stateText.textContent = "완료 — 리포트로 이동합니다…";
-                stateDot.style.background = "#34C759";
-                setTimeout(() => {
-                    window.location.href = data.run ? `/scan?run=${encodeURIComponent(data.run)}` : "/scan";
-                }, 600);
-            }
-        }
-    };
-    ev.onerror = () => { ev.close(); btn.disabled = false; };
-}
-
-function startScan() {
-    fetch("/api/scan/start", { method: "POST" }).then(res => {
-        if (!res.ok) return res.text().then(t => alert(t));
-        logEl.innerHTML = "";
-        btn.disabled = true;
-        connect();
-    });
-}
-
-loadConfigSub();
-connect();  // 이미 진행 중인 스캔이 있으면 이어서 보여줌 (없으면 첫 이벤트 받고 바로 대기 상태로 표시)
-</script>
+    </span>
+  </footer>
+  </main>
 </body>
 </html>

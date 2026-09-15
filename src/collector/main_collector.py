@@ -63,7 +63,7 @@ def _drop_danger_messages(messages: list[dict], patterns: list[str]) -> tuple[li
 
 
 # ZAP 수집 + normalize 실행, (out_dir, scan_targets.json 경로) 반환. 실패 시 예외를 그대로 던짐
-def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT) -> tuple[str, str]:
+def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT, on_output_ready=None, output_dir=None) -> tuple[str, str]:
     target_cfg = load_json(_TARGET_CONFIG, default={})
     target_url = normalize_base_url(target_cfg.get("target_url", ""))
     if not target_url:
@@ -71,8 +71,10 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
 
     danger_patterns = _load_danger_patterns(_DANGER_URL_FILE)
 
-    out_dir = os.path.join(_PROJECT_ROOT, "results", datetime.now().strftime("collection_%Y%m%d_%H%M%S"))
+    out_dir = output_dir or os.path.join(_PROJECT_ROOT, "results", datetime.now().strftime("collection_%Y%m%d_%H%M%S"))
     os.makedirs(out_dir, exist_ok=True)
+    if on_output_ready is not None:
+        on_output_ready(out_dir)
 
     collector = ZapCollector.from_config(_ZAP_CONFIG)
     print(f"[ZAP] 버전: {collector.zap.core.version}")

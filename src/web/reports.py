@@ -1,128 +1,104 @@
-"""로컬 웹 리포트 화면용 — findings.jsonl/request_results.jsonl을 읽어 URL·파라미터 단위로 묶음.
-CLAUDE.md #3: src/analyzer 무수정, 이미 저장된 결과만 후처리해서 읽음.
-"""
-from __future__ import annotations
 import json
-import os
-from datetime import datetime
+import re
+from collections import Counter
+from pathlib import Path
+from utilities.file_utils import load_json
+from web.runs import run_metadata
 
 
-# jsonl 파일 한 줄씩 dict로 읽기, 깨진 줄은 건너뜀
-def _read_jsonl(path: str):
-    if not path or not os.path.exists(path):
+# JSONL 레코드 조회와 불완전한 마지막 줄 제외
+def read_jsonl(path):
+    if not path.is_file():
         return
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
             try:
-                yield json.loads(line)
+                item = json.loads(line)
+                if isinstance(item, dict):
+                    yield item
             except json.JSONDecodeError:
                 continue
 
 
-# out_dir(수집 결과 폴더) 안의 request_results.jsonl/findings.jsonl을 읽어
-# (target_id, param) 단위로 묶은 그룹 목록을 반환
-def build_report(out_dir: str) -> list[dict]:
-    results_path = os.path.join(out_dir, "request_results.jsonl")
-    findings_path = os.path.join(out_dir, "findings.jsonl")
+# 판정 파일과 원본 요청의 연결 및 보고서 집계
+def build_report(out_dir):
+    directory = Path(out_dir)
+    targets = load_json(str(directory / "scan_targets.json"), default=[]) or []
+    target_info = {f"t{i}": t for i, t in enumerate(targets)}
+    families, failed_cases, errors, error_keys = {}, set(), [], set()
 
-    # family_id -> family 요청 URL/메서드 (findings.jsonl에 url이 없는 XSS 판정 결과용 보조 조인)
-    family_info: dict[str, dict] = {}
-    for family in _read_jsonl(results_path):
-        family_id = family.get("family_id")
-        if not family_id:
-            continue
-        baseline_case = ((family.get("baseline") or {}).get("case")) or {}
-        family_info[family_id] = {
-            "url": baseline_case.get("url"),
-            "method": baseline_case.get("method"),
-        }
-
-    groups: dict[tuple, dict] = {}
-    for finding in _read_jsonl(findings_path):
-        if finding.get("status") == "error":  # 라우팅/전송 자체가 실패한 레코드는 판정 결과가 아님
-            continue
-
-        target_id = finding.get("target_id")
-        param = finding.get("param")
-        if target_id is None or param is None:
-            continue
-
-        family_id = finding.get("family_id")
-        info = family_info.get(family_id, {})
-        url = finding.get("url") or info.get("url")  # sqli 판정은 자체 url 필드를 가짐
-
-        if finding.get("final_status"):          # xss 판정 결과 (family_pipeline.judge_case)
-            final_status = finding["final_status"]
-        elif finding.get("stage") == "probe":    # Phase 1 sink 프로브 자체가 판정 불가 (공격 시도 전)
-            final_status = "inconclusive"
-        elif "confidence" in finding:            # sqli 판정(analyzer/scan.py)은 걸린 것만 기록 -> 기록 자체가 vulnerable
-            final_status = "vulnerable"
+    # 동일 오류의 중복 집계 방지
+    def add_error(item):
+        stage = item.get("stage", "request")
+        case_id = item.get("case_id")
+        if stage == "baseline":
+            match = re.match(r"^(.*__occ\d+)_", case_id or item.get("family_id") or "")
+            case_id = match.group(1) if match else None
+        elif not case_id and not item.get("family_id"):
+            errors.append(item)
+            return
         else:
-            continue  # 판정 결과로 해석할 수 없는 레코드는 리포트에 안 올림
+            case_id = case_id or item.get("family_id")
+        key = (item.get("target_id"), item.get("param"), stage, case_id, item.get("error"))
+        if key not in error_keys:
+            error_keys.add(key)
+            errors.append(item)
 
-        vuln_type = finding.get("vuln_type") or ("sqli" if "confidence" in finding else "xss")
-        payload = finding.get("payload") or finding.get("sink_note")  # probe 레코드는 payload 대신 판정 불가 사유를 보여줌
+    for family in read_jsonl(directory / "request_results.jsonl"):
+        fid = family.get("family_id")
+        if not fid:
+            continue
+        baseline = family.get("baseline") or {}
+        original = baseline.get("case") or {}
+        target = target_info.get(family.get("target_id"), {})
+        families[fid] = {"url": target.get("url") or original.get("url"),
+                         "method": target.get("method") or original.get("method"),
+                         "vuln_type": family.get("vuln_type"), "technique": family.get("technique")}
+        for result in [baseline, *(family.get("mutations") or [])]:
+            if result.get("status") != "error":
+                continue
+            case = result.get("case") or {}
+            failed_cases.add((fid, case.get("case_id")))
+            add_error({"target_id": family.get("target_id"), "param": family.get("param"),
+                       "family_id": fid, "case_id": case.get("case_id"),
+                       "url": families[fid]["url"], "stage": "baseline" if result is baseline else "request",
+                       "error": result.get("error") or "요청 실패"})
 
-        key = (target_id, param)
-        group = groups.setdefault(key, {"target_id": target_id, "param": param, "url": url, "items": []})
-        if not group["url"] and url:
-            group["url"] = url
-        group["items"].append({
-            "vuln_type": vuln_type,
-            "technique": finding.get("technique"),
-            "attack_id": finding.get("attack_id"),
-            "payload": payload,
-            "final_status": final_status,
-        })
-
-    return sorted(groups.values(), key=lambda g: (g["target_id"], g["param"]))
-
-
-# results/ 아래에서 가장 최근에 만들어진 collection_* 폴더 경로 (없으면 None)
-def latest_out_dir(project_root: str) -> str | None:
-    dirs = _run_dirs(project_root)
-    return os.path.join(project_root, "results", dirs[-1]) if dirs else None
-
-
-def _run_dirs(project_root: str) -> list[str]:
-    base = os.path.join(project_root, "results")
-    if not os.path.isdir(base):
-        return []
-    return sorted(d for d in os.listdir(base) if d.startswith("collection_"))
-
-
-# "collection_20260914_010113" -> "2026-09-14 01:01"
-def _label(run_id: str) -> str:
-    try:
-        dt = datetime.strptime(run_id, "collection_%Y%m%d_%H%M%S")
-        return dt.strftime("%Y-%m-%d %H:%M")
-    except ValueError:
-        return run_id
-
-
-# jsonl 파일 줄 수 (전체 파싱 없이 개수만, 실행 기록 목록용)
-def _count_lines(path: str) -> int:
-    if not os.path.exists(path):
-        return 0
-    with open(path, encoding="utf-8") as f:
-        return sum(1 for line in f if line.strip())
-
-
-# 과거 실행 기록 목록 (최신순) - 리포트 화면의 실행 기록 선택용
-def list_runs(project_root: str) -> list[dict]:
-    base = os.path.join(project_root, "results")
-    runs = []
-    for run_id in reversed(_run_dirs(project_root)):
-        findings_path = os.path.join(base, run_id, "findings.jsonl")
-        runs.append({"id": run_id, "label": _label(run_id), "count": _count_lines(findings_path)})
-    return runs
-
-
-# run_id(폴더명)를 안전하게 results/ 경로로 변환 - 상위 경로 탈출 방지, 없으면 None
-def resolve_run_dir(project_root: str, run_id: str) -> str | None:
-    if not run_id or run_id not in _run_dirs(project_root):
-        return None
-    return os.path.join(project_root, "results", run_id)
+    groups, counts, techniques = {}, Counter(), set()
+    for finding in read_jsonl(directory / "findings.jsonl"):
+        fid = finding.get("family_id")
+        info = families.get(fid, {})
+        target_id, param = finding.get("target_id"), finding.get("param")
+        target = target_info.get(target_id, {})
+        url = target.get("url") or info.get("url") or finding.get("url") or ""
+        method = target.get("method") or info.get("method") or finding.get("method") or ""
+        if finding.get("status") == "error":
+            add_error({**finding, "url": url})
+            continue
+        if (fid, finding.get("case_id")) in failed_cases:
+            continue
+        status = finding.get("final_status")
+        if not status and finding.get("stage") == "probe":
+            status = "inconclusive"
+        if not status and "confidence" in finding:
+            status = "vulnerable"
+        if not status or target_id is None or param is None:
+            continue
+        technique = finding.get("technique") or info.get("technique")
+        if not technique and finding.get("stage") == "probe":
+            technique = "stored"
+        item = {**finding, "final_status": status, "technique": technique,
+                "vuln_type": finding.get("vuln_type") or info.get("vuln_type") or
+                             ("sqli" if "confidence" in finding else "xss"),
+                "evidence": finding.get("evidence") or finding.get("sink_note") or
+                            (finding.get("raw_verdict") or {}).get("evidence") or ""}
+        key = (url or target_id, method, param)
+        group = groups.setdefault(key, {"url": url, "method": method, "param": param,
+                                        "target_id": target_id, "items": []})
+        group["items"].append(item)
+        counts[status] += 1
+        if technique:
+            techniques.add(technique)
+    return {"groups": list(groups.values()), "errors": errors, "counts": dict(counts),
+            "error_count": len(errors), "statuses": sorted(counts), "techniques": sorted(techniques),
+            "meta": run_metadata(directory)}
