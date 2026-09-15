@@ -15,7 +15,7 @@ from scan.models import CaseResult, FamilyResult, MutationCase
 class _FakeHeadless:  # 실제 브라우저 없이 headless 결과를 고정값으로 흉내내는 stub
     executed: bool = True
 
-    def confirm_via_render(self, response_body: str) -> HeadlessVerdict:
+    def confirm_via_render(self, response_body: str, url=None, headers=None) -> HeadlessVerdict:
         return HeadlessVerdict(executed=self.executed, method="render", evidence="fake render")
 
     def confirm_via_navigate(self, url: str, cookies: dict, method: str) -> HeadlessVerdict:
@@ -50,21 +50,21 @@ def _case_result(payload: str, response_body: str, case_id="t0_name_PL-XSS-BODY_
 class JudgeCaseTests(unittest.TestCase):
     def test_raw_hit_becomes_headless_target_and_vulnerable_when_executed(self) -> None:
         case_result = _case_result("<script>alert(1)</script>", "<script>alert(1)</script>")
-        finding = family_pipeline._judge_case(_family(), case_result, _FakeHeadless(executed=True))
+        finding = family_pipeline.judge_case(_family(), case_result, _FakeHeadless(executed=True))
 
         self.assertTrue(finding.headless_checked)
         self.assertEqual(finding.final_status, "vulnerable")
 
     def test_raw_hit_but_headless_not_executed_is_reflected_only(self) -> None:
         case_result = _case_result("<script>alert(1)</script>", "<script>alert(1)</script>")
-        finding = family_pipeline._judge_case(_family(), case_result, _FakeHeadless(executed=False))
+        finding = family_pipeline.judge_case(_family(), case_result, _FakeHeadless(executed=False))
 
         self.assertTrue(finding.headless_checked)
         self.assertEqual(finding.final_status, "reflected_only")
 
     def test_no_raw_hit_and_not_dom_skips_headless_and_is_safe(self) -> None:
         case_result = _case_result("<script>alert(1)</script>", "no reflection here")
-        finding = family_pipeline._judge_case(_family(technique="body"), case_result, _FakeHeadless())
+        finding = family_pipeline.judge_case(_family(technique="body"), case_result, _FakeHeadless())
 
         self.assertFalse(finding.headless_checked)
         self.assertIsNone(finding.headless_verdict)
@@ -72,7 +72,7 @@ class JudgeCaseTests(unittest.TestCase):
 
     def test_dom_technique_is_always_headless_target_even_without_raw_hit(self) -> None:
         case_result = _case_result("#<img src=x onerror=alert(1)>", "no reflection here")
-        finding = family_pipeline._judge_case(
+        finding = family_pipeline.judge_case(
             _family(technique="dom"), case_result, _FakeHeadless(executed=True)
         )
 
@@ -104,12 +104,12 @@ def _real_family_result(payload: str, response_body: str) -> dict:
 
 
 class RealDataclassRoundTripTests(unittest.TestCase):
-    # FamilyResult에 attack_id가 실제로 존재하고 _judge_case까지 KeyError 없이 전달되는지 확인
+    # FamilyResult에 attack_id가 실제로 존재하고 judge_case까지 KeyError 없이 전달되는지 확인
     def test_judge_case_reads_attack_id_from_real_family_result_asdict(self) -> None:
         family = _real_family_result("<script>alert(1)</script>", "<script>alert(1)</script>")
         case_result = family["mutations"][0]
 
-        finding = family_pipeline._judge_case(family, case_result, _FakeHeadless(executed=True))
+        finding = family_pipeline.judge_case(family, case_result, _FakeHeadless(executed=True))
 
         self.assertEqual(finding.attack_id, "PL-XSS-BODY")
         self.assertEqual(finding.final_status, "vulnerable")
@@ -139,7 +139,7 @@ class RunTests(unittest.TestCase):
     def test_one_case_raising_does_not_abort_other_cases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             results_path = os.path.join(tmp, "request_results.jsonl")
-            broken_case_result = {"status": "ok"}  # "case" 키가 없어 _judge_case 내부에서 KeyError 유발
+            broken_case_result = {"status": "ok"}  # "case" 키가 없어 judge_case 내부에서 KeyError 유발
             good_case_result = _case_result("<script>alert(1)</script>", "<script>alert(1)</script>")
             with open(results_path, "w", encoding="utf-8") as f:
                 f.write(json.dumps(_family(mutations=[broken_case_result, good_case_result])) + "\n")
@@ -160,13 +160,13 @@ class ErrorStatusCaseTests(unittest.TestCase):
         case_result["status"] = "error"  # 요청 자체가 실패한 case
 
         class _RaisingHeadless:  # 호출되면 즉시 실패해 headless가 호출되지 않았음을 증명하는 stub
-            def confirm_via_render(self, response_body: str) -> HeadlessVerdict:
+            def confirm_via_render(self, response_body: str, url=None, headers=None) -> HeadlessVerdict:
                 raise AssertionError("headless가 호출되면 안 됨")
 
             def confirm_via_navigate(self, url: str, cookies: dict, method: str) -> HeadlessVerdict:
                 raise AssertionError("headless가 호출되면 안 됨")
 
-        finding = family_pipeline._judge_case(_family(technique="dom"), case_result, _RaisingHeadless())
+        finding = family_pipeline.judge_case(_family(technique="dom"), case_result, _RaisingHeadless())
 
         self.assertFalse(finding.headless_checked)
         self.assertIsNone(finding.headless_verdict)
