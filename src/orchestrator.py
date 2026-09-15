@@ -86,13 +86,13 @@ def _revisit_before(family, case, requester, zap, target):
             family.revisit_url, target.get("cookies"), None, requester, zap,
             target=target, max_retry=1,  # 재시도 없이 딱 1회만 GET 요청
         ), None
-    except Exception as e:  # 스냅샷 실패해도 diff만 포기 (뒤는 그대로 진행해 반사 여부 확인함)
-        note = "공격 전 스냅샷 실패 — diff 신뢰 불가, 반사 여부만 기록"
-        print(f"[WARN] 공격 전 스냅샷 실패, diff 신뢰 불가(반사 여부만 기록): family={family.family_id} case={case.case_id} - {e}")
+    except Exception as e:
+        note = "공격 전 스냅샷 실패"
+        print(f"[WARN] 공격 전 스냅샷 실패: family={family.family_id} case={case.case_id} - {e}")
         return None, note
 
 
-# 공격 후 재조회 - before 성공 여부와 무관하게 항상 시도
+# 공격 후 재조회
 def _revisit_after_fields(revisit_url, family, case, requester, zap, target, revisit_before, before_note):
     try:
         revisit_after = refetch(
@@ -108,7 +108,7 @@ def _revisit_after_fields(revisit_url, family, case, requester, zap, target, rev
         revisit_status=revisit_after.status,
         revisit_url_used=revisit_url,           # 이번 case가 실제로 조회한 주소
         revisit_attempts=revisit_after.attempts,
-        revisit_found=revisit_after.found,      # payload가 after에 반사됐는지 (항상 기록)
+        revisit_found=revisit_after.found,      # payload가 after에 반사됐는지
         revisit_body=revisit_after.body,
     )
     if revisit_before is not None:
@@ -190,6 +190,9 @@ def run_pipeline() -> str:
                     revisit_before = before_note = None
                     if needs_revisit:  # 공격 요청 전 스냅샷 - 마커로 미리 확인한 재방문 주소 기준으로 변형마다 새로 찍음
                         revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
+                        if revisit_before is None:  # 사전 스냅샷 실패 -> 이미 판정 불가로 결과 고정, 공격 요청/사후 재조회 생략
+                            case_results.append(CaseResult(case=case, status="ok", revisit_note=before_note))
+                            continue
 
                     try:
                         sent = requester.send(case, zap)
