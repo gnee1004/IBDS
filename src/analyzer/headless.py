@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, Browser, Playwright
 
+_DROP_ON_FULFILL = {"content-encoding", "content-length", "transfer-encoding"}  # fulfill 시 제외할 응답 헤더
+
 @dataclass
 class HeadlessVerdict:  # headless 확인 1건의 결과
     executed: bool    # alert 등 dialog가 실제로 발생했는지
@@ -36,23 +38,49 @@ class HeadlessSession:
         self._playwright = None
 
     # 이미 받은 response_body를 그대로 렌더링만 함, 재요청 없음
-    def confirm_via_render(self, response_body: str) -> HeadlessVerdict:
+    # url+headers가 있으면 그 URL의 응답인 것처럼 fulfill → 실제 origin·CSP 헤더/Content-Type 적용
+    def confirm_via_render(self, response_body: str, url: str | None = None,
+                           headers: dict[str, str] | None = None) -> HeadlessVerdict:
         browser = self._ensure_browser()
         page = browser.new_page()
         dialog_messages: list[str] = []
-        page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
+
+        def _on_dialog(dialog):  # dialog 발생 시 메시지 기록 후 닫기 (None 반환 — page.on 시그니처)
+            dialog_messages.append(dialog.message)
+            dialog.dismiss()
+
+        page.on("dialog", _on_dialog)
         try:
-            page.set_content(response_body or "", timeout=5000)
+            if url and headers is not None:
+                # 저장된 본문은 이미 디코딩된 문자열 → 인코딩/길이 헤더는 빼야 브라우저가 다시 디코딩하다 깨지지 않음
+                fulfill_headers = {k: v for k, v in headers.items() if k.lower() not in _DROP_ON_FULFILL}
+                served = False
+
+                # 첫 메인 문서 요청만 저장된 응답으로 대체, 나머지(하위 리소스·재이동)는 전부 차단
+                # 재요청 없음 유지 + 느린 리소스 타임아웃·사이트 자체 alert 오탐 방지
+                def _serve_once(route):
+                    nonlocal served
+                    if not served and route.request.is_navigation_request():
+                        served = True
+                        route.fulfill(status=200, headers=fulfill_headers, body=response_body or "")
+                    else:
+                        route.abort()
+
+                page.route("**/*", _serve_once)
+                page.goto(url, timeout=5000)
+            else:
+                page.set_content(response_body or "", timeout=5000)
             page.wait_for_timeout(500)  # 지연 실행 payload 대비 짧은 대기
         except Exception as e:
-            return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}")
+            if not dialog_messages:  # 이미 발화한 뒤의 타임아웃(느린 하위 리소스 등)은 발화로 인정
+                return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}")
         finally:
             page.close()
         if dialog_messages:
             return HeadlessVerdict(executed=True, method="render", evidence=f"dialog fired: {dialog_messages[0]}")
         return HeadlessVerdict(executed=False, method="render", evidence="dialog 없음")
 
-    # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (DOM 기법 전용)
+    # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (DOM 기법·stored 재조회 공용, GET만)
     def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str) -> HeadlessVerdict:
         if method != "GET":  # POST 폼 재현은 ver1 범위 밖 (design doc 참고)
             return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)")
@@ -69,7 +97,12 @@ class HeadlessSession:
                 ])
             page = context.new_page()
             dialog_messages: list[str] = []
-            page.on("dialog", lambda dialog: (dialog_messages.append(dialog.message), dialog.dismiss()))
+
+            def _on_dialog(dialog):  # dialog 발생 시 메시지 기록 후 닫기 (None 반환 — page.on 시그니처)
+                dialog_messages.append(dialog.message)
+                dialog.dismiss()
+
+            page.on("dialog", _on_dialog)
             page.goto(url, timeout=10000)
             page.wait_for_timeout(500)
         except Exception as e:
