@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from dataclasses import asdict, dataclass
 
-from analyzer import family_pipeline
+from analyzer import xss_detector as family_pipeline
 from analyzer.headless import HeadlessVerdict
 from scan.models import CaseResult, FamilyResult, MutationCase
 

@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import json
-import os
-import sys
 from datetime import datetime
 from difflib import SequenceMatcher
 
-from utilities.file_utils import save_json
 from .sqli.judge import (
     MIN_REPEAT_CONFIRM,
     judge_error_based_sqli,
@@ -15,24 +11,11 @@ from .sqli.judge import (
     _strip_dynamic,
     _strip_value,
 )
-from .xss.judge import judge_xss
 
 # Boolean 판정 문턱
-_TRUE_GATE = 0.85   
-_GATE_MARGIN = 0.05 
-_STATIC_EPS = 0.002  
-
-def _load_results(results_path: str) -> list[dict]:
-    families = []
-    with open(results_path, encoding="utf-8") as file:
-        for line_number, line in enumerate(file, 1):
-            if not line.strip():
-                continue
-            try:
-                families.append(json.loads(line))
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Invalid JSONL at line {line_number}: {exc}") from exc
-    return families
+_TRUE_GATE = 0.85
+_GATE_MARGIN = 0.05
+_STATIC_EPS = 0.002
 
 
 def _successful(result: dict | None) -> bool:
@@ -63,21 +46,6 @@ def _finding(family: dict, result: dict, confidence: str, evidence: str) -> dict
         "elapsed": result.get("elapsed"),
         "timestamp": datetime.now().isoformat(timespec="seconds"),
     }
-
-
-def _analyze_xss(family: dict) -> list[dict]:
-    baseline_body = _body(family.get("baseline"))
-    for mutation in family.get("mutations", []):
-        if not _successful(mutation):
-            continue
-        payload = str((mutation.get("case") or {}).get("payload") or "")
-        if not payload:
-            continue
-        verdict = judge_xss(_body(mutation), payload)
-        baseline_verdict = judge_xss(baseline_body, payload)
-        if verdict.vulnerable and not baseline_verdict.vulnerable:
-            return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
-    return []
 
 
 def _payload_of(mutation: dict) -> str:
@@ -182,29 +150,6 @@ def _analyze_sqli(family: dict) -> list[dict]:
 def analyze_family(family: dict) -> list[dict]:
     if not _successful(family.get("baseline")):
         return []
-    vuln_type = str(family.get("vuln_type") or "").lower()
-    if vuln_type == "sqli":
+    if str(family.get("vuln_type") or "").lower() == "sqli":
         return _analyze_sqli(family)
-    if vuln_type == "xss":
-        return _analyze_xss(family)
     return []
-
-
-def analyze_results(results_path: str) -> str:
-    findings = []
-    for family in _load_results(results_path):
-        findings.extend(analyze_family(family))
-    output_path = os.path.join(os.path.dirname(os.path.abspath(results_path)), "findings.json")
-    save_json(output_path, findings)
-    print(f"[ANALYZE] findings.json -> {output_path} ({len(findings)} findings)")
-    return output_path
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: python -m analyzer.scan <request_results.jsonl>")
-    analyze_results(sys.argv[1])
-
-
-if __name__ == "__main__":
-    main()

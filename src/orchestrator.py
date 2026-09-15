@@ -21,10 +21,10 @@ from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from utilities.file_utils import append_jsonl
-from analyzer import family_pipeline
+from analyzer import xss_detector
 from analyzer.headless import HeadlessSession
 from analyzer.revisit import probe_sink, new_run_marker_factory, refetch
-from analyzer.scan import analyze_family
+from analyzer.sqli_detector import analyze_family
 
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
@@ -233,7 +233,7 @@ def run_pipeline() -> str:
                 # XSS 판정
                 for i, case in enumerate(family.mutations): # xss 전용. baseline은 판정 기준
                     try:
-                        finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
+                        finding = xss_detector.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:  # 판정 실패는 로그만 남기고 계속 진행
                         print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")

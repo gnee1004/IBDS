@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from analyzer import family_pipeline
+from analyzer import xss_detector as family_pipeline
 from analyzer.headless import HeadlessVerdict
 
 PAYLOAD = "<script>alert(1)</script>"
