@@ -21,11 +21,15 @@ from scan.mutation.scan_point import build_scan_points
 from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
-from utilities.file_utils import append_jsonl
+from scan.progress import PipelineProgress
+from utilities.file_utils import append_jsonl, load_json
 from analyzer import family_pipeline
 from analyzer.headless import HeadlessSession
 from analyzer.revisit import probe_sink, new_run_marker_factory, refetch
 from analyzer.scan import analyze_family
+
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
@@ -125,26 +129,55 @@ def _resolve_case_revisit_url(sent: dict, case) -> str | None:
     return urljoin(case.url, location) if location else None
 
 
+# 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
+# (target["revisit_url"]에 채워두면 analyzer.revisit.resolve_revisit_url이 최우선으로 사용함)
+def _apply_revisit_overrides(targets: list[dict]) -> None:
+    overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
+    if not overrides:
+        return
+    for target in targets:
+        match = overrides.get(target.get("url")) or overrides.get(target.get("base_url"))
+        if match:
+            target["revisit_url"] = match
+
+
 # collector ->  ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 ScanPoint 단위로 실행
-def run_pipeline() -> str:
-    out_dir, targets_path = run_collection()
+# on_paths_ready: (results_path, findings_path)를 알게 되는 즉시 호출되는 콜백 (로컬 웹의 진행 상황 조회용, 없으면 무시)
+def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output_dir=None) -> str:
+    progress = PipelineProgress(callback=on_progress, stop_requested=should_stop)
+
+    # 수집 실패 전에도 실행 폴더 연결
+    def output_ready(out_dir):
+        if on_paths_ready is not None:
+            on_paths_ready(os.path.join(out_dir, "request_results.jsonl"),
+                           os.path.join(out_dir, "findings.jsonl"))
+
+    out_dir, targets_path = run_collection(on_output_ready=output_ready, output_dir=output_dir)
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
+    _apply_revisit_overrides(targets)
     target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)} # 타겟에 ID 부여 (ex. t0)
     scan_points = build_scan_points(targets)   # 타겟들을 파라미터 단위로 쪼갬.
+    progress.total = len(scan_points)
+    progress.publish()
+
+    results_path = os.path.join(out_dir, "request_results.jsonl")
+    findings_path = os.path.join(out_dir, "findings.jsonl")
+    if progress.should_stop():
+        progress.publish()
+        return results_path
 
     requester.clear_cookie_store()             # 스캔 시작 시 이전 스캔에서 누적된 쿠키 초기화 (origin별로 1회 진행, 캡쳐한 원본 쿠키 안지움)
     zap = requester.get_zap_client()
     marker_factory = new_run_marker_factory()  # 이번 스캔 실행 전체에서 고유 마커를 발급 (ScanPoint당 1개)
     headless = HeadlessSession()               # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
 
-    results_path = os.path.join(out_dir, "request_results.jsonl") # 실행 결과 (요청, 응답 raw)
-    findings_path = os.path.join(out_dir, "findings.jsonl") # 판정 결과
     total_count = 0
-    fail_count = 0
 
     try:
         for sp in scan_points:
+            if progress.should_stop():
+                break
             target = target_by_id[sp.target_id]
             try:
                 families = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path)
@@ -154,16 +187,27 @@ def run_pipeline() -> str:
                     "status": "error", "stage": "route", "error": str(e),
                 })
                 print(f"[ERROR] ScanPoint 라우팅 실패: target={sp.target_id} param={sp.name} - {e}")
+                progress.completed += 1
+                progress.publish()
                 continue
+
+            if progress.should_stop():
+                if not families:
+                    progress.completed += 1
+                progress.publish()
+                break
 
             # 같은 ScanPoint의 모든 family는 baseline이 완전히 동일한 요청이라 스캔포인트당 한번만 보냄.
             baseline_result: CaseResult | None = None
             if families:
                 baseline_case = families[0].baseline
+                total_count += 1
                 try:
                     sent = requester.send(baseline_case, zap)
                 except Exception as e:  # baseline 요청 실패는 이 ScanPoint의 모든 family에 동일하게 반영
                     baseline_result = CaseResult(case=baseline_case, status="error", error=str(e))
+                    progress.failed += 1
+                    progress.publish()
                     print(f"[ERROR] baseline 요청 실패: target={sp.target_id} param={sp.name} - {e}")
                 else:
                     baseline_result = CaseResult(
@@ -179,10 +223,11 @@ def run_pipeline() -> str:
                 assert baseline_result is not None  # families가 비어있지 않으면 위에서 반드시 채워짐
                 # 위에서 보낸 baseline 결과를 family 고유 case_id로 갈아끼워 재사용
                 case_results: list[CaseResult] = [replace(baseline_result, case=family.baseline)]
-                if case_results[0].status == "error":
-                    fail_count += 1
 
                 for case in family.mutations: # 원형 -> 변형 순서로 순회하고 요청 전송.
+                    if progress.should_stop():
+                        break
+                    total_count += 1
                     needs_revisit = bool(     # stored XSS + 마커 반사 확인된 family만 재조회
                         family.technique == "stored" and family.sink_confirmed and family.revisit_url
                     )
@@ -197,7 +242,8 @@ def run_pipeline() -> str:
                     try:
                         sent = requester.send(case, zap)
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
-                        fail_count += 1
+                        progress.failed += 1
+                        progress.publish()
                         case_results.append(CaseResult(case=case, status="error", error=str(e)))
                         print(f"[ERROR] 요청 실패: family={family.family_id} case={case.case_id} - {e}")
                         continue
@@ -218,7 +264,6 @@ def run_pipeline() -> str:
                         effective_cookies=sent["effective_cookies"],  # headless가 재현 시 쓸 쿠키값
                         **revisit_fields,
                     ))
-                total_count += len(case_results)
 
                 family_result = FamilyResult(
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
@@ -236,22 +281,55 @@ def run_pipeline() -> str:
 
                 # SQLi 판정
                 if family.vuln_type == "sqli":  
+                    if len(case_results) - 1 < len(family.mutations):
+                        append_jsonl(findings_path, {
+                            "family_id": family.family_id, "target_id": family.target_id,
+                            "param": family.param, "vuln_type": family.vuln_type,
+                            "technique": family.technique, "final_status": "inconclusive",
+                            "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
+                        })
+                        break
                     try:
                         for finding_dict in analyze_family(family_dict): 
                             append_jsonl(findings_path, finding_dict)
                     except Exception as e:
                         print(f"[ERROR] 판정 실패: family={family.family_id} - {e}")
+                        append_jsonl(findings_path, {
+                            "family_id": family.family_id, "target_id": family.target_id,
+                            "param": family.param, "status": "error", "stage": "judge", "error": str(e),
+                        })
+                    if progress.should_stop():
+                        break
                     continue
 
                 # XSS 판정
-                for i, case in enumerate(family.mutations): # xss 전용. baseline은 판정 기준
+                for i, result in enumerate(case_results[1:]): # 수행한 요청만 판정 대상
                     try:
                         finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")
+                        append_jsonl(findings_path, {
+                            "family_id": family.family_id, "target_id": family.target_id,
+                            "param": family.param, "case_id": result.case.case_id,
+                            "status": "error", "stage": "judge", "error": str(e),
+                        })
+                if progress.should_stop():
+                    break
 
-        print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - fail_count}건 성공, {fail_count}건 실패)")
+            point_complete = not families or (
+                family is families[-1] and len(case_results) == len(family.mutations) + 1
+            )
+            if point_complete:
+                progress.completed += 1
+            progress.publish()
+            if progress.should_stop():
+                break
+
+        if progress.completed == progress.total:
+            progress.stopped = False
+        progress.publish()
+        print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - progress.failed}건 성공, {progress.failed}건 실패)")
         print(f"[RUN] findings.jsonl -> {findings_path}")
     finally:
         headless.close()  # 스캔 전체가 끝나면 헤드리스 프로세스 정리
