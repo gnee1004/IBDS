@@ -1,9 +1,0 @@
-config/target_config.json 작성 예시
-
-{
-    "target_url": "http://타겟IP:포트"
-}
-
-인증이 필요한 사이트도 별도 auth 설정 불필요.
-Firefox를 ZAP 프록시로 연결한 상태에서 브라우저로 직접 로그인 후 main_collector.py를 실행하면,
-ZAP이 프록시 트래픽에서 세션 쿠키를 자동으로 감지해 재사용함 (httpSessions 기능).

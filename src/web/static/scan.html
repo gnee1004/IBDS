@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+    <head>
+        <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>리포트 · IBDS</title><link rel="stylesheet" href="/static/style.css">
+        <script type="module" src="/static/report.js"></script>
+    </head>
+<body>
+    <a class="skip" href="#main">본문으로 이동</a>
+    <header>
+        <a class="brand" href="/">IBDS <span>LOCAL</span></a>
+        <nav aria-label="주 메뉴">
+            <a href="/">스캔 설정</a>
+            <a href="/run">스캔 실행</a>
+            <a href="/scan" aria-current="page">리포트</a>
+        </nav>
+        <span class="local">로컬 워크스페이스</span>
+    </header>
+
+    <main id="main">
+        <div class="heading">
+            <p class="eyebrow">SCAN REPORT</p>
+            <h1>리포트</h1>
+            <p>판정 결과를 살펴보고, 검토할 항목의 근거를 확인하세요.</p>
+        </div>
+        <div id="message" class="notice" role="status" hidden></div>
+        <div class="run-picker"><label for="runs">실행 기록</label>
+            <select id="runs"><option>불러오는 중…</option></select>
+            <button id="refresh" class="secondary">새로고침</button>
+        </div>
+        <p id="run-meta" class="hint"></p>
+        <div id="run-error" class="notice danger" role="alert" hidden></div>
+        <section class="report-summary" aria-label="판정 요약"><div id="kpis" class="kpis"></div></section>
+        <section id="error-panel" class="section" hidden>
+            <div class="section-bar">
+                <h2>오류 상세</h2>
+                <button id="close-errors" class="secondary">닫기</button>
+            </div>
+            <div id="errors"></div>
+        </section>
+        <section class="results-section">
+            <div class="filters"><div>
+                <label for="status-filter">판정기준</label>
+                <select id="status-filter"><option value="">모든 판정</option></select>
+            </div>
+            <div>
+                <label for="technique-filter">공격기법</label>
+                <select id="technique-filter">
+                    <option value="">모든 기법</option>
+                </select>
+            </div>
+            <div>
+                <label for="sort">정렬</label>
+                <select id="sort"><option value="severity">심각도 순</option>
+                    <option value="name">URL / 파라미터 이름순</option>
+                </select>
+            </div>
+            <button id="reset" class="secondary">초기화</button>
+        </div>
+        <div class="section-bar result-heading">
+            <h2>검사 결과</h2>
+            <span id="result-count" class="hint"></span>
+        </div>
+        <div id="groups"></div>
+        <div id="empty" class="empty" hidden><div class="empty-icon" aria-hidden="true">≡</div><h2>아직 스캔 결과가 없습니다</h2><p>스캔을 실행하면 URL과 파라미터별 결과가 표시됩니다.</p><a href="/run" class="button primary">스캔 실행으로</a></div>
+        </section>
+        <footer>IBDS · 웹 취약점 검사 <span></span></footer>
+    </main>
+</body>
+</html>
