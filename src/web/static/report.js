@@ -1,5 +1,6 @@
 import {$,api,element,notice,labels,stages,order,rank,statusClass} from './common.js';
 import {selectGroups, worstStatus} from './report-data.js';
+const groupLabels={xss:'XSS',sqli:'SQLi',template:'Template'};
 let report=null,loadId=0;
 function badge(status){return element('span',labels[status]||status,`badge ${statusClass(status)}`);}
 function hideErrors(){
@@ -25,8 +26,8 @@ function renderKpis(){
 }
 function renderGroups(){
     if(!report)return;
-    const status=$('status-filter').value,technique=$('technique-filter').value;
-    const groups=selectGroups(report.groups,status,technique,$('sort').value);
+    const status=$('status-filter').value,filterGroup=$('technique-filter').value;
+    const groups=selectGroups(report.groups,status,filterGroup,$('sort').value);
     $('groups').replaceChildren();$('result-count').textContent=`${groups.length}개 항목 · ${groups.reduce((n,g)=>n+g.items.length,0)}개 판정`;
     $('empty').hidden=groups.length>0;
     const filtered=report.groups.length>0;
@@ -35,7 +36,7 @@ function renderGroups(){
     for(const group of groups){
         const block=element('details',undefined,'result-group');const summary=element('summary');const title=element('div',undefined,'group-name');title.append(element('strong',group.param),element('div',`${group.method} ${group.url||group.target_id}`,'group-url'));
         summary.append(badge(worstStatus(group)),title,element('span',`${group.items.length}개 판정`,'group-total'));block.append(summary);
-        for(const item of [...group.items].sort((a,b)=>rank(a.final_status)-rank(b.final_status))){const detail=element('div',undefined,'finding');const head=element('div',undefined,'finding-head');head.append(badge(item.final_status),element('strong',`${(item.vuln_type||'').toUpperCase()} · ${item.technique||'기법 정보 없음'}`));if(item.attack_id)head.append(element('span',item.attack_id,'hint'));detail.append(head);
+        for(const item of [...group.items].sort((a,b)=>rank(a.final_status)-rank(b.final_status))){const detail=element('div',undefined,'finding');const head=element('div',undefined,'finding-head');head.append(badge(item.final_status),element('strong',`${(item.vuln_type||'').toUpperCase()} · ${item.category||'기법 정보 없음'}`));detail.append(head);
             if(item.payload!==null&&item.payload!==undefined)detail.append(element('pre',item.payload));
             detail.append(element('p',item.evidence||'추가 판정 근거가 없습니다.'));
             const raw=element('details');raw.append(element('summary','판정 상세 데이터'),element('pre',JSON.stringify(item,null,2)));detail.append(raw);block.append(detail);
@@ -46,7 +47,7 @@ function renderGroups(){
 async function loadReport(run){
     const id=++loadId;
     try{const data=await api(`/api/results${run?'?run='+encodeURIComponent(run):''}`);if(id!==loadId)return;report=data;
-        options('status-filter',report.statuses,'모든 판정',x=>labels[x]||x);options('technique-filter',report.techniques,'모든 기법');$('sort').value='severity';$('error-panel').hidden=true;
+        options('status-filter',report.statuses,'모든 판정',x=>labels[x]||x);options('technique-filter',report.filter_groups,'모든 기법',x=>groupLabels[x]||x);$('sort').value='severity';$('error-panel').hidden=true;
         $('run-meta').textContent=report.run?`${stages[report.meta.stage||'legacy']||report.meta.stage} · ${report.run}`:'저장된 실행 기록이 없습니다.';
         $('run-error').hidden=!report.meta.error;$('run-error').textContent=report.meta.error||'';
         if(report.run){$('runs').value=report.run;history.replaceState(null,'',`/scan?run=${encodeURIComponent(report.run)}`);}
