@@ -24,8 +24,8 @@ from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from scan.progress import PipelineProgress
 from utilities.file_utils import append_jsonl, load_json
 from analyzer import xss_detector
-from analyzer.headless import HeadlessSession
-from analyzer.revisit import probe_sink, new_run_marker_factory, refetch
+from analyzer.xss.headless import HeadlessSession
+from analyzer.xss.revisit import probe_sink, new_run_marker_factory, refetch
 from analyzer.sqli_detector import analyze_family
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,7 +130,7 @@ def _resolve_case_revisit_url(sent: dict, case) -> str | None:
 
 
 # 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
-# (target["revisit_url"]에 채워두면 analyzer.revisit.resolve_revisit_url이 최우선으로 사용함)
+# (target["revisit_url"]에 채워두면 analyzer.xss.revisit.resolve_revisit_url이 최우선으로 사용함)
 def _apply_revisit_overrides(targets: list[dict]) -> None:
     overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
     if not overrides:

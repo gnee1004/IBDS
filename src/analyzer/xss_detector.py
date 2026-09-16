@@ -6,8 +6,8 @@ from dataclasses import asdict, dataclass
 
 from scan.models import RequestFamily, CaseResult
 from utilities.file_utils import append_jsonl
-from .headless import HeadlessSession
-from .revisit import diff_new_region
+from .xss.headless import HeadlessSession
+from .xss.revisit import diff_new_region
 from .xss.judge import judge_xss
 
 _DOM_TECHNIQUE = "dom"
