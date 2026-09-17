@@ -138,7 +138,7 @@ def get_results(run: str | None = None):
         if run:
             raise HTTPException(404, "실행 기록을 찾을 수 없습니다.")
         return {"groups": [], "errors": [], "counts": {}, "error_count": 0,
-                "statuses": [], "techniques": [], "meta": {}, "run": None}
+                "statuses": [], "filter_groups": [], "meta": {}, "run": None}
     return {**build_report(directory), "run": directory.name}
 
 
