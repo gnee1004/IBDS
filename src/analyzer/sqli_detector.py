@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
 from difflib import SequenceMatcher
 
+from .finding import Finding
 from .sqli.judge import (
     MIN_REPEAT_CONFIRM,
     judge_error_based_sqli,
@@ -28,24 +28,25 @@ def _body(result: dict | None) -> str:
     return result.get("response_body") or ""
 
 
-def _finding(family: dict, result: dict, confidence: str, evidence: str) -> dict:
+def _finding(family: dict, result: dict, confidence: str, evidence: str) -> Finding:
     case = result.get("case") or {}
-    return {
-        "family_id": family.get("family_id"),
-        "target_id": family.get("target_id"),
-        "vuln_type": family.get("vuln_type"),
-        "technique": family.get("technique"),
-        "method": case.get("method"),
-        "url": case.get("url"),
-        "param": family.get("param"),
-        "location": case.get("body_type"),
-        "payload": case.get("payload"),
-        "confidence": confidence,
-        "evidence": evidence,
-        "response_status": result.get("response_status"),
-        "elapsed": result.get("elapsed"),
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-    }
+    return Finding(
+        vuln_type="sqli",
+        family_id=family.get("family_id"),
+        target_id=family.get("target_id"),
+        param=family.get("param"),
+        attack_id=family.get("attack_id"),
+        technique=family.get("technique"),
+        case_id=case.get("case_id"),
+        method=case.get("method"),
+        url=case.get("url"),
+        location=case.get("body_type"),
+        payload=case.get("payload"),
+        raw_verdict={"vulnerable": True, "confidence": confidence, "evidence": evidence},
+        headless_checked=False,
+        headless_verdict=None,
+        final_status="vulnerable",
+    )
 
 
 def _payload_of(mutation: dict) -> str:
@@ -58,7 +59,7 @@ def _clean_body(family: dict, result: dict | None) -> str:
     return _strip_dynamic(body, family.get("dynamic_markers") or [])
 
 
-def _analyze_boolean(family: dict) -> list[dict]:
+def _analyze_boolean(family: dict) -> list[Finding]:
     base_clean = _clean_body(family, family.get("baseline"))
     true_results = []
     false_results = []
@@ -119,7 +120,7 @@ def _analyze_boolean(family: dict) -> list[dict]:
     return [_finding(family, best_result, confidence, evidence)]
 
 
-def _analyze_sqli(family: dict) -> list[dict]:
+def _analyze_sqli(family: dict) -> list[Finding]:
     technique = str(family.get("technique") or "")
     if technique.startswith("boolean"):
         return _analyze_boolean(family)
@@ -147,7 +148,7 @@ def _analyze_sqli(family: dict) -> list[dict]:
     return []
 
 
-def analyze_family(family: dict) -> list[dict]:
+def analyze_family(family: dict) -> list[Finding]:
     if not _successful(family.get("baseline")):
         return []
     if str(family.get("vuln_type") or "").lower() == "sqli":

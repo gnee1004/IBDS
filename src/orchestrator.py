@@ -290,8 +290,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         })
                         break
                     try:
-                        for finding_dict in analyze_family(family_dict): 
-                            append_jsonl(findings_path, finding_dict)
+                        for finding in analyze_family(family_dict):
+                            append_jsonl(findings_path, asdict(finding))
                     except Exception as e:
                         print(f"[ERROR] 판정 실패: family={family.family_id} - {e}")
                         append_jsonl(findings_path, {

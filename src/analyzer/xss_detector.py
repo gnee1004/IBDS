@@ -2,31 +2,17 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 
 from scan.models import RequestFamily, CaseResult
 from utilities.file_utils import append_jsonl
+from .finding import Finding
 from .xss.headless import HeadlessSession
 from .xss.revisit import diff_new_region
 from .xss.judge import judge_xss
 
 _DOM_TECHNIQUE = "dom"
 _STORED_TECHNIQUE = "stored"
-
-
-@dataclass
-class Finding:  # xss_findings.jsonl 한 줄에 대응하는 case 단위 판정 결과
-    family_id: str
-    target_id: str
-    param: str
-    attack_id: str
-    technique: str
-    case_id: str
-    payload: str | None
-    raw_verdict: dict              # judge_xss 결과 (asdict)
-    headless_checked: bool         # headless 대상이었는지
-    headless_verdict: dict | None  # headless 결과 (asdict), 대상 아니면 None
-    final_status: str              # "vulnerable" | "reflected_only" | "safe" | "inconclusive"
 
 
 # raw 판정에서 걸렸거나, raw로는 원천적으로 확인이 안 되는 기법(dom)이면 headless 대상
@@ -46,12 +32,16 @@ def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool) 
 # Finding 생성 헬퍼 (stored 분기용) — raw/headless 없으면 기본값 채움
 def _mk_finding(family: dict, case: dict, final_status: str, *, raw=None, hv=None, evidence: str = "") -> Finding:
     return Finding(
+        vuln_type="xss",
         family_id=family["family_id"],
         target_id=family["target_id"],
         param=family["param"],
         attack_id=family["attack_id"],
         technique=family["technique"],
         case_id=case["case_id"],
+        method=case.get("method"),
+        url=case.get("url"),
+        location=case.get("body_type"),
         payload=case.get("payload"),
         raw_verdict=asdict(raw) if raw else {"vulnerable": False, "confidence": "", "evidence": evidence},
         headless_checked=hv is not None,
@@ -117,12 +107,16 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
 
     if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 judge_xss/headless 호출 없이 즉시 safe 처리
         return Finding(
+            vuln_type="xss",
             family_id=family["family_id"],
             target_id=family["target_id"],
             param=family["param"],
             attack_id=family["attack_id"],
             technique=technique,
             case_id=case["case_id"],
+            method=case.get("method"),
+            url=case.get("url"),
+            location=case.get("body_type"),
             payload=case.get("payload"),
             raw_verdict={"vulnerable": False, "confidence": "", "evidence": "요청 실패로 판정 불가"},
             headless_checked=False,
@@ -149,12 +143,16 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             )
 
     return Finding(
+        vuln_type="xss",
         family_id=family["family_id"],
         target_id=family["target_id"],
         param=family["param"],
         attack_id=family["attack_id"],
         technique=technique,
         case_id=case["case_id"],
+        method=case.get("method"),
+        url=case.get("url"),
+        location=case.get("body_type"),
         payload=case.get("payload"),
         raw_verdict=asdict(raw_verdict),
         headless_checked=headless_checked,
