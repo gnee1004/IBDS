@@ -4,21 +4,15 @@ from collections import Counter
 from pathlib import Path
 from utilities.file_utils import load_json
 from web.runs import run_metadata
+from attack_requests import RULES
 
-# XSS 반사형으로 뭉뚱그릴 technique 목록 — dom/stored/template은 별도 표시이므로 제외
-_XSS_REFLECTED_TECHNIQUES = {
-    "attr_value", "attr_href", "attr_event", "script", "script_raw",
-    "html_comment", "body", "css", "json", "filter_bypass", "raw_text_escape",
-}
-# SQLi technique 원본 이름 -> 화면 표시용 축약 이름
-_SQLI_TECHNIQUE_LABELS = {"error_meta": "error", "time_mysql": "time"}
+_CATEGORY_BY_TECHNIQUE = {rule["technique"]: rule["category"] for rule in RULES}
 
 
-# technique -> 결과 상세 옆에 표시할 카테고리 이름 (dom/stored/template/reflected/sqli 세부기법)
+# technique -> 결과 상세 옆에 표시할 카테고리 이름
 def _technique_category(technique):
-    if technique in _XSS_REFLECTED_TECHNIQUES:
-        return "reflected"
-    return _SQLI_TECHNIQUE_LABELS.get(technique, technique)
+    # 정의에 없는 값(레거시 데이터 등)은 technique 이름을 그대로 노출
+    return _CATEGORY_BY_TECHNIQUE.get(technique, technique)
 
 
 # 상단 필터용 대분류: template은 xss와 별개 취급, 나머지는 vuln_type 그대로

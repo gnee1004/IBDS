@@ -19,10 +19,12 @@ _BOOLEAN_AND_FALSE_TEMPLATES = [
 ]
 
 SQLI_RULES: list[dict] = [
+    # ── error: 에러 기반 (DB 에러 메시지 노출로 판정) ──
     {
         "attack_id": "PL-SQLI-ERROR-META",
         "vuln_type": "sqli",
         "technique": "error_meta",
+        "category": "error",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -37,6 +39,7 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
+    # ── boolean: 불리언 블라인드 (참/거짓 응답 차이로 판정) ──
     {
         # AND/OR 스타일을 한 family로 통합 — 두 스타일이 false_attack(6개)과 와일드카드(3개)를
         # 완전히 동일하게 공유했던 걸 그대로 두면 family당 요청이 이중으로 나가서 하나로 합침.
@@ -44,6 +47,7 @@ SQLI_RULES: list[dict] = [
         "attack_id": "PL-SQLI-BOOLEAN",
         "vuln_type": "sqli",
         "technique": "boolean",
+        "category": "boolean",
         "sequence": ["baseline", "true_attack", "false_attack"],
         "payload_templates": {
             "true_attack": [
@@ -69,10 +73,12 @@ SQLI_RULES: list[dict] = [
             "false_attack": _BOOLEAN_AND_FALSE_TEMPLATES,
         },
     },
+    # ── union: UNION 기반 ──
     {
         "attack_id": "PL-SQLI-UNION",
         "vuln_type": "sqli",
         "technique": "union",
+        "category": "union",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -85,10 +91,12 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
+    # ── order_by: ORDER BY 절 주입 (컬럼 수 초과 에러 유발) ──
     {
         "attack_id": "PL-SQLI-ORDERBY",
         "vuln_type": "sqli",
         "technique": "order_by",
+        "category": "order_by",
         "sequence": ["baseline", "attack"],
         # ORDER BY 절 주입 → 컬럼 수보다 큰 번호로 정렬 시 DB가
         # "Unknown column '100' in 'order clause'" 에러를 확정적으로 노출.
@@ -105,10 +113,12 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
+    # ── time: 시간 기반 블라인드 (sleep 지연으로 판정) ──
     {
         "attack_id": "PL-SQLI-TIME-MYSQL",
         "vuln_type": "sqli",
         "technique": "time_mysql",
+        "category": "time",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
