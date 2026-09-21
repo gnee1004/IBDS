@@ -153,5 +153,18 @@ class RouteScanPointProbeTests(unittest.TestCase):
         m_probe.assert_not_called()
 
 
+# af.md #8 재현 — _resolve_case_revisit_url
+class ResolveCaseRevisitUrlTests(unittest.TestCase):
+    # 공격 응답의 Location이 원본과 다른 외부 호스트를 가리켜도 허용 범위 검사 없이
+    # 그대로 재방문 주소로 채택된다 — 수정 예정(2일차, af.md #8).
+    def test_location_to_external_host_is_accepted_without_scope_check_bug(self):
+        case = SimpleNamespace(url="http://internal.example.com/submit")
+        sent = {"response_headers": {"location": "http://evil.external.com/collect"}}
+
+        resolved = orchestrator._resolve_case_revisit_url(sent, case)
+
+        self.assertEqual(resolved, "http://evil.external.com/collect")
+
+
 if __name__ == "__main__":
     unittest.main()
