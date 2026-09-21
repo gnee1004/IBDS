@@ -23,10 +23,10 @@ from scan.requester import requester
 from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
 from scan.progress import PipelineProgress
 from utilities.file_utils import append_jsonl, load_json
-from analyzer import family_pipeline
-from analyzer.headless import HeadlessSession
-from analyzer.revisit import probe_sink, new_run_marker_factory, refetch
-from analyzer.scan import analyze_family
+from analyzer import xss_detector
+from analyzer.xss.headless import HeadlessSession
+from analyzer.xss.revisit import probe_sink, new_run_marker_factory, refetch
+from analyzer.sqli_detector import analyze_family
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
@@ -130,7 +130,7 @@ def _resolve_case_revisit_url(sent: dict, case) -> str | None:
 
 
 # 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
-# (target["revisit_url"]에 채워두면 analyzer.revisit.resolve_revisit_url이 최우선으로 사용함)
+# (target["revisit_url"]에 채워두면 analyzer.xss.revisit.resolve_revisit_url이 최우선으로 사용함)
 def _apply_revisit_overrides(targets: list[dict]) -> None:
     overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
     if not overrides:
@@ -290,8 +290,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         })
                         break
                     try:
-                        for finding_dict in analyze_family(family_dict): 
-                            append_jsonl(findings_path, finding_dict)
+                        for finding in analyze_family(family_dict):
+                            append_jsonl(findings_path, asdict(finding))
                     except Exception as e:
                         print(f"[ERROR] 판정 실패: family={family.family_id} - {e}")
                         append_jsonl(findings_path, {
@@ -305,7 +305,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 # XSS 판정
                 for i, result in enumerate(case_results[1:]): # 수행한 요청만 판정 대상
                     try:
-                        finding = family_pipeline.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
+                        finding = xss_detector.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")
