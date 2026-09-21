@@ -14,12 +14,13 @@ from scan.models import CaseResult, FamilyResult, MutationCase
 @dataclass
 class _FakeHeadless:  # 실제 브라우저 없이 headless 결과를 고정값으로 흉내내는 stub
     executed: bool = True
+    ok: bool = True  # 검증 수행 성공 여부 (렌더/네비 실패·미지원 흉내)
 
     def confirm_via_render(self, response_body: str, url=None, headers=None) -> HeadlessVerdict:
-        return HeadlessVerdict(executed=self.executed, method="render", evidence="fake render")
+        return HeadlessVerdict(executed=self.executed, method="render", evidence="fake render", ok=self.ok)
 
     def confirm_via_navigate(self, url: str, cookies: dict, method: str) -> HeadlessVerdict:
-        return HeadlessVerdict(executed=self.executed, method="navigate", evidence="fake navigate")
+        return HeadlessVerdict(executed=self.executed, method="navigate", evidence="fake navigate", ok=self.ok)
 
 
 def _family(vuln_type="xss", technique="body", mutations=None) -> dict:
@@ -61,6 +62,23 @@ class JudgeCaseTests(unittest.TestCase):
 
         self.assertTrue(finding.headless_checked)
         self.assertEqual(finding.final_status, "reflected_only")
+
+    def test_raw_hit_but_headless_verify_failed_is_inconclusive(self) -> None:
+        # 실행가능 반사 있음 + headless 검증 자체 실패(ok=False) → 발화 안 함으로 단정 불가 → inconclusive
+        case_result = _case_result("<script>alert(1)</script>", "<script>alert(1)</script>")
+        finding = family_pipeline.judge_case(_family(), case_result, _FakeHeadless(executed=False, ok=False))
+
+        self.assertTrue(finding.headless_checked)
+        self.assertEqual(finding.final_status, "inconclusive")
+
+    def test_dom_headless_verify_failed_is_inconclusive_not_safe(self) -> None:
+        # DOM은 headless가 유일 근거 — 검증 실패(ok=False)면 safe 아니라 inconclusive
+        case_result = _case_result("#<img src=x onerror=alert(1)>", "no reflection here")
+        finding = family_pipeline.judge_case(
+            _family(technique="dom"), case_result, _FakeHeadless(executed=False, ok=False))
+
+        self.assertTrue(finding.headless_checked)
+        self.assertEqual(finding.final_status, "inconclusive")
 
     def test_no_raw_hit_and_not_dom_skips_headless_and_is_safe(self) -> None:
         case_result = _case_result("<script>alert(1)</script>", "no reflection here")
@@ -153,9 +171,10 @@ class RunTests(unittest.TestCase):
             self.assertEqual(lines[0]["final_status"], "vulnerable")
 
 
-# Finding 5: status="error"인 case_result는 headless를 호출하지 않고 즉시 safe 처리되는지 확인
+# Finding 5: status="error"인 case_result는 headless를 호출하지 않고 즉시 inconclusive 처리되는지 확인
+# (전송 실패는 검사 미완료 — safe로 강등하면 안 됨)
 class ErrorStatusCaseTests(unittest.TestCase):
-    def test_error_status_case_skips_headless_and_is_safe(self) -> None:
+    def test_error_status_case_skips_headless_and_is_inconclusive(self) -> None:
         case_result = _case_result("#<img src=x onerror=alert(1)>", "")
         case_result["status"] = "error"  # 요청 자체가 실패한 case
 
@@ -170,7 +189,7 @@ class ErrorStatusCaseTests(unittest.TestCase):
 
         self.assertFalse(finding.headless_checked)
         self.assertIsNone(finding.headless_verdict)
-        self.assertEqual(finding.final_status, "safe")
+        self.assertEqual(finding.final_status, "inconclusive")
 
 
 if __name__ == "__main__":

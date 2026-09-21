@@ -9,16 +9,17 @@ PAYLOAD = "<script>alert(1)</script>"
 
 
 class _FakeHeadless:  # 실제 브라우저 없이 navigate/render 발화 여부를 고정값으로 흉내
-    def __init__(self, executed: bool):
+    def __init__(self, executed: bool, ok: bool = True):
         self.executed = executed
+        self.ok = ok  # 검증 수행 성공 여부 (렌더/네비 실패·미지원 흉내)
         self.render_calls: list[dict] = []  # render에 넘어온 url/headers 기록
 
     def confirm_via_navigate(self, url, cookies, method) -> HeadlessVerdict:
-        return HeadlessVerdict(executed=self.executed, method="navigate", evidence="fake")
+        return HeadlessVerdict(executed=self.executed, method="navigate", evidence="fake", ok=self.ok)
 
     def confirm_via_render(self, response_body, url=None, headers=None) -> HeadlessVerdict:
         self.render_calls.append({"url": url, "headers": headers})
-        return HeadlessVerdict(executed=self.executed, method="render", evidence="fake")
+        return HeadlessVerdict(executed=self.executed, method="render", evidence="fake", ok=self.ok)
 
 
 def _family(sink_confirmed: bool = True) -> dict:
@@ -90,6 +91,19 @@ class StoredJudgeTests(unittest.TestCase):
             _family(), _case(PAYLOAD, "line1", "line1\n" + PAYLOAD), _FakeHeadless(executed=True))
         self.assertEqual(finding.final_status, "vulnerable")
 
+    def test_new_region_navigate_verify_failed_is_inconclusive(self) -> None:
+        # 실제 저장 + raw hit + navigate 검증 실패(ok=False) → 발화 판정 불가 → inconclusive (safe/reflected_only 확정 금지)
+        finding = family_pipeline._judge_stored(
+            _family(), _case(PAYLOAD, "line1", "line1\n" + PAYLOAD),
+            _FakeHeadless(executed=False, ok=False))
+        self.assertEqual(finding.final_status, "inconclusive")
+
+    def test_echo_render_verify_failed_is_inconclusive(self) -> None:
+        # 저장 안 됨 + 등록 응답 에코 + render 검증 실패(ok=False) → inconclusive
+        finding = family_pipeline._judge_stored(
+            _family(), _echo_case("<p>" + PAYLOAD + "</p>"), _FakeHeadless(executed=False, ok=False))
+        self.assertEqual(finding.final_status, "inconclusive")
+
     def test_echo_executed_is_reflected_only(self) -> None:
         # 저장 안 됨 + 등록 응답 에코 + render 발화 → reflected_only, 원래 URL·응답 헤더로 render
         headless = _FakeHeadless(executed=True)
@@ -98,11 +112,12 @@ class StoredJudgeTests(unittest.TestCase):
         self.assertEqual(headless.render_calls,
                          [{"url": "http://x/post", "headers": {"content-type": "text/html"}}])
 
-    def test_echo_not_executed_is_safe_with_evidence(self) -> None:
-        # 저장 안 됨 + 등록 응답 에코 + render 미발화(CSP 등) → safe, headless 근거는 남김
+    def test_echo_not_executed_is_reflected_only(self) -> None:
+        # 저장 안 됨 + 등록 응답에 실행가능 에코 + render 미발화 → reflected_only
+        # (실행가능 반사는 실재 — 반사 없음(safe)과 구분. 검증은 정상 완료(ok)라 inconclusive 아님)
         finding = family_pipeline._judge_stored(
             _family(), _echo_case("<p>" + PAYLOAD + "</p>"), _FakeHeadless(executed=False))
-        self.assertEqual(finding.final_status, "safe")
+        self.assertEqual(finding.final_status, "reflected_only")
         self.assertTrue(finding.headless_checked)
 
     def test_no_echo_is_safe_without_render(self) -> None:
