@@ -4,7 +4,7 @@ import secrets
 import threading
 import time
 from dataclasses import dataclass
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from scan.mutation.variant import build_mutation_case
 
@@ -100,9 +100,11 @@ def probe_sink(sp, target: dict, marker: str, requester, zap):
         case_id=f"probe_{sp.target_id}_{sp.tag}",
         value_index=sp.value_index,
     )
-    requester.send(post_case, zap)  # POST 응답 본문은 보지 않음(에코 오판 방지)
+    sent = requester.send(post_case, zap)  # POST 응답 본문은 보지 않음(에코 오판 방지)
 
-    revisit_url = resolve_revisit_url(target)
+    # POST 응답 Location으로 동적 revisit_url 결정 (write.php처럼 매번 새 id가 생기는 경우 대응)
+    location = (sent.get("response_headers") or {}).get("location")
+    revisit_url = urljoin(post_case.url, location) if location else resolve_revisit_url(target)
     used_url = revisit_url
     confirmed = _reflect_at(target, revisit_url, marker, requester, zap,
                             case_id=f"probe_{sp.target_id}_{sp.tag}_revisit")

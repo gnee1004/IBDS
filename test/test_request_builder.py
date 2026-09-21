@@ -85,6 +85,17 @@ class GenerateXssFamiliesTests(unittest.TestCase):
 
         self.assertTrue(any("<script>" in p for p in payloads))
 
+    # af.md #2 재현: DOM XSS는 브라우저에서만 값을 읽어 실행되므로 서버 반사가 없어도
+    # 유효한데, 현재는 discovery.reflected=False면 dom technique(PL-XSS-DOM)까지 통째로
+    # 제외된다. 이 동작은 버그이며 수정 예정(4일차, af.md #2) — 통과는 "현재 동작"을
+    # 문서화하는 것이지 올바른 동작이라는 뜻이 아니다.
+    def test_not_reflected_also_drops_dom_technique_bug(self) -> None:
+        discovery = DiscoveryResult(reflected=False, valid_specials=set())
+
+        families = generate_xss_families(_point(), _target(), discovery)
+
+        self.assertFalse(any(f.technique == "dom" for f in families))
+
     def test_stored_technique_is_excluded_from_reflected_route(self) -> None:
         discovery = DiscoveryResult(
             reflected=True,
