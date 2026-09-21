@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from analyzer.headless import HeadlessSession, HeadlessVerdict
+from analyzer.xss.headless import HeadlessSession, HeadlessVerdict
 
 
 class ConfirmViaNavigatePostUnsupportedTests(unittest.TestCase):

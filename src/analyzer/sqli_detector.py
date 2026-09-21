@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import json
-import os
-import sys
-from datetime import datetime
 from difflib import SequenceMatcher
 
-from utilities.file_utils import save_json
+from .finding import Finding
 from .sqli.judge import (
     MIN_REPEAT_CONFIRM,
     judge_error_based_sqli,
@@ -15,24 +11,11 @@ from .sqli.judge import (
     _strip_dynamic,
     _strip_value,
 )
-from .xss.judge import judge_xss
 
 # Boolean 판정 문턱
-_TRUE_GATE = 0.85   
-_GATE_MARGIN = 0.05 
-_STATIC_EPS = 0.002  
-
-def _load_results(results_path: str) -> list[dict]:
-    families = []
-    with open(results_path, encoding="utf-8") as file:
-        for line_number, line in enumerate(file, 1):
-            if not line.strip():
-                continue
-            try:
-                families.append(json.loads(line))
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"Invalid JSONL at line {line_number}: {exc}") from exc
-    return families
+_TRUE_GATE = 0.85
+_GATE_MARGIN = 0.05
+_STATIC_EPS = 0.002
 
 
 def _successful(result: dict | None) -> bool:
@@ -45,39 +28,25 @@ def _body(result: dict | None) -> str:
     return result.get("response_body") or ""
 
 
-def _finding(family: dict, result: dict, confidence: str, evidence: str) -> dict:
+def _finding(family: dict, result: dict, confidence: str, evidence: str) -> Finding:
     case = result.get("case") or {}
-    return {
-        "family_id": family.get("family_id"),
-        "target_id": family.get("target_id"),
-        "vuln_type": family.get("vuln_type"),
-        "technique": family.get("technique"),
-        "method": case.get("method"),
-        "url": case.get("url"),
-        "param": family.get("param"),
-        "location": case.get("body_type"),
-        "payload": case.get("payload"),
-        "confidence": confidence,
-        "evidence": evidence,
-        "response_status": result.get("response_status"),
-        "elapsed": result.get("elapsed"),
-        "timestamp": datetime.now().isoformat(timespec="seconds"),
-    }
-
-
-def _analyze_xss(family: dict) -> list[dict]:
-    baseline_body = _body(family.get("baseline"))
-    for mutation in family.get("mutations", []):
-        if not _successful(mutation):
-            continue
-        payload = str((mutation.get("case") or {}).get("payload") or "")
-        if not payload:
-            continue
-        verdict = judge_xss(_body(mutation), payload)
-        baseline_verdict = judge_xss(baseline_body, payload)
-        if verdict.vulnerable and not baseline_verdict.vulnerable:
-            return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
-    return []
+    return Finding(
+        vuln_type="sqli",
+        family_id=family.get("family_id"),
+        target_id=family.get("target_id"),
+        param=family.get("param"),
+        attack_id=family.get("attack_id"),
+        technique=family.get("technique"),
+        case_id=case.get("case_id"),
+        method=case.get("method"),
+        url=case.get("url"),
+        location=case.get("body_type"),
+        payload=case.get("payload"),
+        raw_verdict={"vulnerable": True, "confidence": confidence, "evidence": evidence},
+        headless_checked=False,
+        headless_verdict=None,
+        final_status="vulnerable",
+    )
 
 
 def _payload_of(mutation: dict) -> str:
@@ -90,7 +59,7 @@ def _clean_body(family: dict, result: dict | None) -> str:
     return _strip_dynamic(body, family.get("dynamic_markers") or [])
 
 
-def _analyze_boolean(family: dict) -> list[dict]:
+def _analyze_boolean(family: dict) -> list[Finding]:
     base_clean = _clean_body(family, family.get("baseline"))
     true_results = []
     false_results = []
@@ -151,7 +120,7 @@ def _analyze_boolean(family: dict) -> list[dict]:
     return [_finding(family, best_result, confidence, evidence)]
 
 
-def _analyze_sqli(family: dict) -> list[dict]:
+def _analyze_sqli(family: dict) -> list[Finding]:
     technique = str(family.get("technique") or "")
     if technique.startswith("boolean"):
         return _analyze_boolean(family)
@@ -179,32 +148,9 @@ def _analyze_sqli(family: dict) -> list[dict]:
     return []
 
 
-def analyze_family(family: dict) -> list[dict]:
+def analyze_family(family: dict) -> list[Finding]:
     if not _successful(family.get("baseline")):
         return []
-    vuln_type = str(family.get("vuln_type") or "").lower()
-    if vuln_type == "sqli":
+    if str(family.get("vuln_type") or "").lower() == "sqli":
         return _analyze_sqli(family)
-    if vuln_type == "xss":
-        return _analyze_xss(family)
     return []
-
-
-def analyze_results(results_path: str) -> str:
-    findings = []
-    for family in _load_results(results_path):
-        findings.extend(analyze_family(family))
-    output_path = os.path.join(os.path.dirname(os.path.abspath(results_path)), "findings.json")
-    save_json(output_path, findings)
-    print(f"[ANALYZE] findings.json -> {output_path} ({len(findings)} findings)")
-    return output_path
-
-
-def main() -> None:
-    if len(sys.argv) != 2:
-        raise SystemExit("Usage: python -m analyzer.scan <request_results.jsonl>")
-    analyze_results(sys.argv[1])
-
-
-if __name__ == "__main__":
-    main()

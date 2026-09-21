@@ -3,7 +3,7 @@ from __future__ import annotations
 import concurrent.futures
 import unittest
 
-from analyzer.revisit import (
+from analyzer.xss.revisit import (
     REVISIT_MAX_RETRY,
     RefetchResult,
     diff_new_region,
@@ -94,7 +94,7 @@ class RefetchTests(unittest.TestCase):
 
     def test_backoff_grows_linearly(self) -> None:
         # 백오프 500ms×n: 1차 재시도 앞 0.5s, 2차 재시도 앞 1.0s (WBS/TASK 기준)
-        import analyzer.revisit as rv
+        import analyzer.xss.revisit as rv
         captured: list[float] = []
         orig_sleep = rv.time.sleep
         rv.time.sleep = lambda s: captured.append(s)
