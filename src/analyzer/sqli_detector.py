@@ -140,7 +140,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
         return []
 
-    # union → 컬럼 수 불일치 에러(구조 신호). 현재 판정은 종전대로 유지.
+    # union → 구조 신호, 종전 판정 유지
     if technique == "union":
         for mutation in mutations:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
@@ -148,12 +148,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
                 return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
         return []
 
-    # error_extract·error_meta·order_by 등 → 마커 인식 error-based 판정.
-    #   정보추출(마커) 확인 → vulnerable / baseline엔 없던 DB 에러만 → error_exposed(low) / 그 외 → safe
-    #   vulnerable 우선, 없으면 첫 error_exposed 를 대표로 남김.
-    # judgment 분기: 룰 메타(family["judgment"])가 배선되면 그것을 쓰되, 아직 _enrich 화이트리스트에서
-    #   잘려 family에 안 실리므로, 플럼빙되는 technique="error_extract"로 브리지해 즉시 extraction 판정.
-    #   (브리지 없으면 extractvalue의 XPATH 에러가 DB_ERROR_KEYWORDS에 걸려 error_exposed로 오판됨)
+    # error 계열: vulnerable 우선, 없으면 첫 error_exposed. judgment 메타 미배선이라 technique로 extraction 브리지.
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
     marker = family.get("extract_marker") or EXTRACT_MARKER
     error_exposed: Finding | None = None
