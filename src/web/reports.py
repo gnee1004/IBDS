@@ -4,6 +4,20 @@ from collections import Counter
 from pathlib import Path
 from utilities.file_utils import load_json
 from web.runs import run_metadata
+from attack_requests import RULES
+
+_CATEGORY_BY_TECHNIQUE = {rule["technique"]: rule["category"] for rule in RULES}
+
+
+# technique -> 결과 상세 옆에 표시할 카테고리 이름
+def _technique_category(technique):
+    # 정의에 없는 값(레거시 데이터 등)은 technique 이름을 그대로 노출
+    return _CATEGORY_BY_TECHNIQUE.get(technique, technique)
+
+
+# 상단 필터용 대분류: template은 xss와 별개 취급, 나머지는 vuln_type 그대로
+def _filter_group(vuln_type, technique):
+    return "template" if technique == "template" else vuln_type
 
 
 # JSONL 레코드 조회와 불완전한 마지막 줄 제외
@@ -64,7 +78,7 @@ def build_report(out_dir):
                        "url": families[fid]["url"], "stage": "baseline" if result is baseline else "request",
                        "error": result.get("error") or "요청 실패"})
 
-    groups, counts, techniques = {}, Counter(), set()
+    groups, counts, filter_groups = {}, Counter(), set()
     for finding in read_jsonl(directory / "findings.jsonl"):
         fid = finding.get("family_id")
         info = families.get(fid, {})
@@ -87,9 +101,10 @@ def build_report(out_dir):
         technique = finding.get("technique") or info.get("technique")
         if not technique and finding.get("stage") == "probe":
             technique = "stored"
+        vuln_type = finding.get("vuln_type") or info.get("vuln_type") or ("sqli" if "confidence" in finding else "xss")
         item = {**finding, "final_status": status, "technique": technique,
-                "vuln_type": finding.get("vuln_type") or info.get("vuln_type") or
-                             ("sqli" if "confidence" in finding else "xss"),
+                "category": _technique_category(technique) if technique else None,
+                "vuln_type": vuln_type,
                 "evidence": finding.get("evidence") or finding.get("sink_note") or
                             (finding.get("raw_verdict") or {}).get("evidence") or ""}
         key = (url or target_id, method, param)
@@ -97,8 +112,10 @@ def build_report(out_dir):
                                         "target_id": target_id, "items": []})
         group["items"].append(item)
         counts[status] += 1
-        if technique:
-            techniques.add(technique)
+        group_name = _filter_group(vuln_type, technique)
+        item["filter_group"] = group_name
+        filter_groups.add(group_name)
     return {"groups": list(groups.values()), "errors": errors, "counts": dict(counts),
-            "error_count": len(errors), "statuses": sorted(counts), "techniques": sorted(techniques),
+            "error_count": len(errors), "statuses": sorted(counts),
+            "filter_groups": [g for g in ("xss", "sqli", "template") if g in filter_groups],
             "meta": run_metadata(directory)}

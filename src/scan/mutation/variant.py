@@ -78,7 +78,7 @@ def build_mutation_case(
         mutated_url = _inject_fragment(url, payload)
         mutated_body = body
     elif body_type == "form":
-        mutated_url = base_url
+        mutated_url = url
         mutated_body = _mutate_form(body, param_name, value_index, payload)
     else:
         mutated_url = _mutate_query(url, param_name, value_index, payload)
