@@ -4,6 +4,7 @@ from difflib import SequenceMatcher
 
 from .finding import Finding
 from .sqli.judge import (
+    EXTRACT_MARKER,
     MIN_REPEAT_CONFIRM,
     judge_error_based_sqli,
     judge_time_based_sqli,
@@ -28,7 +29,8 @@ def _body(result: dict | None) -> str:
     return result.get("response_body") or ""
 
 
-def _finding(family: dict, result: dict, confidence: str, evidence: str) -> Finding:
+def _finding(family: dict, result: dict, confidence: str, evidence: str,
+             final_status: str = "vulnerable") -> Finding:
     case = result.get("case") or {}
     return Finding(
         vuln_type="sqli",
@@ -42,10 +44,10 @@ def _finding(family: dict, result: dict, confidence: str, evidence: str) -> Find
         url=case.get("url"),
         location=case.get("body_type"),
         payload=case.get("payload"),
-        raw_verdict={"vulnerable": True, "confidence": confidence, "evidence": evidence},
+        raw_verdict={"vulnerable": final_status == "vulnerable", "confidence": confidence, "evidence": evidence},
         headless_checked=False,
         headless_verdict=None,
-        final_status="vulnerable",
+        final_status=final_status,
     )
 
 
@@ -138,14 +140,30 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
         return []
 
-    # union → 컬럼 수 불일치 에러, 그 외(error_meta·order_by 등) → DB 에러 시그니처로 판정.
-    # order_by 는 "ORDER BY {큰수}" 가 Unknown column 에러를 유발하므로 error 판정기로 낙하한다.
-    judge = judge_union_sqli if technique == "union" else judge_error_based_sqli
+    # union → 컬럼 수 불일치 에러(구조 신호). 현재 판정은 종전대로 유지.
+    if technique == "union":
+        for mutation in mutations:
+            verdict = judge_union_sqli(baseline_body, _body(mutation))
+            if verdict.vulnerable:
+                return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
+        return []
+
+    # error_meta·order_by 등 → 마커 인식 error-based 판정.
+    #   정보추출(마커) 확인 → vulnerable / baseline엔 없던 DB 에러만 → error_exposed(low) / 그 외 → safe
+    #   judgment·extract_marker 는 룰 메타(배선 완료 후 family에 실림). 미배선 구간에는 기본 structural.
+    #   vulnerable 우선, 없으면 첫 error_exposed 를 대표로 남김.
+    judgment = str(family.get("judgment") or "structural")
+    marker = family.get("extract_marker") or EXTRACT_MARKER
+    error_exposed: Finding | None = None
     for mutation in mutations:
-        verdict = judge(baseline_body, _body(mutation))
-        if verdict.vulnerable:
-            return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
-    return []
+        verdict = judge_error_based_sqli(
+            baseline_body, _body(mutation), extract_marker=marker, judgment=judgment,
+        )
+        if verdict.final_status == "vulnerable":
+            return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
+        if verdict.final_status == "error_exposed" and error_exposed is None:
+            error_exposed = _finding(family, mutation, verdict.confidence, verdict.evidence, "error_exposed")
+    return [error_exposed] if error_exposed else []
 
 
 def analyze_family(family: dict) -> list[Finding]:

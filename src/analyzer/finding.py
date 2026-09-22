@@ -20,4 +20,5 @@ class Finding:
     raw_verdict: dict              # {vulnerable, confidence, evidence} (XSS는 judge_xss asdict)
     headless_checked: bool         # headless 대상이었는지 (SQLi는 항상 False)
     headless_verdict: dict | None  # headless 결과 (asdict), 대상 아니면 None
-    final_status: str              # "vulnerable" | "reflected_only" | "safe" | "inconclusive"
+    final_status: str              # "vulnerable" | "reflected_only" | "error_exposed" | "safe" | "inconclusive"
+                                   #   error_exposed: SQLi error-based에서 DB 에러 신호는 확인됐으나 정보추출 미확인 (low)

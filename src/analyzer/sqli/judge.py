@@ -32,12 +32,19 @@ SLEEP_THRESHOLD = 2.5   # 공격 응답이 이 값(초) 이상이어야 지연�
 DELAY_MARGIN = 2.0      # baseline 대비 최소 추가 지연(초) — 원래 느린 페이지 오탐 방지 (_SLEEP=3 기준)
 MIN_REPEAT_CONFIRM = 2
 
+# Error-based 정보추출 마커 — 값을 이 구분자로 양쪽을 감싸 보냄(근희 payload) → 서진이 응답에서 정규식 추출.
+# 이중 물결표: 정상 데이터에 우연히 나올 확률이 낮고, 값 내부에 ~ 하나가 있어도 조기 truncate 안 됨.
+# hex로는 0x7e7e → concat(0x7e7e,(서브쿼리),0x7e7e) 형태로 따옴표 없이 감쌀 수 있음.
+EXTRACT_MARKER = "~~"
+
 
 @dataclass
 class SqliVerdict:
     vulnerable: bool
     confidence: str
     evidence: str
+    # "vulnerable" | "error_exposed" | "safe" — error-based 판정에서만 설정. 나머지 기법은 vulnerable 플래그로 판단.
+    final_status: str = "vulnerable"
 
 
 _MIN_STRIP_LEN = 4
@@ -72,19 +79,62 @@ def judge_union_sqli(baseline_body: str, attack_body: str) -> SqliVerdict:
     return SqliVerdict(False, "", "UNION 에러 시그니처 없음")
 
 
-def judge_error_based_sqli(baseline_body: str, attack_body: str) -> SqliVerdict:
+# 마커로 감싼 값이 공격 응답에만 있고 baseline에는 없으면 그 값을 돌려줌 (정보추출 근거).
+# baseline 부재 확인은 마커째로("~~값~~") 비교 — 값만 우연히 겹치는 경우를 배제.
+def _extract_marked_value(baseline_body: str, attack_body: str, marker: str) -> str | None:
+    if not marker:
+        return None
+    m = re.escape(marker)
+    pattern = re.compile(m + r"(.+?)" + m, re.DOTALL)  # 비탐욕 — 가장 가까운 닫는 마커까지
+    for match in pattern.finditer(attack_body):
+        if match.group(0) not in baseline_body:  # 마커+값 통째로 baseline엔 없어야 정보추출로 인정
+            return match.group(1)
+    return None
+
+
+# Error-based 판정 — 3분기 계약:
+#   extraction 대상: 마커(~~값~~)가 공격 응답에만 노출  → vulnerable (정보추출 성공, high)
+#   그 외 baseline엔 없던 DB 에러만 노출               → error_exposed (실제 신호 O, 정보추출 X, low)
+#   DB 에러가 baseline에도 있음 / 아무 신호 없음        → safe
+# judgment 미지정 시 기본 structural — 마커를 안 실어보낸 룰이 실수로 정보추출로 승격되는 것 방지.
+def judge_error_based_sqli(
+    baseline_body: str,
+    attack_body: str,
+    *,
+    extract_marker: str = EXTRACT_MARKER,
+    judgment: str = "structural",
+) -> SqliVerdict:
     base_lower   = (baseline_body or "").lower()
     attack_lower = (attack_body or "").lower()
 
+    # 1) 정보추출: extraction 룰에서만 마커 확인 (structural은 마커를 안 감쌈)
+    if judgment == "extraction":
+        value = _extract_marked_value(baseline_body or "", attack_body or "", extract_marker)
+        if value is not None:
+            return SqliVerdict(
+                True, "high",
+                f"Error-based SQLi (정보추출): 마커 {extract_marker}로 감싼 값 '{value}' 이 공격 응답에만 노출",
+                final_status="vulnerable",
+            )
+
+    # 2) baseline엔 없던 DB 에러만 노출 → 실제 신호는 있으나 정보추출 미확인 → error_exposed(low)
     for kw in DB_ERROR_KEYWORDS:
         if kw in attack_lower and kw not in base_lower:
-            return SqliVerdict(True, "high", f"Error-based SQLi: baseline에는 없던 DB 에러 노출 ('{kw}')")
+            return SqliVerdict(
+                False, "low",
+                f"Error-based 신호 (정보추출 미확인): baseline에 없던 DB 에러 노출 ('{kw}')",
+                final_status="error_exposed",
+            )
 
+    # 3) DB 에러가 baseline에도 있으면 이 페이지의 정상 동작
     for kw in DB_ERROR_KEYWORDS:
         if kw in attack_lower and kw in base_lower:
-            return SqliVerdict(False, "", f"DB 에러 문구가 baseline에도 있음 — 이 페이지의 정상 동작 ('{kw}')")
+            return SqliVerdict(
+                False, "", f"DB 에러 문구가 baseline에도 있음 — 이 페이지의 정상 동작 ('{kw}')",
+                final_status="safe",
+            )
 
-    return SqliVerdict(False, "", "DB 에러 시그니처 없음")
+    return SqliVerdict(False, "", "DB 에러·마커 시그니처 없음", final_status="safe")
 
 
 def judge_time_based_sqli(baseline_elapsed: float, attack_elapsed_list: list[float]) -> SqliVerdict:
