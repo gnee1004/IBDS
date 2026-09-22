@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>스캔 실행 · IBDS</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script type="module" src="/static/run.js"></script>
+  </head>
+<body>
+  <a class="skip" href="#main">본문으로 이동</a>
+  <header>
+    <a class="brand" href="/">IBDS <span>LOCAL</span></a>
+    <nav aria-label="주 메뉴">
+      <a href="/">스캔 설정</a>
+      <a href="/run" aria-current="page">스캔 실행</a>
+      <a href="/scan">리포트</a>
+    </nav>
+    <span class="local">로컬 워크스페이스</span>
+  </header>
+
+  <main id="main">
+    <div class="heading">
+      <p class="eyebrow">SCAN ACTIVITY</p>
+      <h1>스캔 실행</h1>
+      <p>검사 진행 상황과 요청 로그를 한곳에서 확인하세요.</p>
+    </div>
+  <div id="fatal" class="notice danger" role="alert" hidden></div>
+  <div id="message" class="notice" role="status" hidden></div>
+  <section class="section execution">
+    <div class="section-bar target-header">
+      <div class="target-info">
+        <p class="eyebrow">TARGET · 검사 대상</p>
+        <p id="target" class="target">설정을 불러오는 중…</p>
+        <div class="target-scope">
+          <span>검사 항목</span>
+          <span class="tag">XSS</span><span class="tag">SQLi</span></div>
+      </div>
+      <a href="/" class="text-link">설정 변경</a>
+    </div>
+    <p id="settings-note" class="hint" hidden>설정 화면으로 이동해도 스캔은 계속됩니다. 설정 저장은 스캔 종료 후 가능합니다.</p>
+    <div class="progress-heading">
+      <h2 id="stage" aria-live="polite">실행 대기</h2><strong id="percent">—</strong>
+    </div>
+    <progress id="progress" max="100" value="0" aria-label="완료된 ScanPoint 기준 진행률"></progress>
+    <div class="metrics">
+      <span id="count">검사 시작 전</span>
+      <span class="failure-count">요청 실패 <strong id="failed">0</strong>건</span>
+    </div>
+    <p class="hint">진행률은 완료된 ScanPoint / 전체 ScanPoint 기준입니다. 각 항목의 요청 수에 따라 진행 속도가 달라집니다.</p>
+    <p id="stop-note" class="notice" hidden>중지 요청을 접수했습니다. 현재 요청과 재조회 처리를 마친 뒤 중단합니다. 수집 중에는 수집이 끝날 때까지 기다립니다.</p>
+    <div class="actions">
+      <button id="start" class="primary">스캔 시작</button>
+      <button id="stop" class="secondary" disabled>중지</button>
+      <a id="report-link" class="button secondary" href="/scan" hidden>리포트 보기 →</a>
+    </div>
+  </section>
+  <section class="section logs-section">
+    <div class="section-bar">
+      <div>
+        <h2>실행 로그</h2>
+        <p id="connection" class="hint">실시간 연결 중…</p>
+      </div>
+      <label class="check">
+        <input id="autoscroll" type="checkbox" checked> 자동 스크롤</label>
+      </div>
+      <div id="logs" class="logs" role="log" aria-label="스캔 실행 로그" tabindex="0">
+        <p class="log-placeholder">스캔을 시작하면 로그가 여기에 표시됩니다.</p>
+      </div>
+      <p class="hint">화면에는 최근 로그 최대 2,000줄이 표시됩니다.</p>
+    </section>
+    <footer>IBDS · 웹 취약점 검사 <span>
+
+    </span>
+  </footer>
+  </main>
+</body>
+</html>
