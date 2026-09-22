@@ -2,6 +2,7 @@
 .env
 *.env
 .venv
+.claude
 
 # Python cache
 __pycache__/
@@ -9,15 +10,17 @@ __pycache__/
 
 # Data / result files
 log/
+results/
 
 # JSON , log files
 *.json
+*.jsonl
 *.log
 
 # 테스트용
-z_checkset/
 CLAUDE.md
-results/
+reference/
+docs/
 
-# Debug logs
-debug-*.log
+# 인증서
+*.cer
