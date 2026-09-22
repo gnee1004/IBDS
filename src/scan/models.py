@@ -15,6 +15,11 @@ class ScanPoint:  # RequestTarget에서 공격 대상 파라미터를 하나씩 
     def tag(self) -> str:
         return f"{self.name}__occ{self.value_index}"
 
+    # 지점 식별자 — target_id_location_name__occN 형태, tag 재사용
+    @property
+    def point_id(self) -> str:
+        return f"{self.target_id}_{self.location}_{self.tag}"
+
 
 @dataclass
 class MatchedRule: # 룰 선택 + {value} 치환까지 끝낸 결과물.

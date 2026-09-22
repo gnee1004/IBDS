@@ -183,8 +183,17 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 families = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path)
             except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김.
                 append_jsonl(findings_path, {
-                    "target_id": sp.target_id, "param": sp.name,
-                    "status": "error", "stage": "route", "error": str(e),
+                    "point_id": sp.point_id,
+                    "target_id": sp.target_id, 
+                    "param": sp.name,
+                    "location": sp.location, 
+                    "value_index": sp.value_index,
+                    "status": "error", 
+                    "final_status": "inconclusive", 
+                    "check_status": "incomplete",
+                    "reason": "route_fail", 
+                    "stage": "route", 
+                    "error": str(e),
                 })
                 print(f"[ERROR] ScanPoint 라우팅 실패: target={sp.target_id} param={sp.name} - {e}")
                 progress.completed += 1
@@ -283,10 +292,19 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 if family.vuln_type == "sqli":  
                     if len(case_results) - 1 < len(family.mutations):
                         append_jsonl(findings_path, {
-                            "family_id": family.family_id, "target_id": family.target_id,
-                            "param": family.param, "vuln_type": family.vuln_type,
-                            "technique": family.technique, "final_status": "inconclusive",
-                            "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
+                            "point_id": sp.point_id,
+                            "family_id": family.family_id, 
+                            "target_id": family.target_id,
+                            "param": family.param, 
+                            "location": sp.location, 
+                            "value_index": sp.value_index,
+                            "vuln_type": family.vuln_type, 
+                            "technique": family.technique,
+                            "final_status": "inconclusive", 
+                            "check_status": "incomplete", 
+                            "reason": "user_stopped",
+                            "stage": "stop", 
+                            "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
                         })
                         break
                     try:
@@ -295,8 +313,20 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     except Exception as e:
                         print(f"[ERROR] 판정 실패: family={family.family_id} - {e}")
                         append_jsonl(findings_path, {
-                            "family_id": family.family_id, "target_id": family.target_id,
-                            "param": family.param, "status": "error", "stage": "judge", "error": str(e),
+                            "point_id": sp.point_id,
+                            "family_id": family.family_id, 
+                            "target_id": family.target_id,
+                            "param": family.param, 
+                            "location": sp.location, 
+                            "value_index": sp.value_index,
+                            "vuln_type": family.vuln_type, 
+                            "technique": family.technique,
+                            "status": "error", 
+                            "final_status": "inconclusive", 
+                            "check_status": "incomplete",
+                            "reason": "judge_error", 
+                            "stage": "judge", 
+                            "error": str(e),
                         })
                     if progress.should_stop():
                         break
@@ -310,9 +340,21 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")
                         append_jsonl(findings_path, {
-                            "family_id": family.family_id, "target_id": family.target_id,
-                            "param": family.param, "case_id": result.case.case_id,
-                            "status": "error", "stage": "judge", "error": str(e),
+                            "point_id": sp.point_id,
+                            "family_id": family.family_id, 
+                            "target_id": family.target_id,
+                            "param": family.param, 
+                            "location": sp.location, 
+                            "value_index": sp.value_index,
+                            "vuln_type": family.vuln_type, 
+                            "technique": family.technique,
+                            "case_id": result.case.case_id,
+                            "status": "error", 
+                            "final_status": "inconclusive", 
+                            "check_status": "incomplete",
+                            "reason": "judge_error", 
+                            "stage": "judge", 
+                            "error": str(e),
                         })
                 if progress.should_stop():
                     break
