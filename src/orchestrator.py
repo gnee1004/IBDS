@@ -278,6 +278,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
+                    location=family.location, value_index=family.value_index,
                     dynamic_markers=family.dynamic_markers,
                     baseline_match_ratio=family.baseline_match_ratio,
                     sink_confirmed=family.sink_confirmed,
