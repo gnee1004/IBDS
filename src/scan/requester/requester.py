@@ -148,3 +148,74 @@ def _update_cookies_from_response(origin: str, response_header: str, req_path: s
             continue
         name, value, path, is_deletion = parsed
         key = (name, path)
+        if is_deletion:
+            stored.pop(key, None)
+            tombstones.add(key)          # 이후 시딩으로도 되살아나지 않도록 표식
+        else:
+            stored[key] = value
+            tombstones.discard(key)      # 서버가 다시 세팅하면 표식 해제(정상 재로그인 등)
+
+
+# MutationCase + cookies -> raw HTTP 요청 텍스트 재조립
+def _build_raw_request(case: MutationCase, cookies: dict[str, str]) -> str:
+    parsed = urlparse(case.url)
+    path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
+    lines = [f"{case.method} {path} HTTP/1.1"]
+    body_bytes = case.body.encode() if case.body else b""
+    for k, v in case.headers.items():
+        if k.lower() == "content-length":
+            continue  # 실제 body 길이로 재계산
+        lines.append(f"{k}: {v}")
+    if body_bytes:
+        lines.append(f"Content-Length: {len(body_bytes)}")
+    if cookies:  # importer가 헤더에서 빼놓은 cookie, Cookie 헤더로 재조립
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        lines.append(f"Cookie: {cookie_str}")
+
+    request_text = "\r\n".join(lines) + "\r\n\r\n"
+    if case.body:
+        request_text += case.body
+    return request_text
+
+
+def _send_once(raw_request: str, zap) -> tuple[dict, float]:
+    started = time.perf_counter()
+    result = zap.core.send_request(request=raw_request, followredirects=False)
+    elapsed = time.perf_counter() - started
+    if not isinstance(result, list) or not result or not isinstance(result[0], dict):     # [{...}] 형태 아니면 원인 파악 위해 실제 응답값 그대로 예외 메시지에 포함
+        raise RuntimeError(f"ZAP send_request 실패, 응답: {result!r}")
+    return result[0], elapsed
+
+
+# case를 현재 쿠키로 전송, 응답의 Set-Cookie 반영 후 결과 dict 리턴
+def send(case: MutationCase, zap) -> dict:
+    origin = _origin(case.url)
+    cookies = _get_cookies(case)
+    raw_request = _build_raw_request(case, cookies)
+
+    last_error: Exception | None = None
+    msg = elapsed = None
+    for attempt in range(_SEND_MAX_RETRIES + 1):
+        if attempt > 0:
+            time.sleep(_SEND_RETRY_DELAY_SECS)
+        try:
+            msg, elapsed = _send_once(raw_request, zap)
+            break
+        except Exception as e:
+            last_error = e
+    else:
+        raise last_error
+
+    response_header = msg.get("responseHeader", "")
+
+    _update_cookies_from_response(origin, response_header, _request_path(case.url))  # 다음 요청부터 갱신된 쿠키 사용
+
+    return {
+        "case_id": case.case_id,
+        "response_status": _parse_response_status(response_header),
+        "response_headers": _parse_headers_block(response_header),
+        "response_body": msg.get("responseBody", ""),
+        "elapsed": elapsed,
+        "effective_cookies": cookies,  # headless 재현 시 실제 전송 쿠키 복원용
+    }
