@@ -43,6 +43,11 @@ class MutationCase: # HTTP 요청 하나를 완전히 표현하는 단위. basel
     body: str            # 요청 바디 — form mutation이면 payload가 body에 포함
     payload: str | None = None         # 삽입된 payload — baseline은 None
     original_value: str | None = None  # 원본 파라미터 값 — baseline은 None
+    # SQLi 비교 계약 (#9) — 근희가 구성, 서진이 판정에서 해석. boolean 외 케이스는 전부 None
+    pair_id: str | None = None         # 같은 주입 컨텍스트 비교 단위 식별자 (예: "t0_id__occ0_..._and_c0")
+    role: str | None = None            # 요청 역할 — "attack_true" / "attack_false" / "control"
+    expected: str | None = None        # baseline 대비 기대 관계 — "approx_baseline" / "differ_baseline"
+    repeat_index: int | None = None    # 같은 (pair_id, role) 반복 회차 (동일 조건 재검증용) 0,1,…
 
 
 @dataclass
