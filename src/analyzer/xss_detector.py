@@ -15,15 +15,23 @@ _DOM_TECHNIQUE = "dom"
 _STORED_TECHNIQUE = "stored"
 
 
+# 재조회 응답이 유효한지 (af.md #4 — 403/500 등은 "정상 방어"가 아니라 재조회 실패로 구분)
+def _is_valid_revisit_status(status) -> bool:
+    return isinstance(status, int) and 200 <= status < 400
+
+
 # raw 판정에서 걸렸거나, raw로는 원천적으로 확인이 안 되는 기법(dom)이면 headless 대상
 def _is_headless_target(vulnerable: bool, technique: str) -> bool:
     return vulnerable or technique == _DOM_TECHNIQUE
 
 
 # headless 확인 결과까지 반영한 최종 상태 판정
-def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool) -> str:
+# verified=False(브라우저 검증 자체 실패)는 "실행 안 됨(safe/reflected_only)"이 아니라 "확인 불가(inconclusive)"로 분리 (#3·11)
+def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool, verified: bool = True) -> str:
     if not headless_checked:
         return "safe"
+    if not verified:
+        return "inconclusive"  # 렌더/navigate 실패 → 조용한 safe 강등 금지
     if executed:
         return "vulnerable"
     return "reflected_only" if raw_vulnerable else "safe"
@@ -65,6 +73,10 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
 
     # 재조회 성공했는데 payload 없음(저장 안 됨) → 등록 응답 에코를 headless로 실제 발화 확인
     if case_result.get("revisit_found") is False:
+        # 재조회 응답 자체가 무효(403/500 등)면 "정상 방어"가 아니라 재조회 실패 → inconclusive
+        if not _is_valid_revisit_status(case_result.get("revisit_status")):
+            return _mk_finding(family, case, "inconclusive",
+                                evidence=f"재조회 응답 무효(상태 코드 {case_result.get('revisit_status')})")
         echo = judge_xss(case_result.get("response_body") or "", payload) if payload else None
         if echo and echo.vulnerable:
             # 등록 응답을 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render해서 실제 발화하면 reflected_only (실행되는 반사, 저장은 아님)
@@ -72,6 +84,9 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
                 case_result.get("response_body") or "",
                 url=case["url"], headers=case_result.get("response_headers"),
             )
+            # render 검증 자체 실패 → safe로 조용히 강등하지 말고 inconclusive (#3·11)
+            if not hv.verified:
+                return _mk_finding(family, case, "inconclusive", raw=echo, hv=hv)
             # 발화 안 함 → safe지만 raw/headless 근거는 남김
             return _mk_finding(family, case, "reflected_only" if hv.executed else "safe", raw=echo, hv=hv)
         # 에코 없음 / escape로 raw 미적중 → 앱이 정상 방어 → safe
@@ -96,6 +111,9 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
         case_result.get("effective_cookies") or {},
         "GET",
     )
+    # navigate 검증 자체 실패 → reflected_only로 단정하지 말고 inconclusive (#3·11)
+    if not hv.verified:
+        return _mk_finding(family, case, "inconclusive", raw=raw, hv=hv)
     return _mk_finding(family, case, "vulnerable" if hv.executed else "reflected_only", raw=raw, hv=hv)
 
 
@@ -160,6 +178,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
         final_status=_final_status(
             raw_verdict.vulnerable, headless_checked,
             headless_verdict.executed if headless_verdict else False,
+            headless_verdict.verified if headless_verdict else True,
         ),
     )
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 import concurrent.futures
 import unittest
 
+from scan.models import ScanPoint
 from analyzer.xss.revisit import (
     REVISIT_MAX_RETRY,
     RefetchResult,
     diff_new_region,
     new_run_marker_factory,
+    probe_sink,
     refetch,
 )
 
@@ -64,11 +66,11 @@ class RefetchTests(unittest.TestCase):
     def test_default_max_retry_is_three(self) -> None:
         self.assertEqual(REVISIT_MAX_RETRY, 3)
 
-    # af.md #4 재현: refetch()는 response_status를 판정에 전혀 쓰지 않는다.
-    # 403(차단)이든 200(진짜 미탐지)이든 payload가 없으면 found=False로 똑같이 나오고,
-    # 호출부(family_pipeline._judge_stored)는 이 경우를 구분 없이 "정상 방어"로 해석한다.
-    # 재조회 응답의 유효성(상태 코드·인증 상태)을 먼저 확인하는 처리가 없음 — 수정 예정(2일차, af.md #4).
-    def test_error_status_and_genuine_miss_are_indistinguishable_bug(self) -> None:
+    # af.md #4: refetch()는 response_status를 판정에 쓰지 않고 그대로 반환만 한다 — 의도된 설계.
+    # 403(차단)이든 200(진짜 미탐지)이든 payload가 없으면 found=False로 동일하게 나오지만,
+    # status는 결과에 보존되므로 호출부(xss_detector._judge_stored)가 이 값으로 "재조회 실패"와
+    # "정상 방어"를 구분한다 (test_stored_judge.py::test_revisit_failure_status_is_inconclusive_not_safe 참고).
+    def test_status_is_preserved_but_not_interpreted_here(self) -> None:
         class _StatusRequester:
             def __init__(self, status: int):
                 self.status = status
@@ -107,10 +109,11 @@ class RefetchTests(unittest.TestCase):
 
 
 class RevisitCredentialScopeTests(unittest.TestCase):
-    # af.md #8 재현: revisit_url이 원본과 다른 외부 호스트여도 원본 쿠키·인증 헤더가
-    # 목적지 구분 없이 그대로 실려 나간다 — 재방문 목적지 허용 범위 검사가 없음.
-    # 수정 예정(2일차, af.md #8).
-    def test_refetch_sends_original_credentials_to_any_host_bug(self) -> None:
+    # af.md #8 수정 이후: refetch() 자체는 목적지를 검사하지 않는다 — 의도된 설계.
+    # 스코프 검사는 호출부(orchestrator._resolve_case_revisit_url, xss.revisit.probe_sink)에서
+    # revisit_url을 결정하는 단계에 있고, 그 검사를 통과한 URL만 refetch()로 전달된다
+    # (ResolveCaseRevisitUrlTests, ProbeSinkScopeTests 참고). 사용자가 명시한 override도 여기서 신뢰된다.
+    def test_refetch_trusts_caller_and_sends_credentials_to_given_host(self) -> None:
         captured: dict = {}
 
         class _CapturingRequester:
@@ -129,6 +132,53 @@ class RevisitCredentialScopeTests(unittest.TestCase):
         self.assertEqual(captured["url"], "http://evil.external.com/collect")
         self.assertEqual(captured["cookies"], original_cookies)
         self.assertEqual(captured["headers"].get("Authorization"), "Bearer secret")
+
+
+class ProbeSinkScopeTests(unittest.TestCase):
+    # af.md #8·#12: POST 응답 Location이 원본과 다른 외부 호스트를 가리키면
+    # 그 주소를 재방문 목적지로 쓰지 않고 기존 정책(referer/base_url)으로 폴백한다.
+    def test_external_location_is_not_used_as_revisit_url(self) -> None:
+        sp = ScanPoint(target_id="t0", name="msg", location="form",
+                        original_value="x", value_type="string")
+        target = {
+            "url": "http://internal.example.com/submit",
+            "base_url": "http://internal.example.com/submit",
+            "method": "POST",
+            "request_body": "msg=x",
+        }
+
+        class _Requester:
+            def send(self, case, zap):
+                if case.step == "probe_post":
+                    return {"response_headers": {"location": "http://evil.external.com/collect"},
+                            "response_body": ""}
+                return {"response_body": "", "response_status": 200}
+
+        result = probe_sink(sp, target, "MARK123", _Requester(), zap=None)
+
+        self.assertEqual(result.revisit_url, "http://internal.example.com/submit")
+
+    def test_same_host_location_is_used_as_revisit_url(self) -> None:
+        sp = ScanPoint(target_id="t0", name="msg", location="form",
+                        original_value="x", value_type="string")
+        target = {
+            "url": "http://internal.example.com/submit",
+            "base_url": "http://internal.example.com/submit",
+            "method": "POST",
+            "request_body": "msg=x",
+        }
+
+        class _Requester:
+            def send(self, case, zap):
+                if case.step == "probe_post":
+                    return {"response_headers": {"location": "http://internal.example.com/new/42"},
+                            "response_body": ""}
+                return {"response_body": "MARK123", "response_status": 200}
+
+        result = probe_sink(sp, target, "MARK123", _Requester(), zap=None)
+
+        self.assertEqual(result.revisit_url, "http://internal.example.com/new/42")
+        self.assertTrue(result.sink_confirmed)
 
 
 class DiffNewRegionTests(unittest.TestCase):

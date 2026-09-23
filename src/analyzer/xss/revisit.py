@@ -49,6 +49,11 @@ def new_run_marker_factory(run_hex: str | None = None) -> RunMarkerFactory:
     return RunMarkerFactory(run_hex=run_hex)
 
 
+# 재방문 목적지가 원본 target과 같은 host인지 검사 (af.md #8 — 외부 호스트로 인증정보 유출 방지)
+def is_same_host(original_url: str, candidate_url: str) -> bool:
+    return urlparse(original_url or "").netloc == urlparse(candidate_url or "").netloc
+
+
 # 재조회 GET용 헤더 구성
 def _get_headers_for_revisit(target: dict) -> dict:
     headers = dict(target.get("headers") or {})
@@ -103,8 +108,13 @@ def probe_sink(sp, target: dict, marker: str, requester, zap):
     sent = requester.send(post_case, zap)  # POST 응답 본문은 보지 않음(에코 오판 방지)
 
     # POST 응답 Location으로 동적 revisit_url 결정 (write.php처럼 매번 새 id가 생기는 경우 대응)
+    # 범위 밖(외부 호스트) Location은 따르지 않고 기존 정책(override/referer/base_url)으로 폴백 (af.md #8·#12)
     location = (sent.get("response_headers") or {}).get("location")
-    revisit_url = urljoin(post_case.url, location) if location else resolve_revisit_url(target)
+    location_url = urljoin(post_case.url, location) if location else None
+    if location_url and is_same_host(target.get("url", ""), location_url):
+        revisit_url = location_url
+    else:
+        revisit_url = resolve_revisit_url(target)
     used_url = revisit_url
     confirmed = _reflect_at(target, revisit_url, marker, requester, zap,
                             case_id=f"probe_{sp.target_id}_{sp.tag}_revisit")

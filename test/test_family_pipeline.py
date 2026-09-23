@@ -14,12 +14,13 @@ from scan.models import CaseResult, FamilyResult, MutationCase
 @dataclass
 class _FakeHeadless:  # 실제 브라우저 없이 headless 결과를 고정값으로 흉내내는 stub
     executed: bool = True
+    verified: bool = True  # False면 브라우저 검증 자체 실패(렌더/navigate 불가) 흉내
 
     def confirm_via_render(self, response_body: str, url=None, headers=None) -> HeadlessVerdict:
-        return HeadlessVerdict(executed=self.executed, method="render", evidence="fake render")
+        return HeadlessVerdict(executed=self.executed, method="render", evidence="fake render", verified=self.verified)
 
     def confirm_via_navigate(self, url: str, cookies: dict, method: str) -> HeadlessVerdict:
-        return HeadlessVerdict(executed=self.executed, method="navigate", evidence="fake navigate")
+        return HeadlessVerdict(executed=self.executed, method="navigate", evidence="fake navigate", verified=self.verified)
 
 
 def _family(vuln_type="xss", technique="body", mutations=None) -> dict:
@@ -69,6 +70,22 @@ class JudgeCaseTests(unittest.TestCase):
         self.assertFalse(finding.headless_checked)
         self.assertIsNone(finding.headless_verdict)
         self.assertEqual(finding.final_status, "safe")
+
+    def test_dom_headless_unverified_is_inconclusive_not_safe(self) -> None:
+        # #3·11(위험 케이스): DOM은 raw로 못 봄 → headless가 유일한 탐지 수단. 그 검증이 실패하면 safe가 아니라 inconclusive
+        case_result = _case_result("#<img src=x onerror=alert(1)>", "no reflection here")
+        finding = family_pipeline.judge_case(
+            _family(technique="dom"), case_result, _FakeHeadless(executed=False, verified=False))
+        self.assertTrue(finding.headless_checked)
+        self.assertEqual(finding.final_status, "inconclusive")
+
+    def test_reflected_headless_unverified_is_inconclusive(self) -> None:
+        # #3·11: reflected raw hit 후 render 검증 자체 실패 → reflected_only가 아니라 inconclusive
+        case_result = _case_result("<script>alert(1)</script>", "<script>alert(1)</script>")
+        finding = family_pipeline.judge_case(
+            _family(), case_result, _FakeHeadless(executed=False, verified=False))
+        self.assertTrue(finding.headless_checked)
+        self.assertEqual(finding.final_status, "inconclusive")
 
     def test_dom_technique_is_always_headless_target_even_without_raw_hit(self) -> None:
         case_result = _case_result("#<img src=x onerror=alert(1)>", "no reflection here")

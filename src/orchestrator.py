@@ -25,7 +25,7 @@ from scan.progress import PipelineProgress
 from utilities.file_utils import append_jsonl, load_json
 from analyzer import xss_detector
 from analyzer.xss.headless import HeadlessSession
-from analyzer.xss.revisit import probe_sink, new_run_marker_factory, refetch
+from analyzer.xss.revisit import probe_sink, new_run_marker_factory, refetch, is_same_host
 from analyzer.sqli_detector import analyze_family
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -126,7 +126,10 @@ def _revisit_after_fields(revisit_url, family, case, requester, zap, target, rev
 # 공격 응답 Location에서 이번 case가 쓸 재방문 주소 추출 (상대경로면 case.url 기준 절대주소로 변환, 없으면 None)
 def _resolve_case_revisit_url(sent: dict, case) -> str | None:
     location = sent["response_headers"].get("location")
-    return urljoin(case.url, location) if location else None
+    if not location:
+        return None
+    resolved = urljoin(case.url, location)
+    return resolved if is_same_host(case.url, resolved) else None  # 범위 밖 목적지 -> 호출부가 family.revisit_url로 폴백
 
 
 # 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
