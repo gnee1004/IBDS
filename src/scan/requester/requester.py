@@ -15,6 +15,25 @@ _ZAP_CONFIG = os.path.join(_PROJECT_ROOT, "config", "zap_config.json")
 _SEND_MAX_RETRIES = 2
 _SEND_RETRY_DELAY_SECS = 0.5
 
+# 여러 번 보내도 서버에 중복이 안 생기는 메서드 — GET처럼 그냥 읽기만 하는 요청들.
+# 실패하면 다시 보내도 안전하다. POST·PATCH(게시글 등록·수정 같은 요청)는 여기 없어서 재시도하지 않는다. (#17)
+_RETRY_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE"})
+
+
+class RequestDeliveryUnknown(RuntimeError):
+    """POST처럼 서버에 뭔가 등록·수정하는 요청이 전송 도중 실패한 경우.
+
+    서버가 이미 처리했는데 응답만 못 받았을 수도 있다. 이때 다시 보내면 게시글이
+    중복 생성될 수 있으므로, 재시도하지 않고 '서버가 처리했는지 알 수 없음' 상태로 올린다.
+    downstream은 isinstance로 이 예외를 구분해 일반 error와 다른 상태로 전달할 수 있다.
+    """
+
+
+# GET처럼 다시 보내도 안전한 요청인지 판정 (대소문자·공백 정규화 후 확인)
+def _is_retry_safe(method: str) -> bool:
+    return method.strip().upper() in _RETRY_SAFE_METHODS
+
+
 # site(origin)별 최신 쿠키 저장소, target이 아닌 origin 단위 공유.
 # 키를 (name, path)로 둬서 같은 이름·다른 경로 쿠키가 서로 덮어쓰지 않도록 한다.
 _cookie_store: dict[str, dict[tuple[str, str], str]] = {}
@@ -194,9 +213,13 @@ def send(case: MutationCase, zap) -> dict:
     cookies = _get_cookies(case)
     raw_request = _build_raw_request(case, cookies)
 
+    # GET처럼 안전한 요청만 재시도, POST 같은 등록·수정 요청은 1번만 보내 서버 측 중복 생성 방지 (#17)
+    retry_safe = _is_retry_safe(case.method)
+    max_attempts = (_SEND_MAX_RETRIES + 1) if retry_safe else 1
+
     last_error: Exception | None = None
     msg = elapsed = None
-    for attempt in range(_SEND_MAX_RETRIES + 1):
+    for attempt in range(max_attempts):
         if attempt > 0:
             time.sleep(_SEND_RETRY_DELAY_SECS)
         try:
@@ -205,6 +228,13 @@ def send(case: MutationCase, zap) -> dict:
         except Exception as e:
             last_error = e
     else:
+        # 모든 시도 실패. POST 같은 요청은 서버가 이미 처리했을 수 있어 재시도하지 않았으므로,
+        # 처리했는지 알 수 없는 상태로 구분해 올린다. GET 같은 요청은 기존대로 원인 예외를 그대로 전달.
+        if not retry_safe:
+            raise RequestDeliveryUnknown(
+                f"{case.method} {case.case_id} 전송 실패, 서버가 처리했는지 알 수 없음"
+                f"(POST 같은 요청이라 재시도 안 함): {last_error}"
+            ) from last_error
         raise last_error
 
     response_header = msg.get("responseHeader", "")
