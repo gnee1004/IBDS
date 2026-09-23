@@ -100,7 +100,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                         "target_id": sp.target_id, 
                         "param": sp.name,
                         "stage": "sqli_prepare", 
-                        "status": "inconclusive",
+                        "status": "error",
                         "sink_note": sink_note,
                 })
             print(f"[WARN] SQLi 준비 단계 실패 : target={sp.target_id} param={sp.name} - {e}")
