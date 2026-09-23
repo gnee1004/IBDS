@@ -95,13 +95,12 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
         families.extend(generate_sqli_families(sp, target, dynamic_markers, baseline_match_ratio))
     except Exception as e:
             if findings_path:
-                sink_note = "판정 불가 - SQLi 전처리 단계 실패"
                 append_jsonl(findings_path, {
-                        "target_id": sp.target_id, 
+                        "target_id": sp.target_id,
                         "param": sp.name,
-                        "stage": "sqli_prepare", 
+                        "stage": "sqli_prepare",
                         "status": "error",
-                        "sink_note": sink_note,
+                        "error": str(e),
                 })
             print(f"[WARN] SQLi 준비 단계 실패 : target={sp.target_id} param={sp.name} - {e}")
 
