@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-# time-based SQLi 지연 시간(초). ZAP send_request 내부 timeout을 넘기면 요청이 에러나므로 짧게 유지.
-# 값 변경 시 analyzer/sqli/judge.py 의 SLEEP_THRESHOLD(= _SLEEP - 0.5 권장)도 같이 맞출 것.
 _SLEEP = 3
 
 
@@ -40,6 +38,8 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
+        # UNION — 컬럼 수 불일치 시 "column count doesn't match" 에러를 유발,
+        # judge_union_sqli 가 그 에러 시그니처로 판정하므로 error 계열.
         "attack_id": "PL-SQLI-UNION",
         "vuln_type": "sqli",
         "technique": "union",
@@ -74,14 +74,13 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
-
     {
         "attack_id": "PL-SQLI-ERROR-EXTRACT",
         "vuln_type": "sqli",
         "technique": "error_extract",
         "category": "error",
         "judgment": "extraction",
-        "extract_marker": "~~", 
+        "extract_marker": "~~",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [
