@@ -53,6 +53,16 @@ class ExtractionTests(unittest.TestCase):
         self.assertTrue(verdict.vulnerable)
         self.assertIn("root@localhost", verdict.evidence)
 
+    def test_evidence_names_info_kind_from_payload(self) -> None:
+        # payload로 뽑은 정보 종류(version 등)를 증거에 명시 → 공격-정보 연관성
+        attack = "XPATH syntax error: '~~8.0.35~~'"
+        payload = "1 AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e))"
+        verdict = judge_error_based_sqli("정상", attack, judgment="extraction", payload=payload)
+
+        self.assertTrue(verdict.vulnerable)
+        self.assertIn("version", verdict.evidence)
+        self.assertIn("8.0.35", verdict.evidence)
+
 
 class ErrorExposedTests(unittest.TestCase):
     """마커 없이 baseline엔 없던 DB 에러만 → error_exposed(low). vulnerable도 safe도 아님."""
@@ -119,6 +129,47 @@ class RoutingTests(unittest.TestCase):
 
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].final_status, "error_exposed")
+
+
+class MissVsIncompleteTests(unittest.TestCase):
+    """#6 — 검사 미완료(inconclusive)와 미탐지(safe) 구분."""
+
+    @staticmethod
+    def _fam(technique: str = "error_meta", baseline_status: str = "ok",
+             mutations: list | None = None) -> dict:
+        return {
+            "family_id": "f", "target_id": "t0", "param": "id",
+            "attack_id": "PL", "vuln_type": "sqli", "technique": technique,
+            "baseline": {"case": {"case_id": "b"}, "status": baseline_status, "response_body": "정상"},
+            "mutations": mutations if mutations is not None else [
+                {"case": {"case_id": "c0", "payload": "x"}, "status": "ok", "response_body": "정상"}],
+        }
+
+    def test_baseline_send_failure_is_inconclusive(self) -> None:
+        f = analyze_family(self._fam(baseline_status="error"))
+        self.assertEqual(len(f), 1)
+        self.assertEqual(f[0].final_status, "inconclusive")
+
+    def test_all_attacks_failed_is_inconclusive(self) -> None:
+        f = analyze_family(self._fam(mutations=[
+            {"case": {"case_id": "c0", "payload": "x"}, "status": "error"}]))
+        self.assertEqual(f[0].final_status, "inconclusive")
+
+    def test_error_meta_checked_but_no_signal_is_safe(self) -> None:
+        # DB 에러·마커 없음 → 검사 완료 미탐지 → safe (미완료와 구분)
+        f = analyze_family(self._fam(technique="error_meta"))
+        self.assertEqual(f[0].final_status, "safe")
+
+    def test_union_no_signal_is_safe(self) -> None:
+        f = analyze_family(self._fam(technique="union"))
+        self.assertEqual(f[0].final_status, "safe")
+
+    def test_boolean_missing_pair_is_inconclusive(self) -> None:
+        # true_attack만 있고 false_attack 없음 → 짝 부족 → 검사 미완료
+        f = analyze_family(self._fam(technique="boolean", mutations=[
+            {"case": {"case_id": "c0", "payload": "x", "step": "true_attack"},
+             "status": "ok", "response_body": "정상"}]))
+        self.assertEqual(f[0].final_status, "inconclusive")
 
 
 if __name__ == "__main__":

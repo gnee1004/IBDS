@@ -61,6 +61,16 @@ def _clean_body(family: dict, result: dict | None) -> str:
     return _strip_dynamic(body, family.get("dynamic_markers") or [])
 
 
+# safe·inconclusive finding의 식별 필드용 대표 case — 첫 mutation, 없으면 baseline
+def _representative_result(family: dict) -> dict:
+    mutations = family.get("mutations") or []
+    return mutations[0] if mutations else (family.get("baseline") or {})
+
+
+def _family_finding(family: dict, final_status: str, evidence: str) -> Finding:
+    return _finding(family, _representative_result(family), "", evidence, final_status)
+
+
 def _analyze_boolean(family: dict) -> list[Finding]:
     base_clean = _clean_body(family, family.get("baseline"))
     true_results = []
@@ -74,8 +84,11 @@ def _analyze_boolean(family: dict) -> list[Finding]:
         elif step == "false_attack":
             false_results.append(mutation)
 
-    if not base_clean or not true_results or not false_results:
-        return []
+    # true/false 짝을 못 만들거나 baseline 비교 불가 → 검사 미완료 (safe 금지)
+    if not true_results or not false_results:
+        return [_family_finding(family, "inconclusive", "true/false 공격 응답 부족으로 검사 미완료")]
+    if not base_clean:
+        return [_family_finding(family, "inconclusive", "baseline 본문 비어 비교 불가")]
 
 
     baseline_match_ratio = family.get("baseline_match_ratio")
@@ -108,7 +121,7 @@ def _analyze_boolean(family: dict) -> list[Finding]:
             hits.append((true_result, gap, true_score, false_score))
 
     if not hits:
-        return []
+        return [_family_finding(family, "safe", "true/false 응답 분기 없음")]
 
     best_result, best_gap, best_true_score, best_false_score = max(hits, key=lambda h: h[1])
     confirmed = len(hits) >= MIN_REPEAT_CONFIRM
@@ -127,18 +140,25 @@ def _analyze_sqli(family: dict) -> list[Finding]:
     if technique.startswith("boolean"):
         return _analyze_boolean(family)
 
-    # order_by 는 ORDER BY <큰수> payload가 컬럼 에러를 유발 → 아래 error-based 판정기로 처리
     baseline = family.get("baseline") or {}
     baseline_body = _body(baseline)
     baseline_elapsed = float(baseline.get("elapsed") or 0.0)
-    mutations = [item for item in family.get("mutations", []) if _successful(item)]
+    raw_mutations = family.get("mutations") or []
+    mutations = [item for item in raw_mutations if _successful(item)]
+
+    # 성공한 공격 응답이 없음: 공격이 있었는데 전부 전송 실패면 검사 미완료(safe 금지), 애초에 없었으면 스킵
+    if not mutations:
+        if raw_mutations:
+            return [_family_finding(family, "inconclusive", "공격 요청 전송 실패로 검사 미완료")]
+        return []
+
     if technique.startswith("time"):
         elapsed = [float(item.get("elapsed") or 0.0) for item in mutations]
         verdict = judge_time_based_sqli(baseline_elapsed, elapsed)
-        if verdict.vulnerable and mutations:
+        if verdict.vulnerable:
             slowest = max(mutations, key=lambda item: float(item.get("elapsed") or 0.0))
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
-        return []
+        return [_family_finding(family, "safe", verdict.evidence)]
 
     # union → 구조 신호, 종전 판정 유지
     if technique == "union":
@@ -146,26 +166,31 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
             if verdict.vulnerable:
                 return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
-        return []
+        return [_family_finding(family, "safe", "UNION 에러 시그니처 없음")]
 
-    # error 계열: vulnerable 우선, 없으면 첫 error_exposed. judgment 메타 미배선이라 technique로 extraction 브리지.
+    # error 계열: vulnerable 우선, 없으면 첫 error_exposed, 그것도 없으면 safe.
+    # judgment 메타 미배선이라 technique로 extraction 브리지.
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
     marker = family.get("extract_marker") or EXTRACT_MARKER
     error_exposed: Finding | None = None
     for mutation in mutations:
         verdict = judge_error_based_sqli(
             baseline_body, _body(mutation), extract_marker=marker, judgment=judgment,
+            payload=_payload_of(mutation),
         )
         if verdict.final_status == "vulnerable":
             return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
         if verdict.final_status == "error_exposed" and error_exposed is None:
             error_exposed = _finding(family, mutation, verdict.confidence, verdict.evidence, "error_exposed")
-    return [error_exposed] if error_exposed else []
+    if error_exposed:
+        return [error_exposed]
+    return [_family_finding(family, "safe", "DB 에러·마커 시그니처 없음")]
 
 
 def analyze_family(family: dict) -> list[Finding]:
-    if not _successful(family.get("baseline")):
+    if str(family.get("vuln_type") or "").lower() != "sqli":
         return []
-    if str(family.get("vuln_type") or "").lower() == "sqli":
-        return _analyze_sqli(family)
-    return []
+    # baseline 전송 실패 → 비교 기준 없음 → 검사 미완료 (safe 금지)
+    if not _successful(family.get("baseline")):
+        return [_family_finding(family, "inconclusive", "baseline 전송 실패로 비교 불가")]
+    return _analyze_sqli(family)

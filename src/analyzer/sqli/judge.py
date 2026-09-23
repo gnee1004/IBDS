@@ -77,6 +77,18 @@ def judge_union_sqli(baseline_body: str, attack_body: str) -> SqliVerdict:
     return SqliVerdict(False, "", "UNION 에러 시그니처 없음")
 
 
+# payload가 뽑아내려는 정보 종류 (증거에 공격-정보 연관성 명시용)
+def _info_kind(payload: str) -> str:
+    p = (payload or "").lower()
+    if "version(" in p:
+        return "version"
+    if "current_user(" in p or "session_user(" in p:
+        return "current_user"
+    if "database(" in p:
+        return "database"
+    return ""
+
+
 # 마커로 감싼 값이 공격 응답에만 있고 baseline엔 없으면 그 값을 반환 (정보추출 근거)
 def _extract_marked_value(baseline_body: str, attack_body: str, marker: str) -> str | None:
     if not marker:
@@ -96,6 +108,7 @@ def judge_error_based_sqli(
     *,
     extract_marker: str = EXTRACT_MARKER,
     judgment: str = "structural",
+    payload: str = "",
 ) -> SqliVerdict:
     base_lower   = (baseline_body or "").lower()
     attack_lower = (attack_body or "").lower()
@@ -104,9 +117,11 @@ def judge_error_based_sqli(
     if judgment == "extraction":
         value = _extract_marked_value(baseline_body or "", attack_body or "", extract_marker)
         if value is not None:
+            kind = _info_kind(payload)
+            kind_str = f"{kind} " if kind else ""
             return SqliVerdict(
                 True, "high",
-                f"Error-based SQLi (정보추출): 마커 {extract_marker}로 감싼 값 '{value}' 이 공격 응답에만 노출",
+                f"Error-based SQLi (정보추출): {kind_str}값 '{value}' 이 마커 {extract_marker}로 공격 응답에만 노출",
                 final_status="vulnerable",
             )
 
