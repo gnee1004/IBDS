@@ -18,6 +18,7 @@ _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 _DANGER_URL_FILE = os.path.join(_THIS_DIR, "spider_exclude.txt")
 
 _DEFAULT_AJAX_TIMEOUT = 300  # Ajax spider timeout을 초 단위로 짧게 잡음. (ZAP 자체 제한시간은 60분)
+_DEFAULT_SPIDER_TIMEOUT = 300  # 일반 Spider 최대 대기시간(초)
 
 
 # Ajax Spider는 SPA/JS-heavy 사이트 대응용 선택 옵션, 기본은 Spider only
@@ -63,7 +64,7 @@ def _drop_danger_messages(messages: list[dict], patterns: list[str]) -> tuple[li
 
 
 # ZAP 수집 + normalize 실행, (out_dir, scan_targets.json 경로) 반환. 실패 시 예외를 그대로 던짐
-def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT, on_output_ready=None, output_dir=None) -> tuple[str, str]:
+def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT, on_output_ready=None, output_dir=None, should_stop=None) -> tuple[str, str]:
     target_cfg = load_json(_TARGET_CONFIG, default={})
     target_url = normalize_base_url(target_cfg.get("target_url", ""))
     if not target_url:
@@ -87,7 +88,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
     collector.capture_session(target_url)  # 현재 세션 그대로 가져오기
 
     print(f"[COLLECT] Spider 시작: {target_url}")
-    collector.run_spider(target_url)
+    collector.run_spider(target_url, timeout_seconds=_DEFAULT_SPIDER_TIMEOUT, should_stop=should_stop)
 
     ajax_meta = {
         "ajax_spider_enabled": ajax,
@@ -98,7 +99,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
     }
     if ajax:
         print(f"[COLLECT] Ajax Spider 시작 (최대 {ajax_timeout}초): {target_url}")
-        result = collector.run_ajax_spider(target_url, ajax_timeout)  # 타임아웃 초과해도 실패 처리 안 함
+        result = collector.run_ajax_spider(target_url, ajax_timeout, should_stop=should_stop)  # 타임아웃 초과해도 예외 안 던짐
         ajax_meta["ajax_spider_status"] = result["status"]
         ajax_meta["ajax_spider_completed"] = result["completed"]
         ajax_meta["ajax_spider_elapsed_seconds"] = result["elapsed_seconds"]

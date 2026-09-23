@@ -176,7 +176,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
             on_paths_ready(os.path.join(out_dir, "request_results.jsonl"),
                            os.path.join(out_dir, "findings.jsonl"))
 
-    out_dir, targets_path = run_collection(on_output_ready=output_ready, output_dir=output_dir)
+    out_dir, targets_path = run_collection(on_output_ready=output_ready, output_dir=output_dir, should_stop=should_stop)
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
     _apply_revisit_overrides(targets)
