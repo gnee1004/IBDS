@@ -21,10 +21,6 @@ def _is_headless_target(vulnerable: bool, technique: str) -> bool:
 
 
 # headless 확인 결과까지 반영한 최종 상태 판정
-#   reflected_only ↔ safe 경계:
-#     - 실행가능 반사 있음(raw_vulnerable) + 검증완료·발화없음 → reflected_only (반사는 실재, 이 조건에선 미발화)
-#     - 실행가능 반사 없음                                     → safe        (정상 방어)
-#     - 검증 미수행/실패/미지원(hv.ok False)                    → inconclusive (safe 강등 금지)
 def _final_status(raw_vulnerable: bool, headless_checked: bool, hv: HeadlessVerdict | None) -> str:
     if not headless_checked:
         return "safe"  # raw 판정만으로 실행가능 반사 없음 (headless 대상 아님)

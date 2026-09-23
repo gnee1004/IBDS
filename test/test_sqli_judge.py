@@ -1,11 +1,3 @@
-"""
-judge_error_based_sqli 단위테스트 — 마커 인식 3분기 계약 검증.
-
-  extraction + 마커(~~값~~) 공격응답에만 노출 → vulnerable (정보추출)
-  마커 없이 baseline엔 없던 DB 에러만 노출     → error_exposed (실제 신호 O, 정보추출 X, low)
-  DB 에러가 baseline에도 있음 / 아무 신호 없음  → safe
-  judgment 미지정 시 기본 structural(마커 확인 안 함)
-"""
 from __future__ import annotations
 
 import os

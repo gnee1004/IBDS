@@ -205,7 +205,7 @@ def send(case: MutationCase, zap) -> dict:
         except Exception as e:
             last_error = e
     else:
-        raise last_error
+        raise last_error or RuntimeError("ZAP send_request 재시도 모두 실패")
 
     response_header = msg.get("responseHeader", "")
 
