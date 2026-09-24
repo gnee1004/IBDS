@@ -14,6 +14,7 @@ class HeadlessVerdict:  # headless 확인 1건의 결과
     executed: bool    # alert 등 dialog가 실제로 발생했는지
     method: str       # "render"(재렌더링) 또는 "navigate"(실제 재요청)
     evidence: str     # 짧은 근거 텍스트
+    ok: bool = True   # 검증 자체가 수행됐는지. 렌더/네비 실패·미지원이면 False → 상위에서 inconclusive (safe 금지)
 
 
 class HeadlessSession:
@@ -73,7 +74,7 @@ class HeadlessSession:
             page.wait_for_timeout(500)  # 지연 실행 payload 대비 짧은 대기
         except Exception as e:
             if not dialog_messages:  # 이미 발화한 뒤의 타임아웃(느린 하위 리소스 등)은 발화로 인정
-                return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}")
+                return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}", ok=False)
         finally:
             page.close()
         if dialog_messages:
@@ -83,7 +84,7 @@ class HeadlessSession:
     # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (DOM 기법·stored 재조회 공용, GET만)
     def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str) -> HeadlessVerdict:
         if method != "GET":  # POST 폼 재현은 ver1 범위 밖 (design doc 참고)
-            return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)")
+            return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)", ok=False)
 
         browser = self._ensure_browser()  # 브라우저 실행 실패는 loudly 전파 — try 밖에 유지
         context = None
@@ -106,7 +107,7 @@ class HeadlessSession:
             page.goto(url, timeout=10000)
             page.wait_for_timeout(500)
         except Exception as e:
-            return HeadlessVerdict(executed=False, method="navigate", evidence=f"navigate 실패: {e}")
+            return HeadlessVerdict(executed=False, method="navigate", evidence=f"navigate 실패: {e}", ok=False)
         finally:
             if context is not None:
                 context.close()

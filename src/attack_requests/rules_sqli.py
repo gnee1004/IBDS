@@ -60,6 +60,7 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
+        # extractvalue/updatexml로 값을 마커(~~)로 감싸 에러에 노출, substring 24로 32자 truncate 대응
         "attack_id": "PL-SQLI-ERROR-EXTRACT",
         "vuln_type": "sqli",
         "technique": "error_extract",

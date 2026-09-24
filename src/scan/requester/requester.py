@@ -214,7 +214,7 @@ def send(case: MutationCase, zap) -> dict:
                 f"{case.method} {case.case_id} 전송 실패, 서버가 처리했는지 알 수 없음"
                 f"(POST 같은 요청이라 재시도 안 함): {last_error}"
             ) from last_error
-        raise last_error
+        raise last_error or RuntimeError("ZAP send_request 재시도 모두 실패")
 
     response_header = msg.get("responseHeader", "")
 
