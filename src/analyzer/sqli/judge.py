@@ -41,7 +41,7 @@ class SqliVerdict:
     vulnerable: bool
     confidence: str
     evidence: str
-    # "vulnerable" | "error_exposed" | "safe"
+    # "vulnerable" | "safe"
     final_status: str = "vulnerable"
 
 
@@ -101,7 +101,7 @@ def _extract_marked_value(baseline_body: str, attack_body: str, marker: str) -> 
     return None
 
 
-# Error-based 3분기: 마커 노출→vulnerable / DB에러만→error_exposed / 그 외→safe. 기본 structural.
+# Error-based 2분기: 마커로 값 노출→vulnerable / 그 외(DB 에러만 있거나 아무것도 없음)→safe. 기본 structural.
 def judge_error_based_sqli(
     baseline_body: str,
     attack_body: str,
@@ -125,13 +125,13 @@ def judge_error_based_sqli(
                 final_status="vulnerable",
             )
 
-    # 2) baseline엔 없던 DB 에러만 → error_exposed
+    # 2) baseline엔 없던 DB 에러만 노출 → 정보추출은 확인 못 했으니 취약 근거로 보지 않음 (safe)
     for kw in DB_ERROR_KEYWORDS:
         if kw in attack_lower and kw not in base_lower:
             return SqliVerdict(
-                False, "low",
-                f"Error-based 신호 (정보추출 미확인): baseline에 없던 DB 에러 노출 ('{kw}')",
-                final_status="error_exposed",
+                False, "",
+                f"DB 에러가 공격 응답에만 노출됐지만 정보추출 미확인 — 취약 근거 부족 ('{kw}')",
+                final_status="safe",
             )
 
     # 3) baseline에도 DB 에러 → 정상 동작

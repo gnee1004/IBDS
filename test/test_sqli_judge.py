@@ -56,23 +56,22 @@ class ExtractionTests(unittest.TestCase):
         self.assertIn("8.0.35", verdict.evidence)
 
 
-class ErrorExposedTests(unittest.TestCase):
-    """마커 없이 baseline엔 없던 DB 에러만 → error_exposed(low). vulnerable도 safe도 아님."""
+class DbErrorOnlyTests(unittest.TestCase):
+    """마커 없이 baseline엔 없던 DB 에러만 → 정보추출 미확인이라 safe. vulnerable 아님."""
 
-    def test_db_error_without_marker_is_error_exposed(self) -> None:
+    def test_db_error_without_marker_is_safe(self) -> None:
         verdict = judge_error_based_sqli("정상 응답", _DB_ERROR, judgment="extraction")
 
         self.assertFalse(verdict.vulnerable)
-        self.assertEqual(verdict.final_status, "error_exposed")
-        self.assertEqual(verdict.confidence, "low")
+        self.assertEqual(verdict.final_status, "safe")
 
     def test_structural_default_does_not_promote_to_extraction(self) -> None:
-        # judgment 미지정(기본 structural) — 마커가 있어도 정보추출로 승격 안 함. DB 에러만 있으면 error_exposed
+        # judgment 미지정(기본 structural) — 마커가 있어도 정보추출로 승격 안 함. DB 에러만 있으면 safe
         attack = f"~~secret~~ {_DB_ERROR}"
         verdict = judge_error_based_sqli("정상", attack)  # judgment 생략 → structural
 
         self.assertNotEqual(verdict.final_status, "vulnerable")
-        self.assertEqual(verdict.final_status, "error_exposed")
+        self.assertEqual(verdict.final_status, "safe")
 
 
 class SafeTests(unittest.TestCase):
@@ -107,20 +106,20 @@ class RoutingTests(unittest.TestCase):
 
     def test_error_extract_technique_extracts_marker_as_vulnerable(self) -> None:
         # extractvalue XPATH 에러에 마커 값 노출 → 브리지로 extraction 판정 → vulnerable
-        # (브리지 없으면 "xpath syntax error" 키워드에 걸려 error_exposed로 오판됨)
+        # (브리지 없으면 "xpath syntax error" 키워드에 걸려 safe로 오판됨)
         fam = self._family("error_extract", "XPATH syntax error: '~~8.0.35~~'")
         findings = analyze_family(fam)
 
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0].final_status, "vulnerable")
 
-    def test_error_meta_technique_db_error_is_error_exposed(self) -> None:
-        # error_meta(structural) + DB 에러만 → error_exposed
+    def test_error_meta_technique_db_error_is_safe(self) -> None:
+        # error_meta(structural) + DB 에러만 → 정보추출 미확인이라 safe
         fam = self._family("error_meta", _DB_ERROR)
         findings = analyze_family(fam)
 
         self.assertEqual(len(findings), 1)
-        self.assertEqual(findings[0].final_status, "error_exposed")
+        self.assertEqual(findings[0].final_status, "safe")
 
 
 class MissVsIncompleteTests(unittest.TestCase):
