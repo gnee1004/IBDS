@@ -9,8 +9,9 @@ _ALL_LOCATIONS = ["query", "form", "json"]
 def _allowed(rule: dict) -> tuple[list[str], list[str]]:
     if rule["vuln_type"] == "sqli":
         return _ALL_LOCATIONS, ["string", "number"]
-    # xss 등 마크업 주입 계열 — 문자열 파라미터만
-    return _ALL_LOCATIONS, ["string"]
+    # xss 등 마크업 주입 계열 — value_type은 관측값 형태일 뿐 서버 검증 보장이 아니므로
+    # number도 포함(숫자처럼 보인 값이 실제로 반사되는지는 discovery가 판정)
+    return _ALL_LOCATIONS, ["string", "number"]
 
 
 def _enrich(rule: dict) -> dict:
