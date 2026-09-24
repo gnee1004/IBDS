@@ -14,9 +14,7 @@ _ZAP_CONFIG = os.path.join(_PROJECT_ROOT, "config", "zap_config.json")
 
 _SEND_MAX_RETRIES = 2
 _SEND_RETRY_DELAY_SECS = 0.5
-
-_RETRY_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE", "PUT", "DELETE"})
-
+_RETRY_SAFE_METHODS = frozenset({"GET", "HEAD"})
 
 class RequestDeliveryUnknown(RuntimeError):
     """POST처럼 서버에 뭔가 등록·수정하는 요청이 전송 도중 실패한 경우.
