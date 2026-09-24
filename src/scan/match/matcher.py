@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..models import MatchedRule, ScanPoint
+from .exec_token import exec_token, inject_exec_token
 
 # 룰 스키마
 @dataclass
@@ -44,10 +45,13 @@ def _render_templates(
     original_value: str,
 ) -> dict[str, list[str]]:
 
+    token = exec_token()
     rendered: dict[str, list[str]] = {}
     for step, templates in payload_templates.items():
         rendered[step] = [
-            tmpl.replace("{value}", str(original_value))
+            # {value} 치환 후, dialog 호출 인자를 실행 토큰으로 치환 (#7).
+            # alert/prompt/confirm 이 없는 payload(SQLi 등)는 그대로 통과.
+            inject_exec_token(tmpl.replace("{value}", str(original_value)), token)
             for tmpl in templates
         ]
     return rendered

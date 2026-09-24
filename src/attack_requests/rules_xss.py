@@ -89,7 +89,7 @@ XSS_RULES: list[dict] = [
                 "</script><img src=x onerror=alert(1)>",
                 "'+alert(1)+'",
                 "',alert(1),'",
-                "';throw/**/onerror=alert,1;//",
+                "';throw/**/onerror=alert,{token};//",
             ],
         },
     },
@@ -104,7 +104,7 @@ XSS_RULES: list[dict] = [
                 "alert(1)",
                 "eval('\\x61lert\\x281\\x29')",
                 "Function('ale'+'rt(1)')()",
-                "setTimeout(alert,0,1)",
+                "setTimeout(alert,0,{token})",
                 "alert`1`",
                 "location='javascript:alert(1)'",
                 "document.write('<script>alert(1)<\\/script>')",
@@ -209,7 +209,7 @@ XSS_RULES: list[dict] = [
                 "<img src=x onerror&#61;alert(1)>",
                 "<img src=x onerror=alert`1`>",
                 "<img src=x o/**/nerror=alert(1)>",
-                '<svg><script>alert&lpar;1&rpar;</script></svg>',
+                '<svg><script>alert&lpar;{token}&rpar;</script></svg>',
                 "<script>eval(String.fromCharCode(97,108,101,114,116,40,49,41))</script>",
                 "<script>eval(atob('YWxlcnQoMSk='))</script>",
                 '<p onpointerover=alert(1)>hover me</p>',
@@ -273,6 +273,9 @@ XSS_RULES: list[dict] = [
         },
     },
     # ── dom: DOM 기반 XSS (클라이언트 JS가 처리, 헤드리스로 확인) ──
+    # 검사 범위: 현재 DOM 검사는 payload를 URL fragment(location.hash) 한 곳으로만 주입한다.
+    # fragment는 서버로 전송되지 않으므로 서버 반사와 독립이며(generate_xss_families 참고),
+    # 쿼리 파라미터를 읽는 DOM sink·postMessage·document.referrer 등 다른 소스는 현재 범위 밖이다.
     {
         "attack_id": "PL-XSS-DOM",
         "vuln_type": "xss",
