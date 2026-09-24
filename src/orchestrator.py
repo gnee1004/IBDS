@@ -40,45 +40,69 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
     families: list[RequestFamily] = []
 
     if sp.value_type == "string":  # XSS는 문자열 파라미터만 대상
-        discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
-        families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
+        try: 
+            discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
+            families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
 
-        # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
-        if marker_factory is not None and sp.location == "form":
-            marker = marker_factory(sp.name)
-            probe_result = None
-            probe_err = None
-            try:
-                probe_result = probe_sink(sp, target, marker, requester, zap)
-            except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
-                probe_err = str(e)
-                print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+            # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
+            if marker_factory is not None and sp.location == "form":
+                marker = marker_factory(sp.name)
+                probe_result = None
+                probe_err = None
+                try:
+                    probe_result = probe_sink(sp, target, marker, requester, zap)
+                except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
+                    probe_err = str(e)
+                    print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
 
-            if probe_result is not None and probe_result.sink_confirmed:
-                stored = generate_stored_xss_families(sp, target)
-                for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
-                    f.sink_confirmed = probe_result.sink_confirmed
-                    f.revisit_url = probe_result.revisit_url
-                    f.probe_marker = probe_result.probe_marker
-                families.extend(stored)
-            elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
-                if probe_err is not None:
-                    sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
-                else:
-                    sink_note = "판정 불가 - sink 미확인 (마커 재조회 미반사)"
+                if probe_result is not None and probe_result.sink_confirmed:
+                    stored = generate_stored_xss_families(sp, target)
+                    for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
+                        f.sink_confirmed = probe_result.sink_confirmed
+                        f.revisit_url = probe_result.revisit_url
+                        f.probe_marker = probe_result.probe_marker
+                    families.extend(stored)
+                elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
+                    if probe_err is not None:
+                        sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
+                    else:
+                        sink_note = "판정 불가 - 마커 재조회 확인 실패"
+                    append_jsonl(findings_path, {
+                        "target_id": sp.target_id, 
+                        "param": sp.name,
+                        "stage": "probe", 
+                        "status": "inconclusive",
+                        "probe_marker": marker,
+                        "revisit_url": probe_result.revisit_url if probe_result is not None else None,
+                        "sink_note": sink_note,
+                    })
+            else:
+                families.extend(generate_stored_xss_families(sp, target))
+        except Exception as e:
+            if findings_path:
                 append_jsonl(findings_path, {
-                    "target_id": sp.target_id, "param": sp.name,
-                    "stage": "probe", "status": "inconclusive",
-                    "probe_marker": marker,
-                    "revisit_url": probe_result.revisit_url if probe_result is not None else None,
-                    "sink_note": sink_note,
+                        "target_id": sp.target_id,
+                        "param": sp.name,
+                        "stage": "xss_prepare",
+                        "status": "error",
+                        "error": str(e),
                 })
-        else:
-            families.extend(generate_stored_xss_families(sp, target))
+            print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
 
-    # SQLi boolean 판정용
-    dynamic_markers, baseline_match_ratio = measure_dynamic_markers(sp, target, zap)
-    families.extend(generate_sqli_families(sp, target, dynamic_markers, baseline_match_ratio))
+    # SQLi 
+    try : 
+        dynamic_markers, baseline_match_ratio = measure_dynamic_markers(sp, target, zap)
+        families.extend(generate_sqli_families(sp, target, dynamic_markers, baseline_match_ratio))
+    except Exception as e:
+            if findings_path:
+                append_jsonl(findings_path, {
+                        "target_id": sp.target_id,
+                        "param": sp.name,
+                        "stage": "sqli_prepare",
+                        "status": "error",
+                        "error": str(e),
+                })
+            print(f"[WARN] SQLi 준비 단계 실패 : target={sp.target_id} param={sp.name} - {e}")
 
     return families
 
@@ -152,7 +176,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
             on_paths_ready(os.path.join(out_dir, "request_results.jsonl"),
                            os.path.join(out_dir, "findings.jsonl"))
 
-    out_dir, targets_path = run_collection(on_output_ready=output_ready, output_dir=output_dir)
+    out_dir, targets_path = run_collection(on_output_ready=output_ready, output_dir=output_dir, should_stop=should_stop)
     with open(targets_path, encoding="utf-8") as f:
         targets = json.load(f)
     _apply_revisit_overrides(targets)
@@ -183,17 +207,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 families = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path)
             except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김.
                 append_jsonl(findings_path, {
-                    "point_id": sp.point_id,
-                    "target_id": sp.target_id, 
-                    "param": sp.name,
-                    "location": sp.location, 
-                    "value_index": sp.value_index,
-                    "status": "error", 
-                    "final_status": "inconclusive", 
-                    "check_status": "incomplete",
-                    "reason": "route_fail", 
-                    "stage": "route", 
-                    "error": str(e),
+                    "target_id": sp.target_id, "param": sp.name,
+                    "status": "error", "stage": "route", "error": str(e),
                 })
                 print(f"[ERROR] ScanPoint 라우팅 실패: target={sp.target_id} param={sp.name} - {e}")
                 progress.completed += 1
@@ -278,7 +293,6 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
-                    location=family.location, value_index=family.value_index,
                     dynamic_markers=family.dynamic_markers,
                     baseline_match_ratio=family.baseline_match_ratio,
                     sink_confirmed=family.sink_confirmed,
@@ -293,19 +307,10 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 if family.vuln_type == "sqli":  
                     if len(case_results) - 1 < len(family.mutations):
                         append_jsonl(findings_path, {
-                            "point_id": sp.point_id,
-                            "family_id": family.family_id, 
-                            "target_id": family.target_id,
-                            "param": family.param, 
-                            "location": sp.location, 
-                            "value_index": sp.value_index,
-                            "vuln_type": family.vuln_type, 
-                            "technique": family.technique,
-                            "final_status": "inconclusive", 
-                            "check_status": "incomplete", 
-                            "reason": "user_stopped",
-                            "stage": "stop", 
-                            "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
+                            "family_id": family.family_id, "target_id": family.target_id,
+                            "param": family.param, "vuln_type": family.vuln_type,
+                            "technique": family.technique, "final_status": "inconclusive",
+                            "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
                         })
                         break
                     try:
@@ -314,20 +319,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     except Exception as e:
                         print(f"[ERROR] 판정 실패: family={family.family_id} - {e}")
                         append_jsonl(findings_path, {
-                            "point_id": sp.point_id,
-                            "family_id": family.family_id, 
-                            "target_id": family.target_id,
-                            "param": family.param, 
-                            "location": sp.location, 
-                            "value_index": sp.value_index,
-                            "vuln_type": family.vuln_type, 
-                            "technique": family.technique,
-                            "status": "error", 
-                            "final_status": "inconclusive", 
-                            "check_status": "incomplete",
-                            "reason": "judge_error", 
-                            "stage": "judge", 
-                            "error": str(e),
+                            "family_id": family.family_id, "target_id": family.target_id,
+                            "param": family.param, "status": "error", "stage": "judge", "error": str(e),
                         })
                     if progress.should_stop():
                         break
@@ -341,21 +334,9 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     except Exception as e:
                         print(f"[ERROR] XSS 판정 실패: family={family.family_id} - {e}")
                         append_jsonl(findings_path, {
-                            "point_id": sp.point_id,
-                            "family_id": family.family_id, 
-                            "target_id": family.target_id,
-                            "param": family.param, 
-                            "location": sp.location, 
-                            "value_index": sp.value_index,
-                            "vuln_type": family.vuln_type, 
-                            "technique": family.technique,
-                            "case_id": result.case.case_id,
-                            "status": "error", 
-                            "final_status": "inconclusive", 
-                            "check_status": "incomplete",
-                            "reason": "judge_error", 
-                            "stage": "judge", 
-                            "error": str(e),
+                            "family_id": family.family_id, "target_id": family.target_id,
+                            "param": family.param, "case_id": result.case.case_id,
+                            "status": "error", "stage": "judge", "error": str(e),
                         })
                 if progress.should_stop():
                     break
