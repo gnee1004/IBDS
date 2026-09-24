@@ -11,8 +11,8 @@ from .discovery import _CANDIDATE_SPECIALS
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
-_DOM_TECHNIQUE = "dom"
-_BOOLEAN_REPEAT = 2
+_DOM_TECHNIQUE = "dom"  # DOM 계열은 payload를 URL fragment로 주입
+_BOOLEAN_REPEAT = 2  # boolean 동일 조건 재검증용 반복 횟수 — 같은 (pair_id, role)을 이 횟수만큼 전송
 _BOOL_STEP_META: dict[str, tuple[str, str, str]] = {
     "and_true":  ("and", "attack_true",  "approx_baseline"),
     "and_false": ("and", "attack_false", "differ_baseline"),
@@ -20,7 +20,6 @@ _BOOL_STEP_META: dict[str, tuple[str, str, str]] = {
     "or_false":  ("or",  "attack_false", "approx_baseline"),
     "control":   ("control", "control",  "approx_baseline"),
 }
-
 
 
 def _short_step(step: str) -> str:
@@ -53,7 +52,7 @@ def build_families_for_point(
             bool_meta = _BOOL_STEP_META.get(step) if matched.technique == "boolean" else None
             for ctx_idx, payload in enumerate(matched.rendered_payloads.get(step, [])):
                 if payload_filter is not None and not payload_filter(payload):
-                    continue
+                    continue  # Discovery 결과 등으로 실행 불가능하다고 판단된 payload 제외
                 repeats = _BOOLEAN_REPEAT if bool_meta else 1
                 for repeat_index in range(repeats):
                     case = build_mutation_case(

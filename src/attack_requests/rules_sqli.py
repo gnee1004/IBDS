@@ -25,8 +25,6 @@ SQLI_RULES: list[dict] = [
         },
     },
     {
-        # UNION — 컬럼 수 불일치 시 "column count doesn't match" 에러를 유발,
-        # judge_union_sqli 가 그 에러 시그니처로 판정하므로 error 계열.
         "attack_id": "PL-SQLI-UNION",
         "vuln_type": "sqli",
         "technique": "union",
