@@ -30,7 +30,7 @@ def _body(result: dict | None) -> str:
 
 
 def _finding(family: dict, result: dict, confidence: str, evidence: str,
-             final_status: str = "vulnerable") -> Finding:
+             final_status: str = "inconclusive") -> Finding:
     case = result.get("case") or {}
     return Finding(
         vuln_type="sqli",
@@ -132,7 +132,7 @@ def _analyze_boolean(family: dict) -> list[Finding]:
         f"{len(hits)}/{len(true_results)}개 injection 스타일에서 재현 "
         f"(true={best_true_score:.3f}, false={best_false_score:.3f}, gap={best_gap:.3f})"
     )
-    return [_finding(family, best_result, confidence, evidence)]
+    return [_finding(family, best_result, confidence, evidence, "vulnerable")]
 
 
 def _analyze_sqli(family: dict) -> list[Finding]:
@@ -157,7 +157,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         verdict = judge_time_based_sqli(baseline_elapsed, elapsed)
         if verdict.vulnerable:
             slowest = max(mutations, key=lambda item: float(item.get("elapsed") or 0.0))
-            return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
+            return [_finding(family, slowest, verdict.confidence, verdict.evidence, "vulnerable")]
         return [_family_finding(family, "safe", verdict.evidence)]
 
     # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 안전 (2분기, 정보추출 없음)
@@ -165,7 +165,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         for mutation in mutations:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
             if verdict.vulnerable:
-                return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
+                return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
         return [_family_finding(family, "safe", "UNION 에러 시그니처 없음")]
 
     # error 계열: 마커로 값이 노출되면 vulnerable, 하나도 없으면 safe (DB 에러만 뜬 경우도 safe로 처리)
