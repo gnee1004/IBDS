@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from difflib import SequenceMatcher
+from typing import Any
 
 from .finding import Finding
 from .sqli.judge import (
@@ -34,12 +36,12 @@ def _finding(family: dict, result: dict, confidence: str, evidence: str,
     case = result.get("case") or {}
     return Finding(
         vuln_type="sqli",
-        family_id=family.get("family_id"),
-        target_id=family.get("target_id"),
-        param=family.get("param"),
-        attack_id=family.get("attack_id"),
-        technique=family.get("technique"),
-        case_id=case.get("case_id"),
+        family_id=str(family.get("family_id") or ""),
+        target_id=str(family.get("target_id") or ""),
+        param=str(family.get("param") or ""),
+        attack_id=str(family.get("attack_id") or ""),
+        technique=str(family.get("technique") or ""),
+        case_id=str(case.get("case_id") or ""),
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
@@ -56,7 +58,7 @@ def _payload_of(mutation: dict) -> str:
 
 
 def _clean_body(family: dict, result: dict | None) -> str:
-    # 응답에서 payload 반사분 + 이 타겟이 원래 흔들리는 자리(dynamic_markers)를 제거해 diff 비교의 노이즈를 걷어냄
+    # payload 반사분·dynamic_markers 제거해 diff 노이즈 걷어냄
     body = _strip_value(_body(result), _payload_of(result or {}))
     return _strip_dynamic(body, family.get("dynamic_markers") or [])
 
@@ -71,68 +73,65 @@ def _family_finding(family: dict, final_status: str, evidence: str) -> Finding:
     return _finding(family, _representative_result(family), "", evidence, final_status)
 
 
+def _bcase(mutation: dict, key: str) -> Any:  # MutationCase의 SQLi 비교 계약 필드 접근 (#9)
+    return (mutation.get("case") or {}).get(key)
+
+
+def _sim(base_clean: str, family: dict, mutation: dict) -> float:
+    return SequenceMatcher(None, base_clean, _clean_body(family, mutation)).ratio()
+
+
+# Boolean(#9): pair_id로 묶어 expected 방향 비교, control로 노이즈 게이트, repeat로 재현성 확인
 def _analyze_boolean(family: dict) -> list[Finding]:
     base_clean = _clean_body(family, family.get("baseline"))
-    true_results = []
-    false_results = []
-    for mutation in family.get("mutations", []):
-        if not _successful(mutation):
-            continue
-        step = str((mutation.get("case") or {}).get("step") or "")
-        if step == "true_attack":
-            true_results.append(mutation)
-        elif step == "false_attack":
-            false_results.append(mutation)
+    muts = [m for m in family.get("mutations", []) if _successful(m)]
+    attacks = [m for m in muts if _bcase(m, "role") in ("attack_true", "attack_false")]
 
-    # true/false 짝을 못 만들거나 baseline 비교 불가 → 검사 미완료 (safe 금지)
-    if not true_results or not false_results:
-        return [_family_finding(family, "inconclusive", "true/false 공격 응답 부족으로 검사 미완료")]
-    if not base_clean:
-        return [_family_finding(family, "inconclusive", "baseline 본문 비어 비교 불가")]
+    # pair 필드가 없거나(옛 구조) 성공한 공격 응답이 없으면 검사 미완료 (safe 금지)
+    if not base_clean or not attacks:
+        return [_family_finding(family, "inconclusive", "boolean pair 요청 없음/불충분으로 검사 미완료")]
 
+    # control(비-SQL 잡음)로 노이즈 바닥 측정 — 입력만 바꿔도 흔들리는 페이지면 노이즈가 큼
+    control_scores = [_sim(base_clean, family, m) for m in muts if _bcase(m, "role") == "control"]
+    noise = (1.0 - min(control_scores)) if control_scores else 0.0
 
-    baseline_match_ratio = family.get("baseline_match_ratio")
-    true_gate = max(0.0, baseline_match_ratio - _GATE_MARGIN) if baseline_match_ratio is not None else _TRUE_GATE
+    bmr = family.get("baseline_match_ratio")
+    gate = max(0.0, bmr - _GATE_MARGIN) if bmr is not None else _TRUE_GATE
 
+    # pair_id별로 expected 방향에 따라 점수 수집 (repeat 포함)
+    pairs: dict[str, dict[str, list[float]]] = defaultdict(lambda: {"approx": [], "differ": []})
+    for m in attacks:
+        exp = _bcase(m, "expected")
+        score = _sim(base_clean, family, m)
+        if exp == "approx_baseline":
+            pairs[_bcase(m, "pair_id")]["approx"].append(score)
+        elif exp == "differ_baseline":
+            pairs[_bcase(m, "pair_id")]["differ"].append(score)
 
-    hits: list[tuple[dict, float, float, float]] = []  # (true_result, gap, true_score, false_score)
-    for true_result in true_results:
-        # 같은 주입 스타일의 false 짝 찾기 — payload 문자열이 가장 유사한 것 (1=1 ↔ 1=2 차이만)
-        true_payload = _payload_of(true_result)
-        false_result = max(
-            false_results,
-            key=lambda f: SequenceMatcher(None, true_payload, _payload_of(f)).ratio(),
-        )
-        true_score = SequenceMatcher(None, base_clean, _clean_body(family, true_result)).ratio()
-        false_score = SequenceMatcher(None, base_clean, _clean_body(family, false_result)).ratio()
-
-
-        hi = max(true_score, false_score)
-        lo = min(true_score, false_score)
-
-        # (1) 게이트
-        if hi < true_gate:
-            continue
-        # (2) noise-aware 문턱
-        noise = 1.0 - hi
-        threshold = hi - max(noise, _STATIC_EPS)
-        gap = hi - lo
-        if lo < threshold:
-            hits.append((true_result, gap, true_score, false_score))
+    hits: list[tuple[str, float, float, float, bool]] = []  # (pair_id, gap, approx_min, differ_max, reproduced)
+    for pid, g in pairs.items():
+        if not g["approx"] or not g["differ"]:
+            continue  # 한쪽만 성공한 pair는 판정 불가 → 스킵
+        approx_min = min(g["approx"])   # approx 역은 baseline과 가까워야 — 최악(min)으로 확인
+        differ_max = max(g["differ"])   # differ 역은 baseline과 달라야 — 최악(max)으로 확인
+        gap = approx_min - differ_max
+        if approx_min >= gate and gap > max(noise, _STATIC_EPS):  # 방향 일치 + 노이즈 초과
+            reproduced = len(g["approx"]) >= 2 and len(g["differ"]) >= 2  # true·false 둘 다 반복 존재
+            hits.append((pid, gap, approx_min, differ_max, reproduced))
 
     if not hits:
-        return [_family_finding(family, "safe", "true/false 응답 분기 없음")]
+        return [_family_finding(family, "safe", "pair 내 expected 방향 분기 없음(노이즈 이내)")]
 
-    best_result, best_gap, best_true_score, best_false_score = max(hits, key=lambda h: h[1])
-    confirmed = len(hits) >= MIN_REPEAT_CONFIRM
+    best_pid, best_gap, best_approx, best_differ, best_repro = max(hits, key=lambda h: h[1])
+    confirmed = len(hits) >= MIN_REPEAT_CONFIRM and best_repro
     confidence = "high" if confirmed else "medium"
-    status = "confirmed" if confirmed else "suspected, 재현성 부족 - 추가 검증 필요"
+    status = "confirmed" if confirmed else "suspected - 재현성/컨텍스트 부족, 추가 검증 필요"
     evidence = (
-        f"Boolean SQLi ({status}): true/false 응답 분기, "
-        f"{len(hits)}/{len(true_results)}개 injection 스타일에서 재현 "
-        f"(true={best_true_score:.3f}, false={best_false_score:.3f}, gap={best_gap:.3f})"
+        f"Boolean SQLi ({status}): {len(hits)}개 pair에서 expected 방향대로 분기 "
+        f"(approx={best_approx:.3f}, differ={best_differ:.3f}, gap={best_gap:.3f}, noise={noise:.3f})"
     )
-    return [_finding(family, best_result, confidence, evidence, "vulnerable")]
+    rep = next((m for m in attacks if _bcase(m, "pair_id") == best_pid), attacks[0])
+    return [_finding(family, rep, confidence, evidence, "vulnerable")]
 
 
 def _analyze_sqli(family: dict) -> list[Finding]:
@@ -168,8 +167,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
                 return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
         return [_family_finding(family, "safe", "UNION 에러 시그니처 없음")]
 
-    # error 계열: 마커로 값이 노출되면 vulnerable, 하나도 없으면 safe (DB 에러만 뜬 경우도 safe로 처리)
-    # judgment/extract_marker 메타가 아직 룰에 안 실려서, error_extract technique면 정보추출(extraction) 판정으로 연결
+    # error 계열: 마커 값 노출이면 vulnerable, 아니면 safe. error_extract technique는 extraction으로 분기
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
     marker = family.get("extract_marker") or EXTRACT_MARKER
     for mutation in mutations:

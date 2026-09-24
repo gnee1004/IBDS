@@ -156,11 +156,73 @@ class MissVsIncompleteTests(unittest.TestCase):
         self.assertEqual(f[0].final_status, "safe")
 
     def test_boolean_missing_pair_is_inconclusive(self) -> None:
-        # true_attack만 있고 false_attack 없음 → 짝 부족 → 검사 미완료
+        # pair 필드(role/expected) 없는 옛 구조 → 판정 불가 → 검사 미완료
         f = analyze_family(self._fam(technique="boolean", mutations=[
             {"case": {"case_id": "c0", "payload": "x", "step": "true_attack"},
              "status": "ok", "response_body": "정상"}]))
         self.assertEqual(f[0].final_status, "inconclusive")
+
+
+_BASE = "AAAABBBBCCCCDDDDEEEE"
+_DIFF = "ZZZZZZZZZZZZZZZZZZZZ"
+
+
+class BooleanPairTests(unittest.TestCase):
+    """#9 — 명시적 pair 규약(pair_id/role/expected/repeat) 기반 boolean 판정."""
+
+    @staticmethod
+    def _case(pair_id, role, expected, body, ri=0):
+        return {"case": {"case_id": f"{pair_id}_{role}_{ri}", "payload": "p",
+                         "pair_id": pair_id, "role": role, "expected": expected, "repeat_index": ri},
+                "status": "ok", "response_body": body}
+
+    def _fam(self, cases):
+        return {"family_id": "f", "target_id": "t0", "param": "id", "attack_id": "PL",
+                "vuln_type": "sqli", "technique": "boolean",
+                "baseline": {"case": {"case_id": "b"}, "status": "ok", "response_body": _BASE},
+                "mutations": cases}
+
+    def test_and_pair_diverges_is_vulnerable(self) -> None:
+        # AND: true=approx_baseline(≈), false=differ_baseline(≠) → 분기 → vulnerable
+        cases = [
+            self._case("f_and_c0", "attack_true", "approx_baseline", _BASE, 0),
+            self._case("f_and_c0", "attack_true", "approx_baseline", _BASE, 1),
+            self._case("f_and_c0", "attack_false", "differ_baseline", _DIFF, 0),
+            self._case("f_and_c0", "attack_false", "differ_baseline", _DIFF, 1),
+        ]
+        f = analyze_family(self._fam(cases))
+        self.assertEqual(f[0].final_status, "vulnerable")
+
+    def test_or_direction_respected(self) -> None:
+        # OR: true=differ_baseline(≠), false=approx_baseline(≈) — 방향 반대여도 expected로 판정
+        cases = [
+            self._case("f_or_c0", "attack_true", "differ_baseline", _DIFF, 0),
+            self._case("f_or_c0", "attack_true", "differ_baseline", _DIFF, 1),
+            self._case("f_or_c0", "attack_false", "approx_baseline", _BASE, 0),
+            self._case("f_or_c0", "attack_false", "approx_baseline", _BASE, 1),
+        ]
+        f = analyze_family(self._fam(cases))
+        self.assertEqual(f[0].final_status, "vulnerable")
+
+    def test_no_divergence_is_safe(self) -> None:
+        # true/false 둘 다 baseline과 비슷 → 분기 없음 → safe
+        cases = [
+            self._case("f_and_c0", "attack_true", "approx_baseline", _BASE, 0),
+            self._case("f_and_c0", "attack_false", "differ_baseline", _BASE, 0),
+        ]
+        f = analyze_family(self._fam(cases))
+        self.assertEqual(f[0].final_status, "safe")
+
+    def test_control_noise_suppresses_weak_divergence(self) -> None:
+        # control이 크게 흔들리면 노이즈 바닥이 높아져 약한 분기는 취약으로 인정 안 함 → safe
+        near = "AAAABBBBCCCCDDDDEEEX"  # baseline과 1글자 차 (약한 분기)
+        cases = [
+            self._case("f_and_c0", "attack_true", "approx_baseline", _BASE, 0),
+            self._case("f_and_c0", "attack_false", "differ_baseline", near, 0),
+            self._case("f_control_c0", "control", "approx_baseline", _DIFF, 0),  # 잡음인데 크게 흔들림
+        ]
+        f = analyze_family(self._fam(cases))
+        self.assertEqual(f[0].final_status, "safe")
 
 
 if __name__ == "__main__":
