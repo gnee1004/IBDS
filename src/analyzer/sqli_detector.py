@@ -160,7 +160,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence)]
         return [_family_finding(family, "safe", verdict.evidence)]
 
-    # union → 구조 신호, 종전 판정 유지
+    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 안전 (2분기, 정보추출 없음)
     if technique == "union":
         for mutation in mutations:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
@@ -168,8 +168,8 @@ def _analyze_sqli(family: dict) -> list[Finding]:
                 return [_finding(family, mutation, verdict.confidence, verdict.evidence)]
         return [_family_finding(family, "safe", "UNION 에러 시그니처 없음")]
 
-    # error 계열: vulnerable 우선, 없으면 첫 error_exposed, 그것도 없으면 safe.
-    # judgment 메타 미배선이라 technique로 extraction 브리지.
+    # error 계열 판정 우선순위: 마커 값 노출(vulnerable) > DB 에러만(error_exposed) > 아무것도 없음(safe)
+    # judgment/extract_marker 메타가 아직 룰에 안 실려서, error_extract technique면 정보추출(extraction) 판정으로 연결
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
     marker = family.get("extract_marker") or EXTRACT_MARKER
     error_exposed: Finding | None = None
@@ -180,6 +180,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         )
         if verdict.final_status == "vulnerable":
             return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
+        # error_exposed는 첫 건만 담아두고, 더 강한 vulnerable이 뒤에 있는지 끝까지 확인
         if verdict.final_status == "error_exposed" and error_exposed is None:
             error_exposed = _finding(family, mutation, verdict.confidence, verdict.evidence, "error_exposed")
     if error_exposed:
