@@ -91,17 +91,11 @@ def build_report(out_dir):
             continue
         if (fid, finding.get("case_id")) in failed_cases:
             continue
-        status = finding.get("final_status")
-        if not status and finding.get("stage") == "probe":
-            status = "inconclusive"
-        if not status and "confidence" in finding:
-            status = "vulnerable"
+        status = finding.get("final_status")   # 새 결과 계약: 모든 판정 기록이 final_status를 직접 보유
         if not status or target_id is None or param is None:
             continue
         technique = finding.get("technique") or info.get("technique")
-        if not technique and finding.get("stage") == "probe":
-            technique = "stored"
-        vuln_type = finding.get("vuln_type") or info.get("vuln_type") or ("sqli" if "confidence" in finding else "xss")
+        vuln_type = finding.get("vuln_type") or info.get("vuln_type")
         item = {**finding, "final_status": status, "technique": technique,
                 "category": _technique_category(technique) if technique else None,
                 "vuln_type": vuln_type,
