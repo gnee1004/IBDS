@@ -8,12 +8,25 @@ from scan.normalize.importer import _parse_response_status, _parse_headers_block
 from scan.models import MutationCase
 from collector.zap_collector import ZapCollector
 
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))                       # src/scan/requester
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_THIS_DIR))) # repo root
+_THIS_DIR = os.path.dirname(os.path.abspath(__file__)) 
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_THIS_DIR)))
 _ZAP_CONFIG = os.path.join(_PROJECT_ROOT, "config", "zap_config.json")
 
 _SEND_MAX_RETRIES = 2
 _SEND_RETRY_DELAY_SECS = 0.5
+_RETRY_SAFE_METHODS = frozenset({"GET", "HEAD"})
+
+class RequestDeliveryUnknown(RuntimeError):
+    """POST처럼 서버에 뭔가 등록·수정하는 요청이 전송 도중 실패한 경우.
+
+    서버가 이미 처리했는데 응답만 못 받았을 수도 있다. 이때 다시 보내면 게시글이
+    중복 생성될 수 있으므로, 재시도하지 않고 '서버가 처리했는지 알 수 없음' 상태로 올린다.
+    downstream은 isinstance로 이 예외를 구분해 일반 error와 다른 상태로 전달할 수 있다.
+    """
+
+def _is_retry_safe(method: str) -> bool:
+    return method.strip().upper() in _RETRY_SAFE_METHODS
+
 
 # site(origin)별 최신 쿠키 저장소, target이 아닌 origin 단위 공유.
 # 키를 (name, path)로 둬서 같은 이름·다른 경로 쿠키가 서로 덮어쓰지 않도록 한다.
@@ -193,10 +206,12 @@ def send(case: MutationCase, zap) -> dict:
     origin = _origin(case.url)
     cookies = _get_cookies(case)
     raw_request = _build_raw_request(case, cookies)
+    retry_safe = _is_retry_safe(case.method)
+    max_attempts = (_SEND_MAX_RETRIES + 1) if retry_safe else 1
 
     last_error: Exception | None = None
     msg = elapsed = None
-    for attempt in range(_SEND_MAX_RETRIES + 1):
+    for attempt in range(max_attempts):
         if attempt > 0:
             time.sleep(_SEND_RETRY_DELAY_SECS)
         try:
@@ -205,7 +220,12 @@ def send(case: MutationCase, zap) -> dict:
         except Exception as e:
             last_error = e
     else:
-        raise last_error
+        if not retry_safe:
+            raise RequestDeliveryUnknown(
+                f"{case.method} {case.case_id} 전송 실패, 서버가 처리했는지 알 수 없음"
+                f"(POST 같은 요청이라 재시도 안 함): {last_error}"
+            ) from last_error
+        raise last_error or RuntimeError("ZAP send_request 재시도 모두 실패")
 
     response_header = msg.get("responseHeader", "")
 

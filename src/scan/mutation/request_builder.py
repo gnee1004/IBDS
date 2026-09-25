@@ -11,11 +11,17 @@ from .discovery import _CANDIDATE_SPECIALS
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
-_DOM_TECHNIQUE = "dom"  # DOM 계열은 payload를 URL fragment로 주입 (파라미터 값 아님)
+_DOM_TECHNIQUE = "dom"  # DOM 계열은 payload를 URL fragment로 주입
+_BOOLEAN_REPEAT = 2  # boolean 동일 조건 재검증용 반복 횟수 — 같은 (pair_id, role)을 이 횟수만큼 전송
+_BOOL_STEP_META: dict[str, tuple[str, str, str]] = {
+    "and_true":  ("and", "attack_true",  "approx_baseline"),
+    "and_false": ("and", "attack_false", "differ_baseline"),
+    "or_true":   ("or",  "attack_true",  "differ_baseline"),
+    "or_false":  ("or",  "attack_false", "approx_baseline"),
+    "control":   ("control", "control",  "approx_baseline"),
+}
 
 
-# case_id용 step 축약 — 모든 mutation step에 공통으로 붙는 "attack" 단어 제거
-# 예: "true_attack"->"true", "error_attack"->"error", "attack"->"a"
 def _short_step(step: str) -> str:
     s = step.removesuffix("attack").rstrip("_")
     return s or "a"
@@ -39,24 +45,33 @@ def build_families_for_point(
 
         mutations = []
         p_idx = 0
-        seen_cases: set[tuple[str, str]] = set()  # (url, body) — family 내 동일 요청 중복 방지
+        seen_cases: set[tuple] = set()
         for step in matched.sequence:
             if step == "baseline":
                 continue
-            for payload in matched.rendered_payloads.get(step, []):
+            bool_meta = _BOOL_STEP_META.get(step) if matched.technique == "boolean" else None
+            for ctx_idx, payload in enumerate(matched.rendered_payloads.get(step, [])):
                 if payload_filter is not None and not payload_filter(payload):
                     continue  # Discovery 결과 등으로 실행 불가능하다고 판단된 payload 제외
-                case = build_mutation_case(
-                    target, sp.location, sp.name, sp.original_value,
-                    payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
-                    value_index=sp.value_index, inject_fragment=is_dom,
-                )
-                key = (case.url, case.body)
-                if key in seen_cases:
-                    continue
-                seen_cases.add(key)
-                mutations.append(case)
-                p_idx += 1
+                repeats = _BOOLEAN_REPEAT if bool_meta else 1
+                for repeat_index in range(repeats):
+                    case = build_mutation_case(
+                        target, sp.location, sp.name, sp.original_value,
+                        payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
+                        value_index=sp.value_index, inject_fragment=is_dom,
+                    )
+                    if bool_meta:
+                        group, role, expected = bool_meta
+                        case.pair_id = f"{family_id}_{group}_c{ctx_idx}"
+                        case.role = role
+                        case.expected = expected
+                        case.repeat_index = repeat_index
+                    key = (case.url, case.body, case.pair_id, case.role, case.repeat_index)
+                    if key in seen_cases:
+                        continue
+                    seen_cases.add(key)
+                    mutations.append(case)
+                    p_idx += 1
 
         if not mutations:
             continue  # 살아남은 payload가 없으면 family 자체 미생성

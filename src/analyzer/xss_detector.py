@@ -8,7 +8,7 @@ from scan.models import RequestFamily, CaseResult
 from scan.match.exec_token import exec_token
 from utilities.file_utils import append_jsonl
 from .finding import Finding
-from .xss.headless import HeadlessSession
+from .xss.headless import HeadlessSession, HeadlessVerdict
 from .xss.revisit import diff_new_region
 from .xss.judge import judge_xss
 
@@ -36,13 +36,12 @@ def _expected_token(payload: str) -> str | None:
 
 
 # headless 확인 결과까지 반영한 최종 상태 판정
-# verified=False(브라우저 검증 자체 실패)는 "실행 안 됨(safe/reflected_only)"이 아니라 "확인 불가(inconclusive)"로 분리 (#3·11)
-def _final_status(raw_vulnerable: bool, headless_checked: bool, executed: bool, verified: bool = True) -> str:
+def _final_status(raw_vulnerable: bool, headless_checked: bool, hv: HeadlessVerdict | None) -> str:
     if not headless_checked:
-        return "safe"
-    if not verified:
-        return "inconclusive"  # 렌더/navigate 실패 → 조용한 safe 강등 금지
-    if executed:
+        return "safe"  # raw 판정만으로 실행가능 반사 없음 (headless 대상 아님)
+    if hv is None or not hv.ok:
+        return "inconclusive"  # headless 검증을 끝내지 못함 → 안전 아님
+    if hv.executed:
         return "vulnerable"
     return "reflected_only" if raw_vulnerable else "safe"
 
@@ -89,17 +88,16 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
                                 evidence=f"재조회 응답 무효(상태 코드 {case_result.get('revisit_status')})")
         echo = judge_xss(case_result.get("response_body") or "", payload) if payload else None
         if echo and echo.vulnerable:
-            # 등록 응답을 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render해서 실제 발화하면 reflected_only (실행되는 반사, 저장은 아님)
+            # 등록 응답을 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render해서 실제 발화 확인
             hv = headless.confirm_via_render(
                 case_result.get("response_body") or "",
                 url=case["url"], headers=case_result.get("response_headers"),
                 exec_token=_expected_token(payload),
             )
-            # render 검증 자체 실패 → safe로 조용히 강등하지 말고 inconclusive (#3·11)
-            if not hv.verified:
+            if not hv.ok:  # 렌더 검증 실패 → 확인 불가 (safe 강등 금지)
                 return _mk_finding(family, case, "inconclusive", raw=echo, hv=hv)
-            # 발화 안 함 → safe지만 raw/headless 근거는 남김
-            return _mk_finding(family, case, "reflected_only" if hv.executed else "safe", raw=echo, hv=hv)
+            # 등록 응답에 실행가능 반사 확인 — 저장은 아니므로 최대 reflected_only (발화 여부 무관, stored 미확정)
+            return _mk_finding(family, case, "reflected_only", raw=echo, hv=hv)
         # 에코 없음 / escape로 raw 미적중 → 앱이 정상 방어 → safe
         return _mk_finding(family, case, "safe", evidence="재조회에 payload 없음(정상 방어)")
 
@@ -123,8 +121,7 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
         "GET",
         exec_token=_expected_token(payload),
     )
-    # navigate 검증 자체 실패 → reflected_only로 단정하지 말고 inconclusive (#3·11)
-    if not hv.verified:
+    if not hv.ok:  # navigate 검증 실패 → 확인 불가 (safe/reflected_only로 확정 금지)
         return _mk_finding(family, case, "inconclusive", raw=raw, hv=hv)
     return _mk_finding(family, case, "vulnerable" if hv.executed else "reflected_only", raw=raw, hv=hv)
 
@@ -135,7 +132,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
     technique = family["technique"]
     payload = case.get("payload") or ""
 
-    if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 judge_xss/headless 호출 없이 즉시 safe 처리
+    if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 판정 불가 → 검사 미완료(inconclusive). safe로 강등 금지
         return Finding(
             vuln_type="xss",
             family_id=family["family_id"],
@@ -151,7 +148,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             raw_verdict={"vulnerable": False, "confidence": "", "evidence": "요청 실패로 판정 불가"},
             headless_checked=False,
             headless_verdict=None,
-            final_status="safe",
+            final_status="inconclusive",
         )
 
     if technique == _STORED_TECHNIQUE:  # stored는 재조회 diff 게이트 경로로 분기
@@ -190,9 +187,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
         headless_checked=headless_checked,
         headless_verdict=asdict(headless_verdict) if headless_verdict else None,
         final_status=_final_status(
-            raw_verdict.vulnerable, headless_checked,
-            headless_verdict.executed if headless_verdict else False,
-            headless_verdict.verified if headless_verdict else True,
+            raw_verdict.vulnerable, headless_checked, headless_verdict,
         ),
     )
 
