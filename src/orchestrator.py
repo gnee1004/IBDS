@@ -72,6 +72,8 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                         "param": sp.name,
                         "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
                         "technique": "stored",
+                        "location": sp.location,        # #25 지점 식별 계약
+                        "value_index": sp.value_index,
                         "stage": "probe",
                         "final_status": "inconclusive",
                         "probe_marker": marker,
@@ -298,6 +300,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
+                    location=family.location, value_index=family.value_index,  # #25 지점 식별 계약
                     dynamic_markers=family.dynamic_markers,
                     baseline_match_ratio=family.baseline_match_ratio,
                     sink_confirmed=family.sink_confirmed,
@@ -315,6 +318,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                             "family_id": family.family_id, "target_id": family.target_id,
                             "param": family.param, "vuln_type": family.vuln_type,
                             "technique": family.technique, "final_status": "inconclusive",
+                            "location": family.location, "value_index": family.value_index,  # #25 지점 식별 계약
                             "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
                         })
                         break
