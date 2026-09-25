@@ -68,10 +68,12 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     else:
                         sink_note = "판정 불가 - 마커 재조회 확인 실패"
                     append_jsonl(findings_path, {
-                        "target_id": sp.target_id, 
+                        "target_id": sp.target_id,
                         "param": sp.name,
-                        "stage": "probe", 
-                        "status": "inconclusive",
+                        "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
+                        "technique": "stored",
+                        "stage": "probe",
+                        "final_status": "inconclusive",
                         "probe_marker": marker,
                         "revisit_url": probe_result.revisit_url if probe_result is not None else None,
                         "sink_note": sink_note,
