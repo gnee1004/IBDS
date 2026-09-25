@@ -130,21 +130,29 @@ _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
 }
 
 
-# reflected XSS — Discovery 결과로 실행 불가능한 payload/family를 사전 제거
+# XSS family 생성 — DOM 계열과 reflected 계열을 서버 반사 종속성 기준으로 분리 (#2)
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
-    if not discovery.reflected:
-        return []  # 반사 자체가 안 되면 XSS family를 만들 이유가 없음
+    families: list[RequestFamily] = []
 
-    rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique != "stored"]
+    # DOM 계열: payload를 URL fragment(#뒤)로 주입 → 서버로 전송되지 않으므로
+    # 서버 반사(reflected)·서버 반사 특수문자(valid_specials)와 독립. 항상 생성, 필터 미적용.
+    # 현재 검사 범위는 fragment(location.hash) 단일 소스에 한정된다.
+    dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
+    families.extend(build_families_for_point(sp, target, dom_rules))
 
-    if discovery.injection_context is not None:
-        valid = _CONTEXT_TECHNIQUES.get(discovery.injection_context, set())
-        rules = [r for r in rules if r.technique == "dom" or r.technique in valid]
+    # reflected 계열: 입력이 서버 응답에 반사돼야 의미가 있음 → 반사가 없으면 생성 안 함.
+    if discovery.reflected:
+        rules = [r for r in get_rules()
+                 if r.vuln_type == "xss" and r.technique not in ("stored", _DOM_TECHNIQUE)]
+        if discovery.injection_context is not None:
+            valid = _CONTEXT_TECHNIQUES.get(discovery.injection_context, set())
+            rules = [r for r in rules if r.technique in valid]
+        families.extend(build_families_for_point(
+            sp, target, rules,
+            payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
+        ))
 
-    return build_families_for_point(
-        sp, target, rules,
-        payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
-    )
+    return families
 
 
 

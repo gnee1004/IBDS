@@ -9,6 +9,20 @@ from playwright.sync_api import sync_playwright, Browser, Playwright
 
 _DROP_ON_FULFILL = {"content-encoding", "content-length", "transfer-encoding"}  # fulfill 시 제외할 응답 헤더
 
+
+# 실행으로 인정할 dialog 메시지 선택 (#7).
+# exec_token이 주어지면 그 토큰이 담긴 메시지만 우리 payload 발화로 인정한다.
+# 토큰 없는 dialog는 페이지가 원래 띄운 것으로 보고 무시. exec_token=None이면 하위호환(첫 메시지).
+def _pick_executed(messages: list[str], exec_token: str | None) -> str | None:
+    if not messages:
+        return None
+    if exec_token is None:
+        return messages[0]
+    for msg in messages:
+        if exec_token in msg:
+            return msg
+    return None
+
 @dataclass
 class HeadlessVerdict:  # headless 확인 1건의 결과
     executed: bool    # alert 등 dialog가 실제로 발생했는지
@@ -41,7 +55,8 @@ class HeadlessSession:
     # 이미 받은 response_body를 그대로 렌더링만 함, 재요청 없음
     # url+headers가 있으면 그 URL의 응답인 것처럼 fulfill → 실제 origin·CSP 헤더/Content-Type 적용
     def confirm_via_render(self, response_body: str, url: str | None = None,
-                           headers: dict[str, str] | None = None) -> HeadlessVerdict:
+                           headers: dict[str, str] | None = None,
+                           exec_token: str | None = None) -> HeadlessVerdict:
         browser = self._ensure_browser()
         page = browser.new_page()
         dialog_messages: list[str] = []
@@ -77,12 +92,17 @@ class HeadlessSession:
                 return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}", ok=False)
         finally:
             page.close()
-        if dialog_messages:
-            return HeadlessVerdict(executed=True, method="render", evidence=f"dialog fired: {dialog_messages[0]}")
+        hit = _pick_executed(dialog_messages, exec_token)
+        if hit is not None:
+            return HeadlessVerdict(executed=True, method="render", evidence=f"dialog fired: {hit}")
+        if dialog_messages:  # dialog는 떴지만 우리 토큰 아님 → 페이지 자체 것으로 보고 실행 아님
+            return HeadlessVerdict(executed=False, method="render",
+                                   evidence=f"우리 토큰 없는 dialog 무시(페이지 자체): {dialog_messages[0]}")
         return HeadlessVerdict(executed=False, method="render", evidence="dialog 없음")
 
     # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (DOM 기법·stored 재조회 공용, GET만)
-    def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str) -> HeadlessVerdict:
+    def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str,
+                             exec_token: str | None = None) -> HeadlessVerdict:
         if method != "GET":  # POST 폼 재현은 ver1 범위 밖 (design doc 참고)
             return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)", ok=False)
 
@@ -111,6 +131,10 @@ class HeadlessSession:
         finally:
             if context is not None:
                 context.close()
-        if dialog_messages:
-            return HeadlessVerdict(executed=True, method="navigate", evidence=f"dialog fired: {dialog_messages[0]}")
+        hit = _pick_executed(dialog_messages, exec_token)
+        if hit is not None:
+            return HeadlessVerdict(executed=True, method="navigate", evidence=f"dialog fired: {hit}")
+        if dialog_messages:  # dialog는 떴지만 우리 토큰 아님 → 페이지 자체 것으로 보고 실행 아님
+            return HeadlessVerdict(executed=False, method="navigate",
+                                   evidence=f"우리 토큰 없는 dialog 무시(페이지 자체): {dialog_messages[0]}")
         return HeadlessVerdict(executed=False, method="navigate", evidence="dialog 없음")

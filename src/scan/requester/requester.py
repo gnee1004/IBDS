@@ -28,7 +28,12 @@ def _is_retry_safe(method: str) -> bool:
     return method.strip().upper() in _RETRY_SAFE_METHODS
 
 
+# site(origin)별 최신 쿠키 저장소, target이 아닌 origin 단위 공유.
+# 키를 (name, path)로 둬서 같은 이름·다른 경로 쿠키가 서로 덮어쓰지 않도록 한다.
 _cookie_store: dict[str, dict[tuple[str, str], str]] = {}
+
+# 삭제된 쿠키 표식(tombstone) — 서버가 지운 (name, path)를 origin별로 기억한다.
+# _get_cookies가 수집 당시 case.cookies로 되살리는 "재부활"을 막는 용도.
 _deleted_cookies: dict[str, set[tuple[str, str]]] = {}
 
 
@@ -56,12 +61,15 @@ def _request_path(url: str) -> str:
     return urlparse(url).path or "/"
 
 
+# Set-Cookie의 default-path 계산 (RFC 6265 §5.1.4): 경로가 "/"로 시작 안 하거나
+# 첫 글자 뒤에 "/"가 없으면 "/", 아니면 마지막 "/" 앞까지.
 def _default_path(req_path: str) -> str:
     if not req_path.startswith("/") or req_path.count("/") <= 1:
         return "/"
     return req_path[: req_path.rfind("/")] or "/"
 
 
+# RFC 6265 §5.1.4 path-match: 쿠키 경로가 요청 경로를 포함하는지
 def _path_matches(cookie_path: str, req_path: str) -> bool:
     if cookie_path == req_path:
         return True
@@ -110,20 +118,21 @@ def _parse_set_cookie(set_cookie: str, req_path: str) -> tuple[str, str, str, bo
     return name, value, path, is_deletion
 
 
-# case origin의 현재 쿠키 조회, 최초 접근 시 수집 당시 쿠키로 초기화
+# case origin의 현재 쿠키 조회, 최초 접근 시 수집 당시 쿠키로 초기화.
+# 요청 경로에 path-match 되는 쿠키만 골라 name->value 로 돌려준다(같은 이름이면 더 구체적인 경로 우선).
 def _get_cookies(case: MutationCase) -> dict[str, str]:
     origin = _origin(case.url)
     req_path = _request_path(case.url)
     stored = _cookie_store.setdefault(origin, {})
     tombstones = _deleted_cookies.setdefault(origin, set())
 
-    for name, value in case.cookies.items():
+    for name, value in case.cookies.items():  # 수집 당시 쿠키로 시딩 — 단, 삭제 표식은 되살리지 않음
         key = (name, "/")
         if key not in stored and key not in tombstones:
             stored[key] = value
 
     selected: dict[str, str] = {}
-    best_path: dict[str, str] = {}
+    best_path: dict[str, str] = {}  # name -> 채택된 경로 (더 긴=구체적 경로가 이김)
     for (name, path), value in stored.items():
         if not _path_matches(path, req_path):
             continue
@@ -141,6 +150,8 @@ def _iter_set_cookie_values(response_header: str):
             yield value.strip()
 
 
+# 응답의 Set-Cookie를 저장소에 반영. (name, path) 단위로 저장/삭제하고,
+# 삭제(빈 값·Max-Age<=0·과거 Expires)면 tombstone에 남겨 재부활을 막는다.
 def _update_cookies_from_response(origin: str, response_header: str, req_path: str) -> None:
     stored = _cookie_store.setdefault(origin, {})
     tombstones = _deleted_cookies.setdefault(origin, set())

@@ -5,6 +5,7 @@ import os
 from dataclasses import asdict
 
 from scan.models import RequestFamily, CaseResult
+from scan.match.exec_token import exec_token
 from utilities.file_utils import append_jsonl
 from .finding import Finding
 from .xss.headless import HeadlessSession, HeadlessVerdict
@@ -15,9 +16,23 @@ _DOM_TECHNIQUE = "dom"
 _STORED_TECHNIQUE = "stored"
 
 
+# 재조회 응답이 유효한지 (af.md #4 — 403/500 등은 "정상 방어"가 아니라 재조회 실패로 구분)
+def _is_valid_revisit_status(status) -> bool:
+    return isinstance(status, int) and 200 <= status < 400
+
+
 # raw 판정에서 걸렸거나, raw로는 원천적으로 확인이 안 되는 기법(dom)이면 headless 대상
 def _is_headless_target(vulnerable: bool, technique: str) -> bool:
     return vulnerable or technique == _DOM_TECHNIQUE
+
+
+# 이 payload에 대해 headless가 실행 인정 시 요구할 토큰 (#7).
+# payload에 실행 토큰이 실제로 심겼으면 그 토큰으로 엄격 매칭 → 페이지 자체 dialog와 구분.
+# 인코딩/난독화(base64 data URI, hex-escape eval 등)로 토큰을 못 실은 payload는 None을 반환해
+# 기존 동작(dialog 발생=실행)을 유지한다. 토큰이 실린 payload를 미탐으로 만드는 회귀 방지.
+def _expected_token(payload: str) -> str | None:
+    tok = exec_token()
+    return tok if tok in (payload or "") else None
 
 
 # headless 확인 결과까지 반영한 최종 상태 판정
@@ -67,12 +82,17 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
 
     # 재조회 성공했는데 payload 없음(저장 안 됨) → 등록 응답 에코를 headless로 실제 발화 확인
     if case_result.get("revisit_found") is False:
+        # 재조회 응답 자체가 무효(403/500 등)면 "정상 방어"가 아니라 재조회 실패 → inconclusive
+        if not _is_valid_revisit_status(case_result.get("revisit_status")):
+            return _mk_finding(family, case, "inconclusive",
+                                evidence=f"재조회 응답 무효(상태 코드 {case_result.get('revisit_status')})")
         echo = judge_xss(case_result.get("response_body") or "", payload) if payload else None
         if echo and echo.vulnerable:
             # 등록 응답을 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render해서 실제 발화 확인
             hv = headless.confirm_via_render(
                 case_result.get("response_body") or "",
                 url=case["url"], headers=case_result.get("response_headers"),
+                exec_token=_expected_token(payload),
             )
             if not hv.ok:  # 렌더 검증 실패 → 확인 불가 (safe 강등 금지)
                 return _mk_finding(family, case, "inconclusive", raw=echo, hv=hv)
@@ -99,6 +119,7 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
         case_result.get("revisit_url_used") or case["url"],
         case_result.get("effective_cookies") or {},
         "GET",
+        exec_token=_expected_token(payload),
     )
     if not hv.ok:  # navigate 검증 실패 → 확인 불가 (safe/reflected_only로 확정 금지)
         return _mk_finding(family, case, "inconclusive", raw=raw, hv=hv)
@@ -141,11 +162,13 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
         if technique == _DOM_TECHNIQUE:
             headless_verdict = headless.confirm_via_navigate(
                 case["url"], case_result.get("effective_cookies") or {}, case["method"],
+                exec_token=_expected_token(payload),
             )
         else:  # 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render
             headless_verdict = headless.confirm_via_render(
                 case_result.get("response_body") or "",
                 url=case["url"], headers=case_result.get("response_headers"),
+                exec_token=_expected_token(payload),
             )
 
     return Finding(
