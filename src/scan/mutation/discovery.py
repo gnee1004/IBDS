@@ -149,3 +149,4 @@ def run_discovery(sp: ScanPoint, target: dict, zap) -> DiscoveryResult:
         valid_specials=probe_specials(sp, target, zap),
         injection_context=detect_injection_context(body, marker),
     )
+
