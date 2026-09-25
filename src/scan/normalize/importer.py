@@ -117,27 +117,25 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
 
         base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
-        # 같은 이름의 파라미터가 여러 개면(HPP, 다중선택 등) 값 전부를 리스트로 보존
+        # #14: 메서드와 파라미터 위치를 독립적으로 수집. 같은 이름의 파라미터가 여러 개면
+        # (HPP, 다중선택 등) 값 전부를 리스트로 보존. POST는 URL 쿼리와 폼 본문이 모두 공격 지점일
+        # 수 있으므로 위치별로 각각 RequestTarget을 생성한다.
+        query_params = parse_qs(parsed.query, keep_blank_values=True)
+        sites: list[tuple[dict, str]] = []
         if method == "GET":
-            raw_params = parse_qs(parsed.query, keep_blank_values=True)
-            if not raw_params:
-                continue
-            params = raw_params
-            param_location = "query"
+            if query_params:
+                sites.append((query_params, "query"))
         else:  # POST
             content_type = req_headers.get("content-type", "")
             if "application/x-www-form-urlencoded" not in content_type:
                 continue  # JSON/multipart 바디는 추후 구현
-            params = _parse_form_body(msg.get("requestBody", "") or "")
-            if not params:
-                continue
-            param_location = "body"
-
-        param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
-        dedup_key = (method, base_url, param_location, param_shape)
-        if dedup_key in seen:
+            body_params = _parse_form_body(msg.get("requestBody", "") or "")
+            if body_params:
+                sites.append((body_params, "body"))
+            if query_params:  # POST여도 URL 쿼리에 지점이 있으면 별도 수집
+                sites.append((query_params, "query"))
+        if not sites:
             continue
-        seen.add(dedup_key)
 
         cookies = _parse_cookies(req_headers.get("cookie", ""))
         headers_clean = {k: v for k, v in req_headers.items() if k != "cookie"}
@@ -145,19 +143,30 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
         # status: msg 필드 우선, 없으면 responseHeader 파싱
         response_status = _safe_int(msg.get("statusCode")) or _parse_response_status(resp_header_raw)
 
-        targets.append(RequestTarget(
-            method=method,
-            url=url,
-            base_url=base_url,
-            params=params,
-            param_location=param_location,
-            headers=headers_clean,
-            cookies=cookies,
-            request_body=msg.get("requestBody", "") or "",
-            response_status=response_status,
-            response_headers=_parse_headers_block(resp_header_raw),
-            response_body=msg.get("responseBody", "") or "",
-            zap_message_id=str(msg.get("id", "")),
-        ))
+        # #15: 인증·기능 차이를 보수적으로 보존. 쿠키 이름 집합(값 아님 → 세션 토큰 값이 매번 달라도
+        # 폭발하지 않음)과 응답 상태 코드만 dedup 축에 추가한다. 값 기반 기능 분기 구분은 후속.
+        cookie_names = tuple(sorted(cookies.keys()))
+
+        for params, param_location in sites:
+            param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
+            dedup_key = (method, base_url, param_location, param_shape, cookie_names, response_status)
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            targets.append(RequestTarget(
+                method=method,
+                url=url,
+                base_url=base_url,
+                params=params,
+                param_location=param_location,
+                headers=headers_clean,
+                cookies=cookies,
+                request_body=msg.get("requestBody", "") or "",
+                response_status=response_status,
+                response_headers=_parse_headers_block(resp_header_raw),
+                response_body=msg.get("responseBody", "") or "",
+                zap_message_id=str(msg.get("id", "")),
+            ))
 
     return targets

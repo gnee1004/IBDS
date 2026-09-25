@@ -7,10 +7,9 @@ _ALL_LOCATIONS = ["query", "form", "json"]
 
 
 def _allowed(rule: dict) -> tuple[list[str], list[str]]:
-    if rule["vuln_type"] == "sqli":
-        return _ALL_LOCATIONS, ["string", "number"]
-    # xss 등 마크업 주입 계열 — value_type은 관측값 형태일 뿐 서버 검증 보장이 아니므로
-    # number도 포함(숫자처럼 보인 값이 실제로 반사되는지는 discovery가 판정)
+    # #13: value_type은 관측값의 표기 힌트일 뿐 서버 검증 보장이 아니므로, 검사 대상을
+    # 표기(number/string)로 배제하지 않는다. 실제 반사·주입 여부는 discovery가 판정한다.
+    # 현재 모든 vuln_type이 두 표기를 모두 허용하므로 rule별 분기가 없다.
     return _ALL_LOCATIONS, ["string", "number"]
 
 
