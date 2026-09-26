@@ -14,7 +14,6 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 from collector.main_collector import run_collection
-from scan.match.rules_builder import get_rules
 from scan.mutation.discovery import measure_dynamic_markers, run_discovery
 from scan.mutation.request_builder import generate_sqli_families, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
