@@ -15,8 +15,7 @@ def _first_line(raw: str) -> str:
     return (raw.split("\r\n")[0] if "\r\n" in raw else raw.split("\n")[0]).strip()
 
 
-# requestHeader 첫 줄 파싱(method, path)해 tuple에 저장
-# 예: "GET /path?q=1 HTTP/1.1" -> ("GET", "/path?q=1")
+# requestHeader 첫 줄 -> (method, path) (예: "GET /path?q=1 HTTP/1.1" -> ("GET", "/path?q=1"))
 def _parse_request_line(raw: str) -> tuple[str, str]:
     parts = _first_line(raw).split(" ")
     if len(parts) >= 2:
@@ -24,8 +23,7 @@ def _parse_request_line(raw: str) -> tuple[str, str]:
     return "", ""
 
 
-# responseHeader 첫 줄 파싱 (status code) 해 int로 저장
-# 예: "HTTP/1.1 200 OK" -> 200
+# responseHeader 첫 줄 -> status code (예: "HTTP/1.1 200 OK" -> 200)
 def _parse_response_status(raw: str) -> int:
     parts = _first_line(raw).split(" ")
     if len(parts) >= 2:
@@ -85,9 +83,7 @@ def _parse_form_body(body: str) -> dict[str, list[str]]:
     return parse_qs(body, keep_blank_values=True)
 
 
-# ZAP 메시지 목록 -> RequestTarget 목록
-# 조건: GET은 query parameter, POST는 URL 쿼리(content-type 무관) + x-www-form-urlencoded 바디 파라미터 포함 (JSON/multipart 바디는 추후 구현)
-# 중복 제거: (method, base_url, param_location, 파라미터 이름 조합) 기준
+# ZAP 메시지 목록 -> RequestTarget 목록 (GET은 쿼리, POST는 쿼리 + form 바디 / JSON·multipart 바디는 추후 구현)
 def to_targets(messages: list[dict]) -> list[RequestTarget]:
     seen: set[tuple] = set()
     targets: list[RequestTarget] = []
@@ -117,9 +113,7 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
 
         base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
-        # #14: 메서드와 파라미터 위치를 독립적으로 수집. 같은 이름의 파라미터가 여러 개면
-        # (HPP, 다중선택 등) 값 전부를 리스트로 보존. POST는 URL 쿼리와 폼 본문이 모두 공격 지점일
-        # 수 있으므로 위치별로 각각 RequestTarget을 생성한다.
+        # 파라미터 위치(query/body)별로 따로 수집, 같은 이름의 파라미터(HPP 등)는 값 전부 보존
         query_params = parse_qs(parsed.query, keep_blank_values=True)
         sites: list[tuple[dict, str]] = []
         if method == "GET":
@@ -142,8 +136,7 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
         # status: msg 필드 우선, 없으면 responseHeader 파싱
         response_status = _safe_int(msg.get("statusCode")) or _parse_response_status(resp_header_raw)
 
-        # #15: 인증·기능 차이를 보수적으로 보존. 쿠키 이름 집합(값 아님 → 세션 토큰 값이 매번 달라도
-        # 폭발하지 않음)과 응답 상태 코드만 dedup 축에 추가한다. 값 기반 기능 분기 구분은 후속.
+        # 인증·기능 차이 보존용으로 쿠키 이름(값 제외)과 응답 상태 코드도 중복 제거 기준에 포함
         cookie_names = tuple(sorted(cookies.keys()))
 
         for params, param_location in sites:

@@ -7,9 +7,7 @@ _ALL_LOCATIONS = ["query", "form", "json"]
 
 
 def _allowed(rule: dict) -> tuple[list[str], list[str]]:
-    # #13: value_type은 관측값의 표기 힌트일 뿐 서버 검증 보장이 아니므로, 검사 대상을
-    # 표기(number/string)로 배제하지 않는다. 실제 반사·주입 여부는 discovery가 판정한다.
-    # 현재 모든 vuln_type이 두 표기를 모두 허용하므로 rule별 분기가 없다.
+    # value_type은 표기 힌트일 뿐이라 string/number 모두 허용 (실제 주입 가능 여부는 discovery가 판정)
     return _ALL_LOCATIONS, ["string", "number"]
 
 
