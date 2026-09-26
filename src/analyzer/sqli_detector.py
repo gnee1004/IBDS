@@ -31,8 +31,7 @@ def _body(result: dict | None) -> str:
     return result.get("response_body") or ""
 
 
-def _finding(family: dict, result: dict, confidence: str, evidence: str,
-             final_status: str = "inconclusive") -> Finding:
+def _finding(family: dict, result: dict, confidence: str, evidence: str, final_status: str = "inconclusive") -> Finding:
     case = result.get("case") or {}
     return Finding(
         vuln_type="sqli",
@@ -45,6 +44,7 @@ def _finding(family: dict, result: dict, confidence: str, evidence: str,
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
+        value_index=family.get("value_index"),
         payload=case.get("payload"),
         raw_verdict={"vulnerable": final_status == "vulnerable", "confidence": confidence, "evidence": evidence},
         headless_checked=False,
@@ -63,7 +63,7 @@ def _clean_body(family: dict, result: dict | None) -> str:
     return _strip_dynamic(body, family.get("dynamic_markers") or [])
 
 
-# safe·inconclusive finding의 식별 필드용 대표 case — 첫 mutation, 없으면 baseline
+# safe, inconclusive finding의 식별 필드
 def _representative_result(family: dict) -> dict:
     mutations = family.get("mutations") or []
     return mutations[0] if mutations else (family.get("baseline") or {})
@@ -73,7 +73,7 @@ def _family_finding(family: dict, final_status: str, evidence: str) -> Finding:
     return _finding(family, _representative_result(family), "", evidence, final_status)
 
 
-def _bcase(mutation: dict, key: str) -> Any:  # MutationCase의 SQLi 비교 계약 필드 접근 (#9)
+def _bcase(mutation: dict, key: str) -> Any:  # MutationCase의 SQLi 비교 계약 필드 접근
     return (mutation.get("case") or {}).get(key)
 
 
@@ -81,15 +81,15 @@ def _sim(base_clean: str, family: dict, mutation: dict) -> float:
     return SequenceMatcher(None, base_clean, _clean_body(family, mutation)).ratio()
 
 
-# Boolean(#9): pair_id로 묶어 expected 방향 비교, control로 노이즈 게이트, repeat로 재현성 확인
+# Boolean : pair_id로 묶어 expected 방향 비교, control로 노이즈 게이트, repeat로 재현성 확인
 def _analyze_boolean(family: dict) -> list[Finding]:
     base_clean = _clean_body(family, family.get("baseline"))
     muts = [m for m in family.get("mutations", []) if _successful(m)]
     attacks = [m for m in muts if _bcase(m, "role") in ("attack_true", "attack_false")]
 
-    # pair 필드가 없거나(옛 구조) 성공한 공격 응답이 없으면 검사 미완료 (safe 금지)
+    # pair 필드가 없거나 성공한 공격 응답이 없으면 검사 미완료
     if not base_clean or not attacks:
-        return [_family_finding(family, "inconclusive", "boolean pair 요청 없음/불충분으로 검사 미완료")]
+        return [_family_finding(family, "inconclusive", "boolean pair 요청이 없거나 성공한 요청이 없어 검사 미완료")]
 
     # control(비-SQL 잡음)로 노이즈 바닥 측정 — 입력만 바꿔도 흔들리는 페이지면 노이즈가 큼
     control_scores = [_sim(base_clean, family, m) for m in muts if _bcase(m, "role") == "control"]
@@ -111,16 +111,16 @@ def _analyze_boolean(family: dict) -> list[Finding]:
     hits: list[tuple[str, float, float, float, bool]] = []  # (pair_id, gap, approx_min, differ_max, reproduced)
     for pid, g in pairs.items():
         if not g["approx"] or not g["differ"]:
-            continue  # 한쪽만 성공한 pair는 판정 불가 → 스킵
-        approx_min = min(g["approx"])   # approx 역은 baseline과 가까워야 — 최악(min)으로 확인
-        differ_max = max(g["differ"])   # differ 역은 baseline과 달라야 — 최악(max)으로 확인
+            continue  # 한쪽만 성공한 pair는 판정 불가 -> 스킵
+        approx_min = min(g["approx"])   # approx 역은 baseline과 가까워야 최악(min)으로 확인
+        differ_max = max(g["differ"])   # differ 역은 baseline과 달라야 최악(max)으로 확인
         gap = approx_min - differ_max
         if approx_min >= gate and gap > max(noise, _STATIC_EPS):  # 방향 일치 + 노이즈 초과
-            reproduced = len(g["approx"]) >= 2 and len(g["differ"]) >= 2  # true·false 둘 다 반복 존재
+            reproduced = len(g["approx"]) >= 2 and len(g["differ"]) >= 2  # true, false 둘 다 반복 존재
             hits.append((pid, gap, approx_min, differ_max, reproduced))
 
     if not hits:
-        return [_family_finding(family, "safe", "pair 내 expected 방향 분기 없음(노이즈 이내)")]
+        return [_family_finding(family, "safe", "pair 내 expected 방향 분기 안보임(노이즈 이내)")]
 
     best_pid, best_gap, best_approx, best_differ, best_repro = max(hits, key=lambda h: h[1])
     confirmed = len(hits) >= MIN_REPEAT_CONFIRM and best_repro
@@ -145,7 +145,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
     raw_mutations = family.get("mutations") or []
     mutations = [item for item in raw_mutations if _successful(item)]
 
-    # 성공한 공격 응답이 없음: 공격이 있었는데 전부 전송 실패면 검사 미완료(safe 금지), 애초에 없었으면 스킵
+    # 성공한 공격 응답이 없음: 공격이 있었는데 전부 전송 실패면 검사 미완료, 애초에 없었으면 스킵
     if not mutations:
         if raw_mutations:
             return [_family_finding(family, "inconclusive", "공격 요청 전송 실패로 검사 미완료")]
@@ -159,7 +159,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence, "vulnerable")]
         return [_family_finding(family, "safe", verdict.evidence)]
 
-    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 안전 (2분기, 정보추출 없음)
+    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 안전 (2분기, 정보추출 없음) -> 지우는게 나응ㄹ듯
     if technique == "union":
         for mutation in mutations:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
@@ -177,13 +177,12 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         )
         if verdict.final_status == "vulnerable":
             return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
-    return [_family_finding(family, "safe", "DB 에러·마커 시그니처 없음")]
+    return [_family_finding(family, "safe", "DB 에러·마커 시그니처 안보임")]
 
 
 def analyze_family(family: dict) -> list[Finding]:
     if str(family.get("vuln_type") or "").lower() != "sqli":
         return []
-    # baseline 전송 실패 → 비교 기준 없음 → 검사 미완료 (safe 금지)
     if not _successful(family.get("baseline")):
-        return [_family_finding(family, "inconclusive", "baseline 전송 실패로 비교 불가")]
+        return [_family_finding(family, "inconclusive", "기준값 전송 실패로 비교 불가")]
     return _analyze_sqli(family)

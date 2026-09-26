@@ -16,20 +16,17 @@ _DOM_TECHNIQUE = "dom"
 _STORED_TECHNIQUE = "stored"
 
 
-# 재조회 응답이 유효한지 (af.md #4 — 403/500 등은 "정상 방어"가 아니라 재조회 실패로 구분)
+# 재조회 응답이 유효한지
 def _is_valid_revisit_status(status) -> bool:
     return isinstance(status, int) and 200 <= status < 400
 
 
-# raw 판정에서 걸렸거나, raw로는 원천적으로 확인이 안 되는 기법(dom)이면 headless 대상
+# raw 판정에서 걸렸거나 raw로는 원천적으로 확인이 안 되는 기법(dom)이면 headless 대상
 def _is_headless_target(vulnerable: bool, technique: str) -> bool:
     return vulnerable or technique == _DOM_TECHNIQUE
 
 
-# 이 payload에 대해 headless가 실행 인정 시 요구할 토큰 (#7).
-# payload에 실행 토큰이 실제로 심겼으면 그 토큰으로 엄격 매칭 → 페이지 자체 dialog와 구분.
-# 인코딩/난독화(base64 data URI, hex-escape eval 등)로 토큰을 못 실은 payload는 None을 반환해
-# 기존 동작(dialog 발생=실행)을 유지한다. 토큰이 실린 payload를 미탐으로 만드는 회귀 방지.
+# 이 payload에 대해 headless가 실행 인정 시 요구할 토큰
 def _expected_token(payload: str) -> str | None:
     tok = exec_token()
     return tok if tok in (payload or "") else None
@@ -59,6 +56,7 @@ def _mk_finding(family: dict, case: dict, final_status: str, *, raw=None, hv=Non
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
+        value_index=family.get("value_index"),  # #25 지점 식별 계약
         payload=case.get("payload"),
         raw_verdict=asdict(raw) if raw else {"vulnerable": False, "confidence": "", "evidence": evidence},
         headless_checked=hv is not None,
@@ -73,35 +71,35 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     case = case_result["case"]
     payload = case.get("payload") or ""
 
-    # 마커 반사 미확인 → inconclusive
+    # 마커 반사 미확인 -> inconclusive
     if not family.get("sink_confirmed"):
         return _mk_finding(family, case, "inconclusive", evidence="sink 미확인")
 
     before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
 
-    # 재조회 성공했는데 payload 없음(저장 안 됨) → 등록 응답 에코를 headless로 실제 발화 확인
+    # 재조회 성공했는데 payload 없음(저장 안 됨) -> 등록 응답 에코를 headless로 실제 발화 확인
     if case_result.get("revisit_found") is False:
-        # 재조회 응답 자체가 무효(403/500 등)면 "정상 방어"가 아니라 재조회 실패 → inconclusive
+        # 재조회 응답 자체가 무효(403/500 등)면 재조회 실패
         if not _is_valid_revisit_status(case_result.get("revisit_status")):
             return _mk_finding(family, case, "inconclusive",
                                 evidence=f"재조회 응답 무효(상태 코드 {case_result.get('revisit_status')})")
         echo = judge_xss(case_result.get("response_body") or "", payload) if payload else None
         if echo and echo.vulnerable:
-            # 등록 응답을 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render해서 실제 발화 확인
+            # 등록 응답을 원래 URL, 응답 헤더(CSP, Content-Type) 그대로 render해서 실제 발화 확인
             hv = headless.confirm_via_render(
                 case_result.get("response_body") or "",
                 url=case["url"], headers=case_result.get("response_headers"),
                 exec_token=_expected_token(payload),
             )
-            if not hv.ok:  # 렌더 검증 실패 → 확인 불가 (safe 강등 금지)
+            if not hv.ok:  # 렌더 검증 실패
                 return _mk_finding(family, case, "inconclusive", raw=echo, hv=hv)
-            # 등록 응답에 실행가능 반사 확인 — 저장은 아니므로 최대 reflected_only (발화 여부 무관, stored 미확정)
+            # 등록 응답에 실행가능 반사 확인
             return _mk_finding(family, case, "reflected_only", raw=echo, hv=hv)
-        # 에코 없음 / escape로 raw 미적중 → 앱이 정상 방어 → safe
-        return _mk_finding(family, case, "safe", evidence="재조회에 payload 없음(정상 방어)")
+        # 에코 없음 / escape로 raw 미적중
+        return _mk_finding(family, case, "safe", evidence="재조회에 공격 요청 안보임")
 
-    # 재조회 자체 실패(revisit_found None 등)로 payload 확인 불가 → inconclusive (조용한 safe 강등 금지)
+    # 재조회 자체 실패(revisit_found None 등)로 payload 확인 불가 -> inconclusive
     if not payload or payload not in after:
         return _mk_finding(family, case, "inconclusive", evidence="재조회 N회 실패(payload 미확인)")
 
@@ -110,18 +108,18 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     if not new_region:
         return _mk_finding(family, case, "safe", evidence="diff 새 영역 없음(잔재)")
 
-    # 추가된 줄(새 영역)만 judge_xss에 넘김 (마커로 payload 유일 → 새 줄에 잡힘)
+    # 추가된 줄(새 영역)만 judge_xss에 넘김 (마커로 payload 유일 -> 새 줄에 잡힘)
     raw = judge_xss(new_region, payload)
     if not raw.vulnerable:
         return _mk_finding(family, case, "safe", raw=raw, evidence="새 영역에 실행가능 반사 없음")
 
-    hv = headless.confirm_via_navigate(  # 실제 발화 확인 — revisit 페이지를 headless로 열어봄
+    hv = headless.confirm_via_navigate(        # 실제 발화 확인 — revisit 페이지를 headless로 열어봄
         case_result.get("revisit_url_used") or case["url"],
         case_result.get("effective_cookies") or {},
         "GET",
         exec_token=_expected_token(payload),
     )
-    if not hv.ok:  # navigate 검증 실패 → 확인 불가 (safe/reflected_only로 확정 금지)
+    if not hv.ok:  # navigate 검증 실패 -> 확인 불가 (safe/reflected_only로 확정 금지)
         return _mk_finding(family, case, "inconclusive", raw=raw, hv=hv)
     return _mk_finding(family, case, "vulnerable" if hv.executed else "reflected_only", raw=raw, hv=hv)
 
@@ -132,7 +130,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
     technique = family["technique"]
     payload = case.get("payload") or ""
 
-    if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 판정 불가 → 검사 미완료(inconclusive). safe로 강등 금지
+    if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 판정 불가
         return Finding(
             vuln_type="xss",
             family_id=family["family_id"],
@@ -144,6 +142,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             method=case.get("method"),
             url=case.get("url"),
             location=case.get("body_type"),
+            value_index=family.get("value_index"),
             payload=case.get("payload"),
             raw_verdict={"vulnerable": False, "confidence": "", "evidence": "요청 실패로 판정 불가"},
             headless_checked=False,
@@ -164,7 +163,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
                 case["url"], case_result.get("effective_cookies") or {}, case["method"],
                 exec_token=_expected_token(payload),
             )
-        else:  # 원래 URL·응답 헤더(CSP·Content-Type) 그대로 render
+        else:  # 원래 URL, 응답 헤더(CSP·Content-Type) 그대로 render
             headless_verdict = headless.confirm_via_render(
                 case_result.get("response_body") or "",
                 url=case["url"], headers=case_result.get("response_headers"),
@@ -182,6 +181,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
+        value_index=family.get("value_index"),
         payload=case.get("payload"),
         raw_verdict=asdict(raw_verdict),
         headless_checked=headless_checked,

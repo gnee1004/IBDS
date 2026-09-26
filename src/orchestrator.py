@@ -70,6 +70,8 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     "param": sp.name,
                     "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
                     "technique": "stored",
+                    "location": sp.location,        # 지점 식별용
+                    "value_index": sp.value_index,
                     "stage": "probe",
                     "final_status": "inconclusive",
                     "probe_marker": marker,
@@ -156,8 +158,7 @@ def _resolve_case_revisit_url(sent: dict, case) -> str | None:
     return resolved if is_same_host(case.url, resolved) else None  # 범위 밖 목적지 -> 호출부가 family.revisit_url로 폴백
 
 
-# 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
-# (target["revisit_url"]에 채워두면 analyzer.xss.revisit.resolve_revisit_url이 최우선으로 사용함)
+# 로컬 웹 설정의 재방문 주소(A url -> B url)를 target["revisit_url"]에 반영 (resolve_revisit_url이 최우선으로 사용)
 def _apply_revisit_overrides(targets: list[dict]) -> None:
     overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
     if not overrides:
@@ -168,8 +169,7 @@ def _apply_revisit_overrides(targets: list[dict]) -> None:
             target["revisit_url"] = match
 
 
-# collector ->  ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 ScanPoint 단위로 실행
-# on_paths_ready: (results_path, findings_path)를 알게 되는 즉시 호출되는 콜백 (로컬 웹의 진행 상황 조회용, 없으면 무시)
+# collector -> ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 실행 (on_paths_ready는 결과 경로를 알게 되면 호출하는 콜백)
 def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output_dir=None) -> str:
     progress = PipelineProgress(callback=on_progress, stop_requested=should_stop)
 
@@ -296,6 +296,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
+                    location=family.location, value_index=family.value_index,  # 지점 식별용
                     dynamic_markers=family.dynamic_markers,
                     baseline_match_ratio=family.baseline_match_ratio,
                     sink_confirmed=family.sink_confirmed,
@@ -313,6 +314,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                             "family_id": family.family_id, "target_id": family.target_id,
                             "param": family.param, "vuln_type": family.vuln_type,
                             "technique": family.technique, "final_status": "inconclusive",
+                            "location": family.location, "value_index": family.value_index,  # 지점 식별용
                             "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
                         })
                         break
