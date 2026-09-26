@@ -24,35 +24,35 @@ class ScanPoint:  # RequestTarget에서 공격 대상 파라미터를 하나씩 
 
 @dataclass
 class MatchedRule: # 룰 선택 + {value} 치환까지 끝낸 결과물.
-    attack_id: str       # 룰 식별자 (예: "AR-SQLI-ERR-001")
-    vuln_type: str       # 취약점 타입 ("sqli" or "xss")
+    attack_id: str       # 룰 식별자
+    vuln_type: str       # 취약점 타입
     technique: str       # 공격 기법 (예: "error", "boolean", "time")
-    sequence: list[str]  # step 순서 — "baseline" 포함, 3번이 baseline은 스킵
-    rendered_payloads: dict[str, list[str]]  # step별 치환 완료된 payload (예: {"error_attack": ["1'", ...]})
+    sequence: list[str]  # step 순서. baseline은 스킵
+    rendered_payloads: dict[str, list[str]]  # step별 치환 완료된 payload
 
 
 @dataclass
 class MutationCase: # HTTP 요청 하나를 완전히 표현하는 단위. baseline과 mutation 모두 이 타입
-    case_id: str         # 케이스 식별자 (예: "t0_id_AR-SQLI-ERR-001_baseline")
+    case_id: str         # 케이스 식별자
     step: str            # 이 케이스의 step (예: "baseline", "error_attack")
     method: str          # HTTP 메서드
     url: str             # 요청 URL — query mutation이면 payload가 URL에 포함
     headers: dict[str, str]  # 요청 헤더
-    cookies: dict[str, str]  # 쿠키
-    body_type: str       # 바디 타입 ("query" or "form") — "body" → "form" 변환된 값
-    body: str            # 요청 바디 — form mutation이면 payload가 body에 포함
-    payload: str | None = None         # 삽입된 payload — baseline은 None
-    original_value: str | None = None  # 원본 파라미터 값 — baseline은 None
-    # SQLi 비교 계약 (#9) — 근희가 구성, 서진이 판정에서 해석. boolean 외 케이스는 전부 None
-    pair_id: str | None = None         # 같은 주입 컨텍스트 비교 단위 식별자 (예: "t0_id__occ0_..._and_c0")
-    role: str | None = None            # 요청 역할 — "attack_true" / "attack_false" / "control"
-    expected: str | None = None        # baseline 대비 기대 관계 — "approx_baseline" / "differ_baseline"
-    repeat_index: int | None = None    # 같은 (pair_id, role) 반복 회차 (동일 조건 재검증용) 0,1,…
+    cookies: dict[str, str]            # 쿠키
+    body_type: str                     # 바디 타입 ("query" or "form")
+    body: str                          # 요청 바디 — form mutation이면 payload가 body에 포함
+    payload: str | None = None         # 삽입된 payload (baseline은 None)
+    original_value: str | None = None  # 원본 파라미터 값 (baseline은 None)
+    # boolean 외 케이스는 전부 None -> BOOLEAN이라고 앞에 달아줄것. boolean_pair_id 이런식
+    pair_id: str | None = None         # 같은 주입 컨텍스트 비교 단위 식별자
+    role: str | None = None            # 요청 역할 ("attack_true" / "attack_false" / "control")
+    expected: str | None = None        # baseline 대비 기대 관계 "(approx_baseline" / "differ_baseline")
+    repeat_index: int | None = None    # 같은 (pair_id, role) 반복 회차 (동일 조건 재검증용)
 
 
 @dataclass
-class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대비 응답 차이를 비교하는 단위
-    family_id: str                # family 식별자 (예: "t0_id_AR-SQLI-ERR-001")
+class RequestFamily:              # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대비 응답 차이를 비교하는 단위
+    family_id: str                # family 식별자
     target_id: str                # 어느 타겟에서 나온 family인지
     param: str                    # 공격 대상 파라미터 이름
     attack_id: str                # 적용된 룰 식별자
@@ -64,9 +64,9 @@ class RequestFamily: # 1파라미터 x 1룰 = 1Family. 분석기가 baseline 대
     value_index: int | None = None  # 같은 이름 파라미터의 occurrence 순번 — ScanPoint에서 그대로 전달됨
     dynamic_markers: list[tuple[str, str]] = field(default_factory=list)  # boolean SQLi 판정용 — (prefix, suffix) 형태로 이 타겟이 원래 흔들리는 자리를 표시
     baseline_match_ratio: float | None = None  # baseline 2회 요청의 유사도 — 이 타겟의 "정상 기준점" (sqlmap의 matchRatio와 동일한 발상)
-    # Phase 1 sink probe 결과 — stored XSS family에만 설정, 나머지는 None
+    # Phase 1 sink probe 결과 — stored XSS family에만 설정, 나머지는 None -> 이것도 STORED 전용이라고 필드 표시 필요할듯
     sink_confirmed: bool | None = None   # True: 마커 반사 확인 / False: 미확인 / None: 프로브 안 함
-    revisit_url: str | None = None       # Phase 1에서 GET 날린 URL — Phase 2 재조회 기준점
+    revisit_url: str | None = None       # 재조회 기준점
     probe_marker: str | None = None      # sink_confirmed=True 시 사용한 마커 — 재현·디버깅용
     sink_note: str | None = None         # inconclusive 시 실패 이유
 
@@ -92,7 +92,7 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
 
 
 @dataclass
-class FamilyResult:  # RequestFamily 하나를 전송한 결과 — baseline/mutations를 family 단위로 묶음
+class FamilyResult:               # RequestFamily 하나를 전송한 결과 (baseline/mutations를 family 단위로 묶음)
     family_id: str                # family 식별자
     vuln_type: str                # 취약점 타입 ("sqli" or "xss")
     technique: str                # 공격 기법
