@@ -86,7 +86,7 @@ def _parse_form_body(body: str) -> dict[str, list[str]]:
 
 
 # ZAP 메시지 목록 -> RequestTarget 목록
-# 조건: GET은 query parameter, POST는 x-www-form-urlencoded 바디 파라미터가 있는 것만 포함 (JSON/multipart는 추후 구현)
+# 조건: GET은 query parameter, POST는 URL 쿼리(content-type 무관) + x-www-form-urlencoded 바디 파라미터 포함 (JSON/multipart 바디는 추후 구현)
 # 중복 제거: (method, base_url, param_location, 파라미터 이름 조합) 기준
 def to_targets(messages: list[dict]) -> list[RequestTarget]:
     seen: set[tuple] = set()
@@ -127,12 +127,11 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
                 sites.append((query_params, "query"))
         else:  # POST
             content_type = req_headers.get("content-type", "")
-            if "application/x-www-form-urlencoded" not in content_type:
-                continue  # JSON/multipart 바디는 추후 구현
-            body_params = _parse_form_body(msg.get("requestBody", "") or "")
-            if body_params:
-                sites.append((body_params, "body"))
-            if query_params:  # POST여도 URL 쿼리에 지점이 있으면 별도 수집
+            if "application/x-www-form-urlencoded" in content_type:  # JSON/multipart 바디는 추후 구현
+                body_params = _parse_form_body(msg.get("requestBody", "") or "")
+                if body_params:
+                    sites.append((body_params, "body"))
+            if query_params:  # POST여도 URL 쿼리에 지점이 있으면 content-type과 무관하게 별도 수집
                 sites.append((query_params, "query"))
         if not sites:
             continue
