@@ -59,6 +59,7 @@ def _mk_finding(family: dict, case: dict, final_status: str, *, raw=None, hv=Non
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
+        value_index=family.get("value_index"),  # #25 지점 식별 계약
         payload=case.get("payload"),
         raw_verdict=asdict(raw) if raw else {"vulnerable": False, "confidence": "", "evidence": evidence},
         headless_checked=hv is not None,
@@ -144,6 +145,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             method=case.get("method"),
             url=case.get("url"),
             location=case.get("body_type"),
+            value_index=family.get("value_index"),  # #25 지점 식별 계약
             payload=case.get("payload"),
             raw_verdict={"vulnerable": False, "confidence": "", "evidence": "요청 실패로 판정 불가"},
             headless_checked=False,
@@ -182,6 +184,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
+        value_index=family.get("value_index"),  # #25 지점 식별 계약
         payload=case.get("payload"),
         raw_verdict=asdict(raw_verdict),
         headless_checked=headless_checked,

@@ -85,6 +85,8 @@ def build_families_for_point(
             technique=matched.technique,
             baseline=baseline,
             mutations=mutations,
+            location=sp.location,        # #25 지점 식별 계약: 그룹핑용 안정적 위치 정보 전달
+            value_index=sp.value_index,  # 같은 이름 파라미터의 occurrence 순번
             dynamic_markers=dynamic_markers or [],
             baseline_match_ratio=baseline_match_ratio,
         ))

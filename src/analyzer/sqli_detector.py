@@ -45,6 +45,7 @@ def _finding(family: dict, result: dict, confidence: str, evidence: str,
         method=case.get("method"),
         url=case.get("url"),
         location=case.get("body_type"),
+        value_index=family.get("value_index"),  # #25 지점 식별 계약
         payload=case.get("payload"),
         raw_verdict={"vulnerable": final_status == "vulnerable", "confidence": confidence, "evidence": evidence},
         headless_checked=False,
