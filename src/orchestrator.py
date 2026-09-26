@@ -14,7 +14,6 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 from collector.main_collector import run_collection
-from scan.match.rules_builder import get_rules
 from scan.mutation.discovery import measure_dynamic_markers, run_discovery
 from scan.mutation.request_builder import generate_sqli_families, generate_stored_xss_families, generate_xss_families
 from scan.mutation.scan_point import build_scan_points
@@ -39,59 +38,58 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
 
     families: list[RequestFamily] = []
 
-    if sp.value_type in ("string", "number"):  # XSS 대상: 문자열·숫자 모두 (반사 여부는 discovery가 판정)
-        try:
-            discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
-            families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
+    try:
+        discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
+        families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
 
-            # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
-            if marker_factory is not None and sp.location == "form":
-                marker = marker_factory(sp.name)
-                probe_result = None
-                probe_err = None
-                try:
-                    probe_result = probe_sink(sp, target, marker, requester, zap)
-                except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
-                    probe_err = str(e)
-                    print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+        # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
+        if marker_factory is not None and sp.location == "form":
+            marker = marker_factory(sp.name)
+            probe_result = None
+            probe_err = None
+            try:
+                probe_result = probe_sink(sp, target, marker, requester, zap)
+            except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
+                probe_err = str(e)
+                print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
 
-                if probe_result is not None and probe_result.sink_confirmed:
-                    stored = generate_stored_xss_families(sp, target)
-                    for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
-                        f.sink_confirmed = probe_result.sink_confirmed
-                        f.revisit_url = probe_result.revisit_url
-                        f.probe_marker = probe_result.probe_marker
-                    families.extend(stored)
-                elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
-                    if probe_err is not None:
-                        sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
-                    else:
-                        sink_note = "판정 불가 - 마커 재조회 확인 실패"
-                    append_jsonl(findings_path, {
-                        "target_id": sp.target_id,
-                        "param": sp.name,
-                        "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
-                        "technique": "stored",
-                        "location": sp.location,        # #25 지점 식별 계약
-                        "value_index": sp.value_index,
-                        "stage": "probe",
-                        "final_status": "inconclusive",
-                        "probe_marker": marker,
-                        "revisit_url": probe_result.revisit_url if probe_result is not None else None,
-                        "sink_note": sink_note,
-                    })
-            else:
-                families.extend(generate_stored_xss_families(sp, target))
-        except Exception as e:
-            if findings_path:
+            if probe_result is not None and probe_result.sink_confirmed:
+                stored = generate_stored_xss_families(sp, target)
+                for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
+                    f.sink_confirmed = probe_result.sink_confirmed
+                    f.revisit_url = probe_result.revisit_url
+                    f.probe_marker = probe_result.probe_marker
+                families.extend(stored)
+            elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
+                if probe_err is not None:
+                    sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
+                else:
+                    sink_note = "판정 불가 - 마커 재조회 확인 실패"
                 append_jsonl(findings_path, {
-                        "target_id": sp.target_id,
-                        "param": sp.name,
-                        "stage": "xss_prepare",
-                        "status": "error",
-                        "error": str(e),
+                    "target_id": sp.target_id,
+                    "param": sp.name,
+                    "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
+                    "technique": "stored",
+                    "location": sp.location,        # 지점 식별용
+                    "value_index": sp.value_index,
+                    "stage": "probe",
+                    "final_status": "inconclusive",
+                    "probe_marker": marker,
+                    "revisit_url": probe_result.revisit_url if probe_result is not None else None,
+                    "sink_note": sink_note,
                 })
-            print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
+        else:
+            families.extend(generate_stored_xss_families(sp, target))
+    except Exception as e:
+        if findings_path:
+            append_jsonl(findings_path, {
+                    "target_id": sp.target_id,
+                    "param": sp.name,
+                    "stage": "xss_prepare",
+                    "status": "error",
+                    "error": str(e),
+            })
+        print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
 
     # SQLi 
     try : 
@@ -160,8 +158,7 @@ def _resolve_case_revisit_url(sent: dict, case) -> str | None:
     return resolved if is_same_host(case.url, resolved) else None  # 범위 밖 목적지 -> 호출부가 family.revisit_url로 폴백
 
 
-# 사용자가 로컬 웹 설정에서 등록한 "A url -> B url" 재방문 주소를 target 딕셔너리에 반영
-# (target["revisit_url"]에 채워두면 analyzer.xss.revisit.resolve_revisit_url이 최우선으로 사용함)
+# 로컬 웹 설정의 재방문 주소(A url -> B url)를 target["revisit_url"]에 반영 (resolve_revisit_url이 최우선으로 사용)
 def _apply_revisit_overrides(targets: list[dict]) -> None:
     overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
     if not overrides:
@@ -172,8 +169,7 @@ def _apply_revisit_overrides(targets: list[dict]) -> None:
             target["revisit_url"] = match
 
 
-# collector ->  ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 ScanPoint 단위로 실행
-# on_paths_ready: (results_path, findings_path)를 알게 되는 즉시 호출되는 콜백 (로컬 웹의 진행 상황 조회용, 없으면 무시)
+# collector -> ScanPoint 라우팅 -> 요청 전송 -> 판정 -> findings.jsonl까지 실행 (on_paths_ready는 결과 경로를 알게 되면 호출하는 콜백)
 def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output_dir=None) -> str:
     progress = PipelineProgress(callback=on_progress, stop_requested=should_stop)
 
@@ -300,7 +296,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
                     target_id=family.target_id, param=family.param, attack_id=family.attack_id,
                     baseline=case_results[0], mutations=case_results[1:],
-                    location=family.location, value_index=family.value_index,  # #25 지점 식별 계약
+                    location=family.location, value_index=family.value_index,  # 지점 식별용
                     dynamic_markers=family.dynamic_markers,
                     baseline_match_ratio=family.baseline_match_ratio,
                     sink_confirmed=family.sink_confirmed,
@@ -318,7 +314,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                             "family_id": family.family_id, "target_id": family.target_id,
                             "param": family.param, "vuln_type": family.vuln_type,
                             "technique": family.technique, "final_status": "inconclusive",
-                            "location": family.location, "value_index": family.value_index,  # #25 지점 식별 계약
+                            "location": family.location, "value_index": family.value_index,  # 지점 식별용
                             "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
                         })
                         break

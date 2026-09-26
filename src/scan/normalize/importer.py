@@ -15,8 +15,7 @@ def _first_line(raw: str) -> str:
     return (raw.split("\r\n")[0] if "\r\n" in raw else raw.split("\n")[0]).strip()
 
 
-# requestHeader 첫 줄 파싱(method, path)해 tuple에 저장
-# 예: "GET /path?q=1 HTTP/1.1" -> ("GET", "/path?q=1")
+# requestHeader 첫 줄 -> (method, path) (예: "GET /path?q=1 HTTP/1.1" -> ("GET", "/path?q=1"))
 def _parse_request_line(raw: str) -> tuple[str, str]:
     parts = _first_line(raw).split(" ")
     if len(parts) >= 2:
@@ -24,8 +23,7 @@ def _parse_request_line(raw: str) -> tuple[str, str]:
     return "", ""
 
 
-# responseHeader 첫 줄 파싱 (status code) 해 int로 저장
-# 예: "HTTP/1.1 200 OK" -> 200
+# responseHeader 첫 줄 -> status code (예: "HTTP/1.1 200 OK" -> 200)
 def _parse_response_status(raw: str) -> int:
     parts = _first_line(raw).split(" ")
     if len(parts) >= 2:
@@ -85,9 +83,7 @@ def _parse_form_body(body: str) -> dict[str, list[str]]:
     return parse_qs(body, keep_blank_values=True)
 
 
-# ZAP 메시지 목록 -> RequestTarget 목록
-# 조건: GET은 query parameter, POST는 x-www-form-urlencoded 바디 파라미터가 있는 것만 포함 (JSON/multipart는 추후 구현)
-# 중복 제거: (method, base_url, param_location, 파라미터 이름 조합) 기준
+# ZAP 메시지 목록 -> RequestTarget 목록 (GET은 쿼리, POST는 쿼리 + form 바디 / JSON·multipart 바디는 추후 구현)
 def to_targets(messages: list[dict]) -> list[RequestTarget]:
     seen: set[tuple] = set()
     targets: list[RequestTarget] = []
@@ -117,27 +113,22 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
 
         base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
 
-        # 같은 이름의 파라미터가 여러 개면(HPP, 다중선택 등) 값 전부를 리스트로 보존
+        # 파라미터 위치(query/body)별로 따로 수집, 같은 이름의 파라미터(HPP 등)는 값 전부 보존
+        query_params = parse_qs(parsed.query, keep_blank_values=True)
+        sites: list[tuple[dict, str]] = []
         if method == "GET":
-            raw_params = parse_qs(parsed.query, keep_blank_values=True)
-            if not raw_params:
-                continue
-            params = raw_params
-            param_location = "query"
+            if query_params:
+                sites.append((query_params, "query"))
         else:  # POST
             content_type = req_headers.get("content-type", "")
-            if "application/x-www-form-urlencoded" not in content_type:
-                continue  # JSON/multipart 바디는 추후 구현
-            params = _parse_form_body(msg.get("requestBody", "") or "")
-            if not params:
-                continue
-            param_location = "body"
-
-        param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
-        dedup_key = (method, base_url, param_location, param_shape)
-        if dedup_key in seen:
+            if "application/x-www-form-urlencoded" in content_type:  # JSON/multipart 바디는 추후 구현
+                body_params = _parse_form_body(msg.get("requestBody", "") or "")
+                if body_params:
+                    sites.append((body_params, "body"))
+            if query_params:  # POST여도 URL 쿼리에 지점이 있으면 content-type과 무관하게 별도 수집
+                sites.append((query_params, "query"))
+        if not sites:
             continue
-        seen.add(dedup_key)
 
         cookies = _parse_cookies(req_headers.get("cookie", ""))
         headers_clean = {k: v for k, v in req_headers.items() if k != "cookie"}
@@ -145,19 +136,29 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
         # status: msg 필드 우선, 없으면 responseHeader 파싱
         response_status = _safe_int(msg.get("statusCode")) or _parse_response_status(resp_header_raw)
 
-        targets.append(RequestTarget(
-            method=method,
-            url=url,
-            base_url=base_url,
-            params=params,
-            param_location=param_location,
-            headers=headers_clean,
-            cookies=cookies,
-            request_body=msg.get("requestBody", "") or "",
-            response_status=response_status,
-            response_headers=_parse_headers_block(resp_header_raw),
-            response_body=msg.get("responseBody", "") or "",
-            zap_message_id=str(msg.get("id", "")),
-        ))
+        # 인증·기능 차이 보존용으로 쿠키 이름(값 제외)과 응답 상태 코드도 중복 제거 기준에 포함
+        cookie_names = tuple(sorted(cookies.keys()))
+
+        for params, param_location in sites:
+            param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
+            dedup_key = (method, base_url, param_location, param_shape, cookie_names, response_status)
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+
+            targets.append(RequestTarget(
+                method=method,
+                url=url,
+                base_url=base_url,
+                params=params,
+                param_location=param_location,
+                headers=headers_clean,
+                cookies=cookies,
+                request_body=msg.get("requestBody", "") or "",
+                response_status=response_status,
+                response_headers=_parse_headers_block(resp_header_raw),
+                response_body=msg.get("responseBody", "") or "",
+                zap_message_id=str(msg.get("id", "")),
+            ))
 
     return targets
