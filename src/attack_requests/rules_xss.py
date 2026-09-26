@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+_DOM_QUERY_PAYLOADS = [
+    "<img src=x onerror=alert(1)>",
+    "<svg onload=alert(1)>",
+    '"><img src=x onerror=alert(1)>',
+    "'-alert(1)-'",
+    '";alert(1);//',
+    "javascript:alert(1)",
+    "<script>alert(1)</script>",
+]
+
 XSS_RULES: list[dict] = [
     # ── reflected: 반사형 XSS (입력이 응답에 그대로 반사되는 지점) ──
     {
@@ -292,6 +302,7 @@ XSS_RULES: list[dict] = [
                 "#<svg onload=alert(1)>",
                 "'-alert(1)-'",
             ],
+            "attack_query": _DOM_QUERY_PAYLOADS,
         },
     },
 ]

@@ -21,8 +21,25 @@ class RequestDeliveryUnknown(RuntimeError):
 
     서버가 이미 처리했는데 응답만 못 받았을 수도 있다. 이때 다시 보내면 게시글이
     중복 생성될 수 있으므로, 재시도하지 않고 '서버가 처리했는지 알 수 없음' 상태로 올린다.
-    downstream은 isinstance로 이 예외를 구분해 일반 error와 다른 상태로 전달할 수 있다.
+    오케스트레이터는 isinstance로 이 예외를 잡아 case_id·method·reason으로 결과에
+    일반 error와 다른 상태(reason='delivery_unknown')를 남긴다. 메시지 문자열 파싱 없이
+    구분할 수 있도록 구조화 필드를 노출한다.
     """
+
+    reason = "delivery_unknown"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        case_id: str | None = None,
+        method: str | None = None,
+        original_error: BaseException | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.case_id = case_id
+        self.method = method
+        self.original_error = original_error
 
 def _is_retry_safe(method: str) -> bool:
     return method.strip().upper() in _RETRY_SAFE_METHODS
@@ -222,8 +239,8 @@ def send(case: MutationCase, zap) -> dict:
     else:
         if not retry_safe:
             raise RequestDeliveryUnknown(
-                f"{case.method} {case.case_id} 전송 실패, 서버가 처리했는지 알 수 없음"
-                f"(POST 같은 요청이라 재시도 안 함): {last_error}"
+                f"{case.method} {case.case_id} 전송 실패, 서버 처리 여부 불명 (POST류라 재시도 안 함): {last_error}",
+                case_id=case.case_id, method=case.method, original_error=last_error,
             ) from last_error
         raise last_error or RuntimeError("ZAP send_request 재시도 모두 실패")
 

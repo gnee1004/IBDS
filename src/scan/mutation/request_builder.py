@@ -20,6 +20,7 @@ _BOOL_STEP_META: dict[str, tuple[str, str, str]] = {
     "or_false":  ("or",  "attack_false", "approx_baseline"),
     "control":   ("control", "control",  "approx_baseline"),
 }
+_TIME_STEP_ROLE: dict[str, str] = {"attack": "attack", "control": "control"}
 
 
 def _short_step(step: str) -> str:
@@ -50,6 +51,7 @@ def build_families_for_point(
             if step == "baseline":
                 continue
             bool_meta = _BOOL_STEP_META.get(step) if matched.technique == "boolean" else None
+            time_role = _TIME_STEP_ROLE.get(step) if matched.technique.startswith("time") else None
             for ctx_idx, payload in enumerate(matched.rendered_payloads.get(step, [])):
                 if payload_filter is not None and not payload_filter(payload):
                     continue  # Discovery 결과 등으로 실행 불가능하다고 판단된 payload 제외
@@ -65,6 +67,10 @@ def build_families_for_point(
                         case.pair_id = f"{family_id}_{group}_c{ctx_idx}"
                         case.role = role
                         case.expected = expected
+                        case.repeat_index = repeat_index
+                    elif time_role:
+                        case.pair_id = f"{family_id}_time_c{ctx_idx}"
+                        case.role = time_role
                         case.repeat_index = repeat_index
                     key = (case.url, case.body, case.pair_id, case.role, case.repeat_index)
                     if key in seen_cases:
@@ -85,8 +91,8 @@ def build_families_for_point(
             technique=matched.technique,
             baseline=baseline,
             mutations=mutations,
-            location=sp.location,        # #25 지점 식별 계약: 그룹핑용 안정적 위치 정보 전달
-            value_index=sp.value_index,  # 같은 이름 파라미터의 occurrence 순번
+            location=sp.location,
+            value_index=sp.value_index,
             dynamic_markers=dynamic_markers or [],
             baseline_match_ratio=baseline_match_ratio,
         ))

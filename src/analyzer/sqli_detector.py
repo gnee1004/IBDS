@@ -77,6 +77,13 @@ def _bcase(mutation: dict, key: str) -> Any:  # MutationCase의 SQLi 비교 계�
     return (mutation.get("case") or {}).get(key)
 
 
+def _is_time_control(mutation: dict) -> bool:
+    role = _bcase(mutation, "role")
+    if role is not None:
+        return role == "control"
+    return str(_bcase(mutation, "step") or "") == "control"
+
+
 def _sim(base_clean: str, family: dict, mutation: dict) -> float:
     return SequenceMatcher(None, base_clean, _clean_body(family, mutation)).ratio()
 
@@ -152,10 +159,16 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         return []
 
     if technique.startswith("time"):
-        elapsed = [float(item.get("elapsed") or 0.0) for item in mutations]
-        verdict = judge_time_based_sqli(baseline_elapsed, elapsed)
+        # 대조(sleep 0) 요청은 지연 판정 대상에서 빼고, 공격 지연을 재는 기준으로만 넘긴다
+        attack_muts = [m for m in mutations if not _is_time_control(m)]
+        control_muts = [m for m in mutations if _is_time_control(m)]
+        if not attack_muts:
+            return [_family_finding(family, "inconclusive", "공격 요청 전송 실패로 검사 미완료 (대조 요청만 성공)")]
+        attack_elapsed = [float(m.get("elapsed") or 0.0) for m in attack_muts]
+        control_elapsed = [float(m.get("elapsed") or 0.0) for m in control_muts]
+        verdict = judge_time_based_sqli(baseline_elapsed, attack_elapsed, control_elapsed)
         if verdict.vulnerable:
-            slowest = max(mutations, key=lambda item: float(item.get("elapsed") or 0.0))
+            slowest = max(attack_muts, key=lambda m: float(m.get("elapsed") or 0.0))
             return [_finding(family, slowest, verdict.confidence, verdict.evidence, "vulnerable")]
         return [_family_finding(family, "safe", verdict.evidence)]
 

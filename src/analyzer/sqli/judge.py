@@ -145,17 +145,25 @@ def judge_error_based_sqli(
     return SqliVerdict(False, "", "DB 에러·마커 시그니처 없음", final_status="safe")
 
 
-def judge_time_based_sqli(baseline_elapsed: float, attack_elapsed_list: list[float]) -> SqliVerdict:
+def judge_time_based_sqli(
+    baseline_elapsed: float,
+    attack_elapsed_list: list[float],
+    control_elapsed_list: list[float] | None = None,
+) -> SqliVerdict:
+    controls = control_elapsed_list or []
+    reference = max([baseline_elapsed, *controls])
+    control_note = f", 대조 최대 {max(controls):.2f}s" if controls else ", 대조 없음"
 
     def _is_delayed(e: float) -> bool:
-        return e >= SLEEP_THRESHOLD and (e - baseline_elapsed) >= DELAY_MARGIN
+        return e >= SLEEP_THRESHOLD and (e - reference) >= DELAY_MARGIN
 
     slow_count = sum(1 for e in attack_elapsed_list if _is_delayed(e))
 
     if slow_count == 0:
         return SqliVerdict(
             False, "",
-            f"지연 응답 없음 (baseline {baseline_elapsed:.2f}s 대비 +{DELAY_MARGIN:.0f}s 초과 없음)"
+            f"지연 응답 없음 (기준 {reference:.2f}s{control_note} 대비 +{DELAY_MARGIN:.0f}s 초과 없음)",
+            final_status="safe",
         )
 
     if slow_count >= MIN_REPEAT_CONFIRM:
@@ -163,11 +171,11 @@ def judge_time_based_sqli(baseline_elapsed: float, attack_elapsed_list: list[flo
         return SqliVerdict(
             True, "high",
             f"Time-based SQLi (confirmed): {slow_count}/{len(attack_elapsed_list)}회 지연 재현 "
-            f"(평균 {avg:.2f}s, baseline {baseline_elapsed:.2f}s, +{DELAY_MARGIN:.0f}s 이상)"
+            f"(평균 {avg:.2f}s, 기준 {reference:.2f}s{control_note}, +{DELAY_MARGIN:.0f}s 이상)"
         )
 
     return SqliVerdict(
         True, "medium",
-        f"Time-based SQLi (suspected): {slow_count}/{len(attack_elapsed_list)}회만 baseline+{DELAY_MARGIN:.0f}s 초과 — "
-        f"재현성 부족, 추가 검증 필요"
+        f"Time-based SQLi (suspected): {slow_count}/{len(attack_elapsed_list)}회만 기준+{DELAY_MARGIN:.0f}s 초과 "
+        f"(기준 {reference:.2f}s{control_note}) — 재현성 부족, 추가 검증 필요"
     )
