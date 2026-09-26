@@ -159,7 +159,6 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         return []
 
     if technique.startswith("time"):
-        # 대조(sleep 0) 요청은 지연 판정 대상에서 빼고, 공격 지연을 재는 기준으로만 넘긴다
         attack_muts = [m for m in mutations if not _is_time_control(m)]
         control_muts = [m for m in mutations if _is_time_control(m)]
         if not attack_muts:
