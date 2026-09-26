@@ -38,57 +38,56 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
 
     families: list[RequestFamily] = []
 
-    if sp.value_type in ("string", "number"):  # XSS 대상: 문자열·숫자 모두 (반사 여부는 discovery가 판정)
-        try:
-            discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
-            families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
+    try:
+        discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
+        families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
 
-            # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
-            if marker_factory is not None and sp.location == "form":
-                marker = marker_factory(sp.name)
-                probe_result = None
-                probe_err = None
-                try:
-                    probe_result = probe_sink(sp, target, marker, requester, zap)
-                except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
-                    probe_err = str(e)
-                    print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+        # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
+        if marker_factory is not None and sp.location == "form":
+            marker = marker_factory(sp.name)
+            probe_result = None
+            probe_err = None
+            try:
+                probe_result = probe_sink(sp, target, marker, requester, zap)
+            except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
+                probe_err = str(e)
+                print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
 
-                if probe_result is not None and probe_result.sink_confirmed:
-                    stored = generate_stored_xss_families(sp, target)
-                    for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
-                        f.sink_confirmed = probe_result.sink_confirmed
-                        f.revisit_url = probe_result.revisit_url
-                        f.probe_marker = probe_result.probe_marker
-                    families.extend(stored)
-                elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
-                    if probe_err is not None:
-                        sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
-                    else:
-                        sink_note = "판정 불가 - 마커 재조회 확인 실패"
-                    append_jsonl(findings_path, {
-                        "target_id": sp.target_id,
-                        "param": sp.name,
-                        "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
-                        "technique": "stored",
-                        "stage": "probe",
-                        "final_status": "inconclusive",
-                        "probe_marker": marker,
-                        "revisit_url": probe_result.revisit_url if probe_result is not None else None,
-                        "sink_note": sink_note,
-                    })
-            else:
-                families.extend(generate_stored_xss_families(sp, target))
-        except Exception as e:
-            if findings_path:
+            if probe_result is not None and probe_result.sink_confirmed:
+                stored = generate_stored_xss_families(sp, target)
+                for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
+                    f.sink_confirmed = probe_result.sink_confirmed
+                    f.revisit_url = probe_result.revisit_url
+                    f.probe_marker = probe_result.probe_marker
+                families.extend(stored)
+            elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
+                if probe_err is not None:
+                    sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
+                else:
+                    sink_note = "판정 불가 - 마커 재조회 확인 실패"
                 append_jsonl(findings_path, {
-                        "target_id": sp.target_id,
-                        "param": sp.name,
-                        "stage": "xss_prepare",
-                        "status": "error",
-                        "error": str(e),
+                    "target_id": sp.target_id,
+                    "param": sp.name,
+                    "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
+                    "technique": "stored",
+                    "stage": "probe",
+                    "final_status": "inconclusive",
+                    "probe_marker": marker,
+                    "revisit_url": probe_result.revisit_url if probe_result is not None else None,
+                    "sink_note": sink_note,
                 })
-            print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
+        else:
+            families.extend(generate_stored_xss_families(sp, target))
+    except Exception as e:
+        if findings_path:
+            append_jsonl(findings_path, {
+                    "target_id": sp.target_id,
+                    "param": sp.name,
+                    "stage": "xss_prepare",
+                    "status": "error",
+                    "error": str(e),
+            })
+        print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
 
     # SQLi 
     try : 
