@@ -33,6 +33,7 @@ def build_scan_points(targets: list[dict]) -> list[ScanPoint]:
         raw_scannable = target.get("scannable_params")
         scannable = set(params.keys() if raw_scannable is None else raw_scannable)
         location = _normalize_location(target.get("param_location", "query"))
+        method = (target.get("method") or "").upper()
 
         for name, values in params.items():
             if name not in scannable:
@@ -46,6 +47,7 @@ def build_scan_points(targets: list[dict]) -> list[ScanPoint]:
                     original_value=str(value),
                     value_type="number" if _is_numeric(value) else "string",
                     value_index=idx,
+                    method=method,
                 ))
 
     return scan_points
