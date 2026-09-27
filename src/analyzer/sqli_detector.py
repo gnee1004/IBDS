@@ -141,6 +141,14 @@ def _analyze_boolean(family: dict) -> list[Finding]:
     return [_finding(family, rep, confidence, evidence, "vulnerable")]
 
 
+# 무신호 종결 상태 (#6): 공격 일부가 전송 실패했으면 미검사 구간이 있어 safe 금지 → inconclusive
+def _no_signal_status(raw_mutations: list, mutations: list, evidence: str) -> tuple[str, str]:
+    failed = len(raw_mutations) - len(mutations)
+    if failed > 0:
+        return "inconclusive", f"{evidence} — 공격 {failed}건 전송 실패로 미검사 구간 있음(safe 금지)"
+    return "safe", evidence
+
+
 def _analyze_sqli(family: dict) -> list[Finding]:
     technique = str(family.get("technique") or "")
     if technique.startswith("boolean"):
@@ -177,7 +185,8 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
             if verdict.vulnerable:
                 return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
-        return [_family_finding(family, "safe", "UNION 에러 시그니처 없음")]
+        status, evidence = _no_signal_status(raw_mutations, mutations, "UNION 에러 시그니처 없음")
+        return [_family_finding(family, status, evidence)]
 
     # error 계열: 마커 값 노출이면 vulnerable, 아니면 safe. error_extract technique는 extraction으로 분기
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
@@ -189,7 +198,8 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         )
         if verdict.final_status == "vulnerable":
             return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
-    return [_family_finding(family, "safe", "DB 에러·마커 시그니처 안보임")]
+    status, evidence = _no_signal_status(raw_mutations, mutations, "DB 에러·마커 시그니처 없음")
+    return [_family_finding(family, status, evidence)]
 
 
 def analyze_family(family: dict) -> list[Finding]:
