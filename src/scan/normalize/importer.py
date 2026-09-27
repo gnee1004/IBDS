@@ -1,6 +1,7 @@
 import re
 from urllib.parse import urlparse, parse_qs
 from .target import RequestTarget
+from .param_filter import is_security_token
 
 # 정적 파일 확장자
 _STATIC_EXT = re.compile(
@@ -83,6 +84,21 @@ def _parse_form_body(body: str) -> dict[str, list[str]]:
     return parse_qs(body, keep_blank_values=True)
 
 
+def _cookie_signature(cookies: dict[str, str]) -> tuple:
+    return tuple(sorted(
+        (name, "<token>" if is_security_token(value.strip()) else value.strip())
+        for name, value in cookies.items()
+    ))
+
+
+def _value_signature(params: dict[str, list[str]], scannable: set[str]) -> tuple:
+    return tuple(sorted(
+        (name, tuple(sorted("<token>" if is_security_token(v) else v for v in values)))
+        for name, values in params.items()
+        if name not in scannable
+    ))
+
+
 # ZAP 메시지 목록 -> RequestTarget 목록 (GET은 쿼리, POST는 쿼리 + form 바디 / JSON·multipart 바디는 추후 구현)
 def to_targets(messages: list[dict]) -> list[RequestTarget]:
     seen: set[tuple] = set()
@@ -136,17 +152,10 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
         # status: msg 필드 우선, 없으면 responseHeader 파싱
         response_status = _safe_int(msg.get("statusCode")) or _parse_response_status(resp_header_raw)
 
-        # 인증·기능 차이 보존용으로 쿠키 이름(값 제외)과 응답 상태 코드도 중복 제거 기준에 포함
-        cookie_names = tuple(sorted(cookies.keys()))
+        cookie_sig = _cookie_signature(cookies)
 
         for params, param_location in sites:
-            param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
-            dedup_key = (method, base_url, param_location, param_shape, cookie_names, response_status)
-            if dedup_key in seen:
-                continue
-            seen.add(dedup_key)
-
-            targets.append(RequestTarget(
+            target = RequestTarget(
                 method=method,
                 url=url,
                 base_url=base_url,
@@ -159,6 +168,17 @@ def to_targets(messages: list[dict]) -> list[RequestTarget]:
                 response_headers=_parse_headers_block(resp_header_raw),
                 response_body=msg.get("responseBody", "") or "",
                 zap_message_id=str(msg.get("id", "")),
-            ))
+            )
+
+            param_shape = tuple(sorted((name, len(values)) for name, values in params.items()))
+            dedup_key = (
+                method, base_url, param_location, param_shape,
+                cookie_sig, response_status,
+                _value_signature(params, set(target.scannable_params())),
+            )
+            if dedup_key in seen:
+                continue
+            seen.add(dedup_key)
+            targets.append(target)
 
     return targets
