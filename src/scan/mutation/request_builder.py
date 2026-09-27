@@ -11,7 +11,8 @@ from .discovery import _CANDIDATE_SPECIALS
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
-_DOM_TECHNIQUE = "dom"  # DOM 계열은 payload를 URL fragment로 주입
+_DOM_TECHNIQUE = "dom"  # DOM 계열: URL 소스 주입 (hash/쿼리)
+_DOM_QUERY_STEP = "attack_query"  # DOM 쿼리(location.search) 소스 스텝 — 나머지 DOM 스텝은 fragment(location.hash)
 _BOOLEAN_REPEAT = 2  # boolean 동일 조건 재검증용 반복 횟수 — 같은 (pair_id, role)을 이 횟수만큼 전송
 _BOOL_STEP_META: dict[str, tuple[str, str, str]] = {
     "and_true":  ("and", "attack_true",  "approx_baseline"),
@@ -50,6 +51,8 @@ def build_families_for_point(
             if step == "baseline":
                 continue
             bool_meta = _BOOL_STEP_META.get(step) if matched.technique == "boolean" else None
+            # DOM 소스 분기: attack=fragment(location.hash), attack_query=쿼리(location.search)로 주입
+            inject_frag = is_dom and step != _DOM_QUERY_STEP
             for ctx_idx, payload in enumerate(matched.rendered_payloads.get(step, [])):
                 if payload_filter is not None and not payload_filter(payload):
                     continue  # Discovery 결과 등으로 실행 불가능하다고 판단된 payload 제외
@@ -58,7 +61,7 @@ def build_families_for_point(
                     case = build_mutation_case(
                         target, sp.location, sp.name, sp.original_value,
                         payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
-                        value_index=sp.value_index, inject_fragment=is_dom,
+                        value_index=sp.value_index, inject_fragment=inject_frag,
                     )
                     if bool_meta:
                         group, role, expected = bool_meta
@@ -136,11 +139,12 @@ _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
-    # DOM 계열: payload를 URL fragment(#뒤)로 주입 → 서버로 전송되지 않으므로
-    # 서버 반사(reflected)·서버 반사 특수문자(valid_specials)와 독립. 항상 생성, 필터 미적용.
-    # 현재 검사 범위는 fragment(location.hash) 단일 소스에 한정된다.
-    dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
-    families.extend(build_families_for_point(sp, target, dom_rules))
+    ''' DOM 소스(location.hash·search)는 URL 계열 → URL 지점(query)에서만 생성, POST form·json 제외(ZAP 정책).
+    서버로 전송 안 되므로 reflected·valid_specials와 독립(필터 미적용). 소스는 현재 fragment, 쿼리는 후속. 배경: docs/3333.md.
+    TODO(9/28, 서진): POST요청+URL쿼리 지점은 케이스 method가 POST라 GET navigate 대상 아님 → 헤드리스 POST 경로 정리서 조율. '''
+    if sp.location == "query":
+        dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
+        families.extend(build_families_for_point(sp, target, dom_rules))
 
     # reflected 계열: 입력이 서버 응답에 반사돼야 의미가 있음 → 반사가 없으면 생성 안 함.
     if discovery.reflected:

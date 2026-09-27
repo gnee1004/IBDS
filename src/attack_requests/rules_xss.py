@@ -1,5 +1,16 @@
 from __future__ import annotations
 
+# DOM 쿼리 소스(location.search)용 payload — fragment와 달리 "#" 접두 없이 ?name= 값으로 주입
+_DOM_QUERY_PAYLOADS = [
+    "<img src=x onerror=alert(1)>",
+    "<svg onload=alert(1)>",
+    '"><img src=x onerror=alert(1)>',
+    "'-alert(1)-'",
+    '";alert(1);//',
+    "javascript:alert(1)",
+    "<script>alert(1)</script>",
+]
+
 XSS_RULES: list[dict] = [
     # ── reflected: 반사형 XSS (입력이 응답에 그대로 반사되는 지점) ──
     {
@@ -272,26 +283,23 @@ XSS_RULES: list[dict] = [
             ],
         },
     },
-    # ── dom: DOM 기반 XSS (클라이언트 JS가 처리, 헤드리스로 확인) ──
-    # 검사 범위: 현재 DOM 검사는 payload를 URL fragment(location.hash) 한 곳으로만 주입한다.
-    # fragment는 서버로 전송되지 않으므로 서버 반사와 독립이며(generate_xss_families 참고),
-    # 쿼리 파라미터를 읽는 DOM sink·postMessage·document.referrer 등 다른 소스는 현재 범위 밖이다.
+    # ── dom: DOM 기반 XSS (클라이언트 JS가 처리, 헤드리스로 확인). 소스는 fragment(location.hash)와 쿼리(location.search) 2종 ──
+    # 검사 범위: URL 소스만. postMessage·document.referrer 등은 현재 범위 밖 (generate_xss_families 참고).
     {
         "attack_id": "PL-XSS-DOM",
         "vuln_type": "xss",
         "technique": "dom",
         "category": "dom",
-        "sequence": ["baseline", "attack"],
+        # attack=fragment(hash) 소스, attack_query=쿼리(search) 소스 — 생성부에서 step별로 주입 경로 분기
+        "sequence": ["baseline", "attack", "attack_query"],
         "payload_templates": {
+            # fragment 주입 시 _inject_fragment가 "#"를 lstrip 후 다시 붙여 "#" 접두 유무가 소거되므로 "#" 접두본만 정본으로 남김
             "attack": [
-                # DOM 계열은 payload를 URL fragment(#뒤)로 주입하고, 주입 시
-                # _inject_fragment가 앞의 "#"를 lstrip 후 다시 붙이므로 "#" 접두 유무는
-                # 소거된다. 따라서 "#<img..>"와 "<img..>"는 동일 URL이 되어 중복이므로
-                # "#" 접두 버전만 정본으로 남긴다.
                 "#<img src=x onerror=alert(1)>",
                 "#<svg onload=alert(1)>",
                 "'-alert(1)-'",
             ],
+            "attack_query": _DOM_QUERY_PAYLOADS,
         },
     },
 ]
