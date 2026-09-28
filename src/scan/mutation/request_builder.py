@@ -154,8 +154,8 @@ def _owns_fragment(sp: ScanPoint, target: dict) -> bool:
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
-    # DOM 계열: URL 소스라 query 지점에서만 생성, 서버 반사와 무관해 필터 미적용
-    if sp.location == "query":
+    # DOM 계열: URL 소스라 GET 쿼리 지점에서만 생성(POST+쿼리는 헤드리스 GET 확인 불가라 제외), 필터 미적용
+    if sp.location == "query" and (sp.method or "GET") == "GET":
         dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
         families.extend(build_families_for_point(sp, target, dom_rules, with_fragment=_owns_fragment(sp, target)))
 
