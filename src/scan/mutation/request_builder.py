@@ -11,7 +11,8 @@ from .discovery import _CANDIDATE_SPECIALS
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
-_DOM_TECHNIQUE = "dom"  # DOM 계열은 payload를 URL fragment로 주입
+_DOM_TECHNIQUE = "dom"  # DOM 계열: URL 소스 주입 (hash/쿼리)
+_DOM_QUERY_STEP = "attack_query"  # DOM 쿼리(location.search) 소스 스텝 — 나머지 DOM 스텝은 fragment(location.hash)
 _BOOLEAN_REPEAT = 2  # boolean 동일 조건 재검증용 반복 횟수 — 같은 (pair_id, role)을 이 횟수만큼 전송
 _BOOL_STEP_META: dict[str, tuple[str, str, str]] = {
     "and_true":  ("and", "attack_true",  "approx_baseline"),
@@ -51,6 +52,8 @@ def build_families_for_point(
             if step == "baseline":
                 continue
             bool_meta = _BOOL_STEP_META.get(step) if matched.technique == "boolean" else None
+            # DOM 소스 분기: attack=fragment(location.hash), attack_query=쿼리(location.search)로 주입
+            inject_frag = is_dom and step != _DOM_QUERY_STEP
             time_role = _TIME_STEP_ROLE.get(step) if matched.technique.startswith("time") else None
             for ctx_idx, payload in enumerate(matched.rendered_payloads.get(step, [])):
                 if payload_filter is not None and not payload_filter(payload):
@@ -60,7 +63,7 @@ def build_families_for_point(
                     case = build_mutation_case(
                         target, sp.location, sp.name, sp.original_value,
                         payload, step, f"{family_id}_{_short_step(step)}{p_idx}",
-                        value_index=sp.value_index, inject_fragment=is_dom,
+                        value_index=sp.value_index, inject_fragment=inject_frag,
                     )
                     if bool_meta:
                         group, role, expected = bool_meta
@@ -142,11 +145,10 @@ _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
-    # DOM 계열: payload를 URL fragment(#뒤)로 주입 → 서버로 전송되지 않으므로
-    # 서버 반사(reflected)·서버 반사 특수문자(valid_specials)와 독립. 항상 생성, 필터 미적용.
-    # 현재 검사 범위는 fragment(location.hash) 단일 소스에 한정된다.
-    dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
-    families.extend(build_families_for_point(sp, target, dom_rules))
+    # DOM 계열: URL 소스라 query 지점에서만 생성, 서버 반사와 무관해 필터 미적용
+    if sp.location == "query":
+        dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
+        families.extend(build_families_for_point(sp, target, dom_rules))
 
     # reflected 계열: 입력이 서버 응답에 반사돼야 의미가 있음 → 반사가 없으면 생성 안 함.
     if discovery.reflected:
