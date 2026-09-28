@@ -145,7 +145,7 @@ def _analyze_boolean(family: dict) -> list[Finding]:
     return [_finding(family, rep, confidence, evidence, POTENTIAL_HIGH if confirmed else POTENTIAL_MEDIUM)]
 
 
-# 무신호 종결 상태 (#6): 공격 일부가 전송 실패했으면 미검사 구간이 있어 POTENTIAL_LOW 금지 → inconclusive
+# 무신호 종결 상태. 공격 일부가 전송 실패했으면 미검사 구간이 있어 POTENTIAL_LOW 금지 → inconclusive
 def _no_signal_status(raw_mutations: list, mutations: list, evidence: str) -> tuple[str, str]:
     failed = len(raw_mutations) - len(mutations)
     if failed > 0:

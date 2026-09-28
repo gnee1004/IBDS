@@ -34,7 +34,7 @@ def _expected_token(payload: str) -> str | None:
 
 
 # headless 확인 결과까지 반영한 최종 상태 판정 (reflected/DOM 공용).
-# XSS는 표현 확정본상 MEDIUM이 없음 — 실행 미확인은 반사 여부와 무관하게 POTENTIAL_LOW로 통일.
+# XSS는 표현 확정본상 MEDIUM이 없음 — 실행 미확인은 반사 여부와 무관하게 POTENTIAL_LOW로 통일
 def _final_status(headless_checked: bool, hv: HeadlessVerdict | None) -> str:
     if not headless_checked:
         return POTENTIAL_LOW  # raw 판정만으로 실행가능 반사 없음 (headless 대상 아님)
@@ -66,7 +66,7 @@ def _mk_finding(family: dict, case: dict, final_status: str, *, raw=None, hv=Non
 
 
 
-# stored 판정: 재조회 diff → 새 영역(추가된 줄)만 judge_xss → 실제 발화(navigate) 확인 (P0-3)
+# stored 판정: 재조회 diff → 새 영역(추가된 줄)만 judge_xss → 실제 발화(navigate)
 def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) -> Finding:
     case = case_result["case"]
     payload = case.get("payload") or ""
@@ -78,8 +78,8 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
 
-    # 재조회 성공했는데 payload 없음(저장 안 됨) -> 등록 응답 에코를 headless로 실제 발화 확인.
-    # 저장 자체가 확인 안 됐으므로 발화 여부와 무관하게 POTENTIAL_HIGH는 못 감 (확정본: 저장 확인+실행 확인만 HIGH).
+    # 재조회 성공했는데 payload 없음(저장 안 됨) -> 등록 응답 에코를 headless로 실제 발화 확인
+    # 저장 자체가 확인 안 됐으므로 발화 여부와 무관하게 POTENTIAL_HIGH는 못 감
     if case_result.get("revisit_found") is False:
         # 재조회 응답 자체가 무효(403/500 등)면 재조회 실패
         if not _is_valid_revisit_status(case_result.get("revisit_status")):
