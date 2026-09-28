@@ -21,4 +21,4 @@ class Finding:
     raw_verdict: dict              # {vulnerable, confidence, evidence} (XSS는 judge_xss asdict)
     headless_checked: bool         # headless 대상이었는지 (SQLi는 항상 False)
     headless_verdict: dict | None  # headless 결과 (asdict), 대상 아니면 None
-    final_status: str              # "vulnerable" | "reflected_only" | "safe" | "inconclusive"
+    final_status: str              # "potential_high" | "potential_medium" | "potential_low" | "inconclusive"
