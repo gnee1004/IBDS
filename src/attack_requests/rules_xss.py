@@ -283,8 +283,7 @@ XSS_RULES: list[dict] = [
             ],
         },
     },
-    # ── dom: DOM 기반 XSS (클라이언트 JS가 처리, 헤드리스로 확인). 소스는 fragment(location.hash)와 쿼리(location.search) 2종 ──
-    # 검사 범위: URL 소스만. postMessage·document.referrer 등은 현재 범위 밖 (generate_xss_families 참고).
+    # ── dom: DOM 기반 XSS (헤드리스 확인). 소스는 fragment(location.hash)·쿼리(location.search) ──
     {
         "attack_id": "PL-XSS-DOM",
         "vuln_type": "xss",

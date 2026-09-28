@@ -145,9 +145,7 @@ _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
 def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
     families: list[RequestFamily] = []
 
-    ''' DOM 소스(location.hash·search)는 URL 계열 → URL 지점(query)에서만 생성, POST form·json 제외(ZAP 정책).
-    서버로 전송 안 되므로 reflected·valid_specials와 독립(필터 미적용). 소스는 현재 fragment, 쿼리는 후속. 배경: docs/3333.md.
-    TODO(9/28, 서진): POST요청+URL쿼리 지점은 케이스 method가 POST라 GET navigate 대상 아님 → 헤드리스 POST 경로 정리서 조율. '''
+    # DOM 계열: URL 소스라 query 지점에서만 생성, 서버 반사와 무관해 필터 미적용
     if sp.location == "query":
         dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
         families.extend(build_families_for_point(sp, target, dom_rules))
