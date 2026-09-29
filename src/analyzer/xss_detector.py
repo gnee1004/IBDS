@@ -4,7 +4,6 @@ import json
 import os
 from dataclasses import asdict
 
-from scan.models import RequestFamily, CaseResult
 from scan.match.exec_token import exec_token
 from utilities.file_utils import append_jsonl
 from .finding import Finding

@@ -11,7 +11,6 @@ from .sqli.judge import (
     MIN_REPEAT_CONFIRM,
     judge_error_based_sqli,
     judge_time_based_sqli,
-    judge_union_sqli,
     _strip_dynamic,
     _strip_value,
 )
@@ -159,8 +158,6 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         return _analyze_boolean(family)
 
     baseline = family.get("baseline") or {}
-    baseline_body = _body(baseline)
-    baseline_elapsed = float(baseline.get("elapsed") or 0.0)
     raw_mutations = family.get("mutations") or []
     mutations = [item for item in raw_mutations if _successful(item)]
 
@@ -175,6 +172,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         control_muts = [m for m in mutations if _is_time_control(m)]
         if not attack_muts:
             return [_family_finding(family, INCONCLUSIVE, "공격 요청 전송 실패로 검사 미완료 (대조 요청만 성공)")]
+        baseline_elapsed = float(baseline.get("elapsed") or 0.0)
         attack_elapsed = [float(m.get("elapsed") or 0.0) for m in attack_muts]
         control_elapsed = [float(m.get("elapsed") or 0.0) for m in control_muts]
         verdict = judge_time_based_sqli(baseline_elapsed, attack_elapsed, control_elapsed)
@@ -183,16 +181,10 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence, verdict.final_status)]
         return [_family_finding(family, POTENTIAL_LOW, verdict.evidence)]
 
-    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 무신호 (2분기, 정보추출 없음) -> 지우는게 나응ㄹ듯
-    if technique == "union":
-        for mutation in mutations:
-            verdict = judge_union_sqli(baseline_body, _body(mutation))
-            if verdict.vulnerable:
-                return [_finding(family, mutation, verdict.confidence, verdict.evidence, POTENTIAL_HIGH)]
-        status, evidence = _no_signal_status(raw_mutations, mutations, "UNION 에러 시그니처 없음")
-        return [_family_finding(family, status, evidence)]
+    baseline_body = _body(baseline)  # error 계열(union 포함) 응답 본문 비교가 필요
 
-    # error 계열: 추출 마커 확인 시 HIGH, baseline엔 없던 DB 에러만 노출 시 MEDIUM.
+    # error 계열(union 포함): 추출 마커 확인 시 HIGH, baseline엔 없던 DB 에러만 노출 시 MEDIUM.
+    # union의 컬럼 수 불일치 시그니처는 DB_ERROR_KEYWORDS에 이미 포함돼 있어 여기로 합류.
     # error_extract technique는 extraction으로 분기
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
     marker = family.get("extract_marker") or EXTRACT_MARKER

@@ -7,12 +7,7 @@ from urllib.parse import quote
 
 from ..final_status import POTENTIAL_HIGH, POTENTIAL_MEDIUM, POTENTIAL_LOW
 
-# 응답 본문에서 이 문구가 나오면 SQLi로 판정 (error-based / union 판정용 시그니처)
-UNION_ERROR_KEYWORDS: tuple[str, ...] = (
-    "the used select statements have a different number of columns",
-    "column count doesn't match",
-)
-
+# 응답 본문에서 이 문구가 나오면 SQLi로 판정 (error-based 판정용 시그니처. union 컬럼 수 불일치 문구 포함)
 DB_ERROR_KEYWORDS: tuple[str, ...] = (
     "you have an error in your sql syntax",
     "warning: mysql",
@@ -68,15 +63,6 @@ def _strip_dynamic(body: str, markers: list[tuple[str, str]]) -> str:
         pattern = re.escape(prefix) + r".*?" + re.escape(suffix)
         body = re.sub(pattern, prefix + suffix, body, flags=re.DOTALL)
     return body
-
-
-def judge_union_sqli(baseline_body: str, attack_body: str) -> SqliVerdict:
-    base_lower   = (baseline_body or "").lower()
-    attack_lower = (attack_body or "").lower()
-    for kw in UNION_ERROR_KEYWORDS:
-        if kw in attack_lower and kw not in base_lower:
-            return SqliVerdict(True, "medium", f"UNION-based SQLi: 컬럼 수 불일치 에러 노출 ('{kw}')")
-    return SqliVerdict(False, "", "UNION 에러 시그니처 없음")
 
 
 # payload가 뽑아내려는 정보 종류 (증거에 공격-정보 연관성 명시용)
