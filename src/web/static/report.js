@@ -14,7 +14,7 @@ function renderKpis(){
     $('kpis').replaceChildren();
     const statuses=[...order,...report.statuses.filter(x=>!order.includes(x))];
     for(const status of statuses){const node=element('div',undefined,`kpi ${statusClass(status)}`);node.append(element('span',labels[status]||status),element('strong',String(report.counts[status]||0)));$('kpis').append(node);}
-    const node=element('button',undefined,'kpi error-kpi vulnerable');
+    const node=element('button',undefined,'kpi error-kpi error-alert');
     node.id='error-toggle';
     node.setAttribute('aria-controls','error-panel');
     node.setAttribute('aria-expanded','false');

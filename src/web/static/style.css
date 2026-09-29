@@ -358,16 +358,18 @@ progress.stopped::-webkit-progress-value{
   cursor:pointer}
 .kpi.error-kpi:hover{
   background:#fff7f6}
-.vulnerable{
+.potential_high{
   color:#b83932}
-.reflected_only{
+.potential_medium{
   color:#986213}
 .inconclusive{
   color:#706683}
-.safe{
+.potential_low{
   color:#2d7756}
 .unknown{
   color:#586878}
+.error-alert{
+  color:#b83932}
 .results-section{
   margin-top:32px}
 .filters{
@@ -420,11 +422,11 @@ progress.stopped::-webkit-progress-value{
   background:#f1f3f6;
   border-radius:5px;
   white-space:nowrap}
-.badge.vulnerable{
+.badge.potential_high{
   background:#fcecea}
-.badge.reflected_only{
+.badge.potential_medium{
   background:#fff4df}
-.badge.safe{
+.badge.potential_low{
   background:#eaf5ef}
 .badge.inconclusive{
   background:#f0edf5}
