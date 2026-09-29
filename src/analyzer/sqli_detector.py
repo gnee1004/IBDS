@@ -181,6 +181,8 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence, verdict.final_status)]
         return [_family_finding(family, POTENTIAL_LOW, verdict.evidence)]
 
+    baseline_body = _body(baseline)
+
     # error 계열(union 포함): 추출 마커 확인 시 HIGH, baseline엔 없던 DB 에러만 노출 시 MEDIUM.
     # union의 컬럼 수 불일치 시그니처는 DB_ERROR_KEYWORDS에 이미 포함돼 있어 여기로 합류.
     # error_extract technique는 extraction으로 분기
