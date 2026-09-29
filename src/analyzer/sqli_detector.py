@@ -183,7 +183,7 @@ def _analyze_sqli(family: dict) -> list[Finding]:
             return [_finding(family, slowest, verdict.confidence, verdict.evidence, verdict.final_status)]
         return [_family_finding(family, POTENTIAL_LOW, verdict.evidence)]
 
-    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 무신호 (2분기, 정보추출 없음) -> 지우는게 나응ㄹ듯
+    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 무신호 (2분기, 정보추출 없음) -> 지우는게 나을듯
     if technique == "union":
         for mutation in mutations:
             verdict = judge_union_sqli(baseline_body, _body(mutation))
