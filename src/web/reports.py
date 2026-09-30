@@ -96,8 +96,11 @@ def build_report(out_dir):
             continue
         technique = finding.get("technique") or info.get("technique")
         vuln_type = finding.get("vuln_type") or info.get("vuln_type")
+        # 서버 반사로 발화한 DOM 쿼리 결과는 Reflected로 표시 (technique은 dom 유지)
+        category = ("reflected (DOM 쿼리 payload)" if finding.get("server_reflected")
+                    else _technique_category(technique) if technique else None)
         item = {**finding, "final_status": status, "technique": technique,
-                "category": _technique_category(technique) if technique else None,
+                "category": category,
                 "vuln_type": vuln_type,
                 "evidence": finding.get("evidence") or finding.get("sink_note") or
                             (finding.get("raw_verdict") or {}).get("evidence") or ""}
