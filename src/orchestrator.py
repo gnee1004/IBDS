@@ -54,9 +54,12 @@ def _suffix_family_id(family: RequestFamily, suffix: str) -> None:
 
 
 # 저장 출력 위치 탐색(sweep)용 — 수집된 GET 페이지 주소 (fragment 제거, 중복 제거)
+# 스캔 지점과 같은 기준으로 파괴적 액션 타겟은 제외 (sweep이 action=delete 같은 주소를 요청하지 않게)
 def _sweep_urls(targets: list[dict]) -> list[str]:
     urls: list[str] = []
     for target in targets:
+        if has_destructive_action(target.get("params", {})):
+            continue
         url = (target.get("url") or "").split("#", 1)[0]
         if (target.get("method") or "").upper() == "GET" and url and url not in urls:
             urls.append(url)
