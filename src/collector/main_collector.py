@@ -72,7 +72,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
 
     ajax = ajax or bool(target_cfg.get("ajax_spider"))  # 웹 실행은 옵션 인자가 없으므로 설정 파일로도 켤 수 있게 함
     ajax_timeout = int(target_cfg.get("ajax_timeout") or ajax_timeout)  # 웹 설정값 우선
-    ajax_random_inputs = target_cfg.get("ajax_random_inputs", True) is not False  # 양식 자동 입력(무작위 값), 기본 켬
+    ajax_random_inputs = bool(target_cfg.get("ajax_random_inputs", False))  # 양식 자동 입력에 무작위 값 사용, 기본 끔
     danger_patterns = _load_danger_patterns(_DANGER_URL_FILE)
 
     out_dir = output_dir or os.path.join(_PROJECT_ROOT, "results", datetime.now().strftime("collection_%Y%m%d_%H%M%S"))
@@ -98,6 +98,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
         "ajax_spider_random_inputs": ajax_random_inputs,
         "ajax_spider_status": None,
         "ajax_spider_completed": None,
+        "ajax_spider_stop_reason": None,
         "ajax_spider_timeout": ajax_timeout,
         "ajax_spider_elapsed_seconds": None,
     }
@@ -110,6 +111,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
         result = collector.run_ajax_spider(target_url, ajax_timeout, should_stop=should_stop, random_inputs=ajax_random_inputs)  # 타임아웃 초과해도 예외 안 던짐
         ajax_meta["ajax_spider_status"] = result["status"]
         ajax_meta["ajax_spider_completed"] = result["completed"]
+        ajax_meta["ajax_spider_stop_reason"] = result["stop_reason"]  # finished/timeout/user/zap_limit
         ajax_meta["ajax_spider_elapsed_seconds"] = result["elapsed_seconds"]
 
 

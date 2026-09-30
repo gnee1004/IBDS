@@ -13,6 +13,7 @@ CONTEXT_NAME = "IBDSContext"
 _AJAX_BROWSERS = 2  # Ajax Spider 헤드리스 브라우저 병렬 수 (메모리·대상 서버 부담 완화)
 _AJAX_MAX_CRAWL_DEPTH = 5  # Ajax Spider 최대 탐색 깊이 (ZAP 기본 10)
 _AJAX_MAX_CRAWL_STATES = 2000  # Ajax Spider 최대 탐색 상태 수 (ZAP 기본 0 = 무제한, 무한 탐색 방지용 상한)
+_AJAX_LIMIT_MARGIN_SECS = 5  # 제한시간 직전(이 초 이내) 종료는 시간 제한에 걸린 것으로 간주
 _DANGER_ELEMENT_WORDS = [  # 클릭 시 상태 변경 가능성이 있는 요소의 글자 (Ajax Spider 제외용)
     "logout", "log out", "sign out", "delete", "remove", "reset", "drop", "purge",
     "flush", "truncate", "wipe", "destroy", "로그아웃", "삭제", "초기화",
@@ -236,19 +237,20 @@ class ZapCollector:
 
 
     # Ajax Spider 실행 (SPA/JS 기반 요청 발견용, 선택 실행), timeout_seconds 초과 또는 should_stop() 신호 시 stop 후 결과 반환
-    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None, subtree_only=False, random_inputs=True) -> dict:
+    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None, subtree_only=False, random_inputs=False) -> dict:
         ajax = self.zap.ajaxSpider
         ajax.set_option_random_inputs(random_inputs)  # 끄면 페이지에 미리 채워진 기본값 사용 (Benchmark처럼 기본값이 있는 대상에 유리)
         ajax.set_option_click_default_elems(False)  # 기본 요소(a/button) 외에 input[type=button] 등도 클릭해야 JS 전송 요청이 기록됨 (위험 요소는 별도 제외)
         ajax.set_option_number_of_browsers(_AJAX_BROWSERS)  # 병렬 브라우저 수 제한
         ajax.set_option_max_crawl_depth(_AJAX_MAX_CRAWL_DEPTH)  # 탐색 깊이 상한
         ajax.set_option_max_crawl_states(_AJAX_MAX_CRAWL_STATES)  # 탐색 상태 수 상한 (기본 무제한 방지)
-        ajax.set_option_max_duration(max(1, -(-timeout_seconds // 60)))  # ZAP 쪽 실행시간 상한(분), 우리 제한시간 초과 시에도 ZAP이 스스로 종료
+        ajax.set_option_max_duration(-(-timeout_seconds // 60) + 1)  # ZAP 쪽 실행시간 상한(분): 우리 제한시간보다 1분 길게 잡아 우리 검사가 먼저 걸리게 함 (ZAP이 먼저 끝나면 "완료"로 오기록됨)
         ajax.scan(url=target_url, inscope=True, contextname=CONTEXT_NAME, subtreeonly=True if subtree_only else None)  # Context를 명시해야 범위가 정해져 실제로 탐색함 (실험에서 미지정 시 즉시 종료)
 
         time.sleep(2)
         start = time.time()
         completed = True
+        stop_reason = "finished"  # finished(스스로 종료) / timeout(우리 제한시간) / user(사용자 중단) / zap_limit(ZAP 제한에 걸려 종료)
 
         while self.zap.ajaxSpider.status != "stopped":
             elapsed = time.time() - start
@@ -257,6 +259,7 @@ class ZapCollector:
 
             if timed_out or stop_requested:  # 시간 초과 또는 사용자 중단, 실패 아닌 정상 중단
                 completed = False
+                stop_reason = "timeout" if timed_out else "user"
                 self.zap.ajaxSpider.stop()
                 reason = f"{timeout_seconds}초 초과" if timed_out else "사용자 중단 요청"
                 print(f"\n[AJAX SPIDER] {reason}, 중단 요청")
@@ -270,10 +273,13 @@ class ZapCollector:
             time.sleep(2)
 
         elapsed_seconds = round(time.time() - start, 1)
-        print(f"\r[AJAX SPIDER] {'완료' if completed else '타임아웃 중단'} (경과 {elapsed_seconds}s)")
+        if completed and elapsed_seconds >= timeout_seconds - _AJAX_LIMIT_MARGIN_SECS:  # ZAP이 제한시간 직전에 스스로 끝낸 경우도 미완료로 기록
+            completed, stop_reason = False, "zap_limit"
+        print(f"\r[AJAX SPIDER] {'완료' if completed else '중단(' + stop_reason + ')'} (경과 {elapsed_seconds}s)")
         return {
             "status": self.zap.ajaxSpider.status,
             "completed": completed,
+            "stop_reason": stop_reason,
             "timeout": timeout_seconds,
             "elapsed_seconds": elapsed_seconds,
         }
