@@ -122,9 +122,8 @@ def build_report(out_dir):
                 "vuln_type": vuln_type,
                 "evidence": finding.get("evidence") or finding.get("sink_note") or
                             (finding.get("raw_verdict") or {}).get("evidence") or ""}
-        # #25 지점 식별 계약: url 문자열이 아니라 target_id·location·value_index로 그룹을 구분
-        # (같은 url·method·param이라도 위치/중복 값 순번이 다르면 다른 공격 지점)
-        location = finding.get("location")
+        
+        location = finding.get("location") 
         value_index = finding.get("value_index")
         key = (target_id, method, param, location, value_index)
         group = groups.setdefault(key, {"url": url, "method": method, "param": param,
