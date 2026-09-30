@@ -18,7 +18,7 @@ _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 _DANGER_URL_FILE = os.path.join(_THIS_DIR, "spider_exclude.txt")
 
 _DEFAULT_AJAX_TIMEOUT = 300  # Ajax spider timeout을 초 단위로 짧게 잡음. (ZAP 자체 제한시간은 60분)
-_DEFAULT_SPIDER_TIMEOUT = 300  # 일반 Spider 최대 대기시간(초)
+_DEFAULT_SPIDER_TIMEOUT = 1800  # 일반 Spider 최대 대기시간(초), Benchmark SQLi/XSS 약 960건 수집 여유분
 
 
 # Ajax Spider는 SPA/JS-heavy 사이트 대응용 선택 옵션, 기본은 Spider only

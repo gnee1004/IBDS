@@ -188,10 +188,7 @@ def _update_cookies_from_response(origin: str, response_header: str, req_path: s
 
 # MutationCase + cookies -> raw HTTP 요청 텍스트 재조립
 def _build_raw_request(case: MutationCase, cookies: dict[str, str]) -> str:
-    parsed = urlparse(case.url)
-    path = parsed.path + (f"?{parsed.query}" if parsed.query else "")
-
-    lines = [f"{case.method} {path} HTTP/1.1"]
+    lines = [f"{case.method} {case.url} HTTP/1.1"] # 요청 라인에 절대 URL 사용 
     body_bytes = case.body.encode() if case.body else b""
     for k, v in case.headers.items():
         if k.lower() == "content-length":
