@@ -5,12 +5,9 @@ import re
 from dataclasses import dataclass
 from urllib.parse import quote
 
-# 응답 본문에서 이 문구가 나오면 SQLi로 판정 (error-based / union 판정용 시그니처)
-UNION_ERROR_KEYWORDS: tuple[str, ...] = (
-    "the used select statements have a different number of columns",
-    "column count doesn't match",
-)
+from ..final_status import POTENTIAL_HIGH, POTENTIAL_MEDIUM, POTENTIAL_LOW
 
+# 응답 본문에서 이 문구가 나오면 SQLi로 판정 (error-based 판정용 시그니처. union 컬럼 수 불일치 문구 포함)
 DB_ERROR_KEYWORDS: tuple[str, ...] = (
     "you have an error in your sql syntax",
     "warning: mysql",
@@ -41,8 +38,8 @@ class SqliVerdict:
     vulnerable: bool
     confidence: str
     evidence: str
-    # "vulnerable" | "safe"
-    final_status: str = "vulnerable"
+    # "potential_high" | "potential_medium" | "potential_low"
+    final_status: str = POTENTIAL_HIGH
 
 
 _MIN_STRIP_LEN = 4
@@ -66,15 +63,6 @@ def _strip_dynamic(body: str, markers: list[tuple[str, str]]) -> str:
         pattern = re.escape(prefix) + r".*?" + re.escape(suffix)
         body = re.sub(pattern, prefix + suffix, body, flags=re.DOTALL)
     return body
-
-
-def judge_union_sqli(baseline_body: str, attack_body: str) -> SqliVerdict:
-    base_lower   = (baseline_body or "").lower()
-    attack_lower = (attack_body or "").lower()
-    for kw in UNION_ERROR_KEYWORDS:
-        if kw in attack_lower and kw not in base_lower:
-            return SqliVerdict(True, "medium", f"UNION-based SQLi: 컬럼 수 불일치 에러 노출 ('{kw}')")
-    return SqliVerdict(False, "", "UNION 에러 시그니처 없음")
 
 
 # payload가 뽑아내려는 정보 종류 (증거에 공격-정보 연관성 명시용)
@@ -122,16 +110,16 @@ def judge_error_based_sqli(
             return SqliVerdict(
                 True, "high",
                 f"Error-based SQLi (정보추출): {kind_str}값 '{value}' 이 마커 {extract_marker}로 공격 응답에만 노출",
-                final_status="vulnerable",
+                final_status=POTENTIAL_HIGH,
             )
 
-    # 2) baseline엔 없던 DB 에러만 노출 → 정보추출은 확인 못 했으니 취약 근거로 보지 않음 (safe)
+    # 2) baseline엔 없던 DB 에러만 노출 → 정보추출은 확인 못 했지만 DB 관련 오류 시그니처 자체는 신호 (MEDIUM)
     for kw in DB_ERROR_KEYWORDS:
         if kw in attack_lower and kw not in base_lower:
             return SqliVerdict(
-                False, "",
-                f"DB 에러가 공격 응답에만 노출됐지만 정보추출 미확인 — 취약 근거 부족 ('{kw}')",
-                final_status="safe",
+                True, "medium",
+                f"DB 에러가 공격 응답에만 노출됐지만 정보추출 미확인 ('{kw}')",
+                final_status=POTENTIAL_MEDIUM,
             )
 
     # 3) baseline에도 DB 에러 → 정상 동작
@@ -139,10 +127,10 @@ def judge_error_based_sqli(
         if kw in attack_lower and kw in base_lower:
             return SqliVerdict(
                 False, "", f"DB 에러 문구가 baseline에도 있음 — 이 페이지의 정상 동작 ('{kw}')",
-                final_status="safe",
+                final_status=POTENTIAL_LOW,
             )
 
-    return SqliVerdict(False, "", "DB 에러·마커 시그니처 없음", final_status="safe")
+    return SqliVerdict(False, "", "DB 에러·마커 시그니처 없음", final_status=POTENTIAL_LOW)
 
 
 def judge_time_based_sqli(
@@ -163,7 +151,7 @@ def judge_time_based_sqli(
         return SqliVerdict(
             False, "",
             f"지연 응답 없음 (기준 {reference:.2f}s{control_note} 대비 +{DELAY_MARGIN:.0f}s 초과 없음)",
-            final_status="safe",
+            final_status=POTENTIAL_LOW,
         )
 
     if slow_count >= MIN_REPEAT_CONFIRM:
@@ -171,11 +159,13 @@ def judge_time_based_sqli(
         return SqliVerdict(
             True, "high",
             f"Time-based SQLi (confirmed): {slow_count}/{len(attack_elapsed_list)}회 지연 재현 "
-            f"(평균 {avg:.2f}s, 기준 {reference:.2f}s{control_note}, +{DELAY_MARGIN:.0f}s 이상)"
+            f"(평균 {avg:.2f}s, 기준 {reference:.2f}s{control_note}, +{DELAY_MARGIN:.0f}s 이상)",
+            final_status=POTENTIAL_HIGH,
         )
 
     return SqliVerdict(
         True, "medium",
         f"Time-based SQLi (suspected): {slow_count}/{len(attack_elapsed_list)}회만 기준+{DELAY_MARGIN:.0f}s 초과 "
-        f"(기준 {reference:.2f}s{control_note}) — 재현성 부족, 추가 검증 필요"
+        f"(기준 {reference:.2f}s{control_note}) — 재현성 부족, 추가 검증 필요",
+        final_status=POTENTIAL_MEDIUM,
     )
