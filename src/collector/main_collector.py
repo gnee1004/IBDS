@@ -71,6 +71,8 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
         raise ValueError("target_config.json에 target_url이 없습니다.")
 
     ajax = ajax or bool(target_cfg.get("ajax_spider"))  # 웹 실행은 옵션 인자가 없으므로 설정 파일로도 켤 수 있게 함
+    ajax_timeout = int(target_cfg.get("ajax_timeout") or ajax_timeout)  # 웹 설정값 우선
+    ajax_random_inputs = target_cfg.get("ajax_random_inputs", True) is not False  # 양식 자동 입력(무작위 값), 기본 켬
     danger_patterns = _load_danger_patterns(_DANGER_URL_FILE)
 
     out_dir = output_dir or os.path.join(_PROJECT_ROOT, "results", datetime.now().strftime("collection_%Y%m%d_%H%M%S"))
@@ -84,8 +86,6 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
     collector.restrict_to_target_domain(target_url)
     collector.setup_context(target_url)
     collector.exclude_danger_urls(danger_patterns)  # Spider 실행 전 필수 등록
-    if ajax:
-        collector.exclude_danger_elements()  # Ajax Spider가 누를 위험 요소(로그아웃/삭제 등) 제외, 실행 전 필수 등록
 
     collector.access_target(target_url)
     collector.capture_session(target_url)  # 현재 세션 그대로 가져오기
@@ -95,6 +95,7 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
 
     ajax_meta = {
         "ajax_spider_enabled": ajax,
+        "ajax_spider_random_inputs": ajax_random_inputs,
         "ajax_spider_status": None,
         "ajax_spider_completed": None,
         "ajax_spider_timeout": ajax_timeout,
@@ -102,9 +103,11 @@ def run_collection(ajax: bool = False, ajax_timeout: int = _DEFAULT_AJAX_TIMEOUT
     }
     spider_ids: set[str] = set()  # Ajax 실행 전까지 쌓인 메시지 id (출처 구분용)
     if ajax:
-        spider_ids = {str(m.get("id")) for m in collector.get_all_messages(target_url)}
-        print(f"[COLLECT] Ajax Spider 시작 (최대 {ajax_timeout}초): {target_url}")
-        result = collector.run_ajax_spider(target_url, ajax_timeout, should_stop=should_stop)  # 타임아웃 초과해도 예외 안 던짐
+        spider_messages = collector.get_all_messages(target_url)
+        spider_ids = {str(m.get("id")) for m in spider_messages}
+        collector.exclude_danger_elements(spider_messages)  # 일반 Spider가 모은 HTML에서 위험 요소를 찾아 Ajax Spider 제외 등록, 실행 전 필수
+        print(f"[COLLECT] Ajax Spider 시작 (최대 {ajax_timeout}초, 무작위 입력 {'켬' if ajax_random_inputs else '끔'}): {target_url}")
+        result = collector.run_ajax_spider(target_url, ajax_timeout, should_stop=should_stop, random_inputs=ajax_random_inputs)  # 타임아웃 초과해도 예외 안 던짐
         ajax_meta["ajax_spider_status"] = result["status"]
         ajax_meta["ajax_spider_completed"] = result["completed"]
         ajax_meta["ajax_spider_elapsed_seconds"] = result["elapsed_seconds"]
