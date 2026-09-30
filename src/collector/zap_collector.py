@@ -8,7 +8,6 @@ from utilities.file_utils import load_json
 
 SESSION_NAME = "IBDSSession"
 CONTEXT_NAME = "IBDSContext"
-_AJAX_BROWSERS = 5  # Ajax Spider 헤드리스 브라우저 병렬 수
 
 
 # ZAP 수집 인프라 래퍼
@@ -53,9 +52,6 @@ class ZapCollector:
     def exclude_danger_urls(self, patterns: list[str], name=CONTEXT_NAME):
         for pattern in patterns:
             self.zap.spider.exclude_from_scan(pattern)
-            """
-            # TODO: ajax Spider는 URL 정규식이 아니라 클릭할 엘리먼트(a 태그 href) 단위로 제외 등록해야함. 나중에 쓸때 추가
-            self.zap.ajaxSpider.add_excluded_element()"""
         print(f"[ZAP] Context 위험 URL 제외 {len(patterns)}건 등록")
 
 
@@ -168,43 +164,6 @@ class ZapCollector:
 
         print("\r[SPIDER] 중단됨")
 
-
-    # Ajax Spider 실행 (SPA/JS 기반 요청 발견용, 선택 실행), timeout_seconds 초과 또는 should_stop() 신호 시 stop 후 결과 반환
-    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None) -> dict:
-        self.zap.ajaxSpider.set_option_number_of_browsers(_AJAX_BROWSERS)  # 병렬 브라우저 수 제한
-        self.zap.ajaxSpider.scan(url=target_url, inscope=True)
-
-        time.sleep(2)
-        start = time.time()
-        completed = True
-
-        while self.zap.ajaxSpider.status != "stopped":
-            elapsed = time.time() - start
-            timed_out = elapsed >= timeout_seconds
-            stop_requested = should_stop is not None and should_stop()
-
-            if timed_out or stop_requested:  # 시간 초과 또는 사용자 중단, 실패 아닌 정상 중단
-                completed = False
-                self.zap.ajaxSpider.stop()
-                reason = f"{timeout_seconds}초 초과" if timed_out else "사용자 중단 요청"
-                print(f"\n[AJAX SPIDER] {reason}, 중단 요청")
-
-                wait_start = time.time()
-                while self.zap.ajaxSpider.status != "stopped" and time.time() - wait_start < 10: # 중단 확인 대기에도 상한을 둬 무한 대기 방지
-                    time.sleep(1)
-                break
-
-            print(f"\r[AJAX SPIDER] {self.zap.ajaxSpider.status} ({int(elapsed)}s/{timeout_seconds}s)", end="", flush=True)
-            time.sleep(2)
-
-        elapsed_seconds = round(time.time() - start, 1)
-        print(f"\r[AJAX SPIDER] {'완료' if completed else '타임아웃 중단'} (경과 {elapsed_seconds}s)")
-        return {
-            "status": self.zap.ajaxSpider.status,
-            "completed": completed,
-            "timeout": timeout_seconds,
-            "elapsed_seconds": elapsed_seconds,
-        }
 
     # raw 메시지 일부만 조회 (필드 구조 확인용)
     def get_messages_sample(self, base_url: str, count=3):
