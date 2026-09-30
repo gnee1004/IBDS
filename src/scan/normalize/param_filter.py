@@ -57,7 +57,7 @@ def custom_headers(headers: dict) -> dict[str, str]:
     return result
 
 
-# 글자(버튼·링크 문구 등)에 파괴적 액션 단어가 있으면 True (토큰 단위 일치라 "Log Out"·"delete user"도 잡음)
+# 글자(버튼, 링크 문구 등)에 파괴적 액션 단어가 있으면 True (토큰 단위 일치)
 def is_destructive_text(text: str) -> bool:
     return bool(_phrases(text) & _DESTRUCTIVE_ACTION_WORDS)
 
