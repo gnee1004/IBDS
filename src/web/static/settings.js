@@ -18,7 +18,7 @@ $('settings').onsubmit=async(event)=>{
     try {
         const pairs={};
         for(const row of $('overrides').children){ const from=row.querySelector('[data-field=from]').value.trim();const to=row.querySelector('[data-field=to]').value.trim();if(Object.hasOwn(pairs,from))throw new Error('같은 원본 주소가 중복되어 있습니다.');pairs[from]=to; }
-        await api('/api/config',{target_url:$('target').value.trim(),revisit_urls:pairs});notice('설정을 저장했습니다. 실행 화면에서 스캔을 시작할 수 있습니다.');$('saved').textContent=`마지막 저장 · ${new Date().toLocaleTimeString('ko-KR')}`;
+        await api('/api/config',{target_url:$('target').value.trim(),revisit_urls:pairs,ajax_spider:$('ajax-spider').checked,ajax_random_inputs:$('ajax-random').checked,ajax_timeout:Number($('ajax-timeout').value)||600});notice('설정을 저장했습니다. 실행 화면에서 스캔을 시작할 수 있습니다.');$('saved').textContent=`마지막 저장 · ${new Date().toLocaleTimeString('ko-KR')}`;
     }catch(error){notice(error.message,true);}finally{$('save').disabled=false;}
 };
-try{const cfg=await api('/api/config');$('target').value=cfg.target_url;Object.entries(cfg.revisit_urls).forEach(([a,b])=>addRow(a,b));}catch(error){notice(error.message,true);$('save').disabled=true;}
+try{const cfg=await api('/api/config');$('target').value=cfg.target_url;$('ajax-spider').checked=cfg.ajax_spider;$('ajax-random').checked=cfg.ajax_random_inputs;$('ajax-timeout').value=cfg.ajax_timeout;Object.entries(cfg.revisit_urls).forEach(([a,b])=>addRow(a,b));}catch(error){notice(error.message,true);$('save').disabled=true;}
