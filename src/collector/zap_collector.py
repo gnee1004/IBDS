@@ -8,7 +8,14 @@ from utilities.file_utils import load_json
 
 SESSION_NAME = "IBDSSession"
 CONTEXT_NAME = "IBDSContext"
-_AJAX_BROWSERS = 5  # Ajax Spider 헤드리스 브라우저 병렬 수
+_AJAX_BROWSERS = 2  # Ajax Spider 헤드리스 브라우저 병렬 수 (메모리·대상 서버 부담 완화)
+_AJAX_MAX_CRAWL_DEPTH = 5  # Ajax Spider 최대 탐색 깊이 (ZAP 기본 10)
+_AJAX_MAX_CRAWL_STATES = 2000  # Ajax Spider 최대 탐색 상태 수 (ZAP 기본 0 = 무제한, 무한 탐색 방지용 상한)
+_DANGER_ELEMENT_WORDS = [  # 클릭 시 상태 변경 가능성이 있는 요소의 글자 (Ajax Spider 제외용)
+    "logout", "log out", "sign out", "delete", "remove", "reset", "drop", "purge",
+    "flush", "truncate", "wipe", "destroy", "로그아웃", "삭제", "초기화",
+]
+_DANGER_ELEMENT_TAGS = ["a", "button"]  # 위험 글자를 검사할 요소 태그
 
 
 # ZAP 수집 인프라 래퍼
@@ -49,14 +56,27 @@ class ZapCollector:
         return context_id
 
 
-    # logout/reset/delete 등 위험 URL을 Context에서 제외, Spider 실행 전 필수 호출
+    # logout/reset/delete 등 위험 URL을 Spider와 Context에서 제외, Spider 실행 전 필수 호출
     def exclude_danger_urls(self, patterns: list[str], name=CONTEXT_NAME):
         for pattern in patterns:
-            self.zap.spider.exclude_from_scan(pattern)
-            """
-            # TODO: ajax Spider는 URL 정규식이 아니라 클릭할 엘리먼트(a 태그 href) 단위로 제외 등록해야함. 나중에 쓸때 추가
-            self.zap.ajaxSpider.add_excluded_element()"""
+            self.zap.spider.exclude_from_scan(pattern)  # 일반 Spider용
+            self.zap.context.exclude_from_context(contextname=name, regex=pattern)  # Ajax Spider(inscope)도 적용받도록 Context에도 등록
         print(f"[ZAP] Context 위험 URL 제외 {len(patterns)}건 등록")
+
+
+    # Ajax Spider가 누르지 않을 위험 요소(로그아웃/삭제 등 글자를 가진 링크·버튼) 등록
+    def exclude_danger_elements(self, name=CONTEXT_NAME) -> int:
+        count = 0
+        for word in _DANGER_ELEMENT_WORDS:
+            for tag in _DANGER_ELEMENT_TAGS:
+                for text in {word, word.capitalize(), word.upper()}:  # 대소문자 표기 차이 대응 (ZAP 글자 비교 방식이 불명확해서 변형 모두 등록)
+                    self.zap.ajaxSpider.add_excluded_element(contextname=name, description=f"danger-{tag}-{text}", element=tag, text=text)
+                    count += 1
+            for text in {word, word.capitalize(), word.upper()}:  # input 버튼은 글자가 value 속성에 있어 속성으로 등록 (동작 확인됨: value=Login 제외 시 클릭 안 됨)
+                self.zap.ajaxSpider.add_excluded_element(contextname=name, description=f"danger-input-{text}", element="input", attributename="value", attributevalue=text)
+                count += 1
+        print(f"[ZAP] Ajax Spider 위험 요소 제외 {count}건 등록")
+        return count
 
 
     # ZAP 메시지 히스토리에서 인증 성공 요청에 실린 쿠키(name=value) 수집.
@@ -170,9 +190,14 @@ class ZapCollector:
 
 
     # Ajax Spider 실행 (SPA/JS 기반 요청 발견용, 선택 실행), timeout_seconds 초과 또는 should_stop() 신호 시 stop 후 결과 반환
-    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None) -> dict:
-        self.zap.ajaxSpider.set_option_number_of_browsers(_AJAX_BROWSERS)  # 병렬 브라우저 수 제한
-        self.zap.ajaxSpider.scan(url=target_url, inscope=True)
+    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None, subtree_only=False) -> dict:
+        ajax = self.zap.ajaxSpider
+        ajax.set_option_click_default_elems(False)  # 기본 요소(a/button) 외에 input[type=button] 등도 클릭해야 JS 전송 요청이 기록됨 (위험 요소는 별도 제외)
+        ajax.set_option_number_of_browsers(_AJAX_BROWSERS)  # 병렬 브라우저 수 제한
+        ajax.set_option_max_crawl_depth(_AJAX_MAX_CRAWL_DEPTH)  # 탐색 깊이 상한
+        ajax.set_option_max_crawl_states(_AJAX_MAX_CRAWL_STATES)  # 탐색 상태 수 상한 (기본 무제한 방지)
+        ajax.set_option_max_duration(max(1, -(-timeout_seconds // 60)))  # ZAP 쪽 실행시간 상한(분), 우리 제한시간 초과 시에도 ZAP이 스스로 종료
+        ajax.scan(url=target_url, inscope=True, subtreeonly=True if subtree_only else None)
 
         time.sleep(2)
         start = time.time()
