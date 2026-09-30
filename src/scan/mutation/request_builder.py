@@ -180,8 +180,7 @@ def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResul
     return families
 
 
-# 스캔 지점이 하나도 없는 GET 타겟(파라미터 없는 페이지 등)용 fragment 전용 지점
-# fragment는 파라미터와 무관한 URL 단위 소스라, 파라미터가 없어도 hash 검사는 해야 함
+# 스캔 지점이 없는 GET 타겟용 fragment 전용 지점 (fragment는 URL 단위 소스라 파라미터가 없어도 hash 검사 필요)
 def build_fragment_points(targets: list[dict], scan_points: list[ScanPoint]) -> list[ScanPoint]:
     owned = {sp.target_id for sp in scan_points}
     return [

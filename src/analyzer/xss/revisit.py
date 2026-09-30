@@ -95,9 +95,7 @@ def _reflect_at(target: dict, url: str, marker: str, requester, zap, case_id: st
 _MAX_EXTRA_SINKS = 3  # sweep으로 찾은 추가 출력 위치 상한 (위치마다 stored family 세트가 하나씩 늘어남)
 
 
-# 반사 확인 - marker로 param 값 통째 교체해 POST 후 revisit_url(실패 시 base_url로 내림) GET으로 마커 반사 확인
-# 저장이 확인되면 sweep_urls(수집된 GET 페이지)도 한 번씩 조회해 다른 출력 위치를 찾음
-# (예: mypage.php에 저장 → 자기 페이지엔 이스케이프 출력, profile.php엔 raw 출력)
+# 반사 확인 - marker로 param 값 교체해 POST 후 revisit_url(실패 시 base_url) GET으로 확인, 저장 확인 시 sweep_urls에서 다른 출력 위치도 탐색
 def probe_sink(sp, target: dict, marker: str, requester, zap, sweep_urls: list[str] | None = None):
     param = sp.name
     post_case = build_mutation_case(

@@ -53,8 +53,7 @@ def _suffix_family_id(family: RequestFamily, suffix: str) -> None:
         case.case_id = case.case_id.replace(old, family.family_id, 1)
 
 
-# 저장 출력 위치 탐색(sweep)용 — 수집된 GET 페이지 주소 (fragment 제거, 중복 제거)
-# 스캔 지점과 같은 기준으로 파괴적 액션 타겟은 제외 (sweep이 action=delete 같은 주소를 요청하지 않게)
+# 저장 출력 위치 탐색(sweep)용 수집된 GET 주소 목록 (파괴적 액션 타겟 제외)
 def _sweep_urls(targets: list[dict]) -> list[str]:
     urls: list[str] = []
     for target in targets:
@@ -338,8 +337,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
 
                     revisit_fields = {}
                     if needs_revisit:  # 공격 POST 직후 재조회
-                        # 프로브가 Location으로 출력 위치를 찾은 경우(write.php처럼 매번 새 id)만 case별 Location 추종,
-                        # 유저 지정·sweep 등으로 찾은 위치는 고정 사용 (PRG로 자기 자신에게 이동하는 Location에 덮이지 않게)
+                        # 프로브가 Location으로 위치를 찾은 경우만 case별 Location 추종, 그 외(유저 지정·sweep 등)는 고정 사용
                         case_revisit_url = ((family.revisit_source == "location" and _resolve_case_revisit_url(sent, case))
                                             or family.revisit_url)
                         if case_revisit_url != family.revisit_url:  # 응답 주소가 이전 주소와 다름 -> 이 변형 전용 새 주소, 이전에 찍은 사전 스냅샷은 무효

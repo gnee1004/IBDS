@@ -25,8 +25,7 @@ def _is_headless_target(vulnerable: bool, technique: str) -> bool:
     return vulnerable or technique == _DOM_TECHNIQUE
 
 
-# 이 case에 대해 headless가 실행 인정 시 요구할 토큰 — 생성 시 case마다 붙인 고유 토큰
-# (다른 case가 페이지에 남긴 payload가 터진 dialog는 토큰이 달라 무시됨. 토큰 없는 예전 결과는 None → 첫 dialog 인정)
+# headless가 실행 인정 시 요구할 토큰 — case마다 고유 (토큰 없는 예전 결과는 None → 첫 dialog 인정)
 def _expected_token(case: dict) -> str | None:
     return case.get("exec_token")
 
@@ -112,8 +111,7 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     if not raw.vulnerable:
         return _mk_finding(family, case, POTENTIAL_LOW, raw=raw, evidence="새 영역에 실행가능 반사 없음")
 
-    # 실제 발화 확인 — 이 case 직후의 재조회 스냅샷(after)을 원래 URL·헤더로 렌더링
-    # (판정은 모든 case 전송 뒤에 하므로 페이지를 지금 다시 열면 덮어쓰는 필드(프로필 등)는 마지막 case 값만 남아 있음)
+    # 이 case 직후의 재조회 스냅샷을 렌더링해 실행 확인 (지금 다시 열면 덮어쓰는 필드는 마지막 case 값만 남음)
     hv = headless.confirm_via_render(
         after,
         url=case_result.get("revisit_url_used") or case["url"],

@@ -50,8 +50,7 @@ def _render_templates(
     for step, templates in payload_templates.items():
         rendered[step], tokens[step] = [], []
         for tmpl in templates:
-            # {value} 치환 후, dialog 호출 인자를 payload마다 새 실행 토큰으로 치환 (#7).
-            # alert/prompt/confirm 이 없는 payload(SQLi 등)는 그대로 통과 → 토큰 None.
+            # {value} 치환 후 dialog 인자를 payload마다 새 실행 토큰으로 치환 (dialog 없는 payload는 토큰 None)
             token = new_exec_token()
             payload = inject_exec_token(tmpl.replace("{value}", str(original_value)), token)
             rendered[step].append(payload)
