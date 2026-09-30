@@ -13,7 +13,7 @@ def read_config():
         "target_url": data.get("target_url", ""), "revisit_urls": data.get("revisit_urls") or {},
         "ajax_spider": bool(data.get("ajax_spider", False)),
         "ajax_timeout": int(data.get("ajax_timeout") or 600),
-        "ajax_random_inputs": data.get("ajax_random_inputs", True) is not False,
+        "ajax_random_inputs": bool(data.get("ajax_random_inputs", False)),
     }
 
 
