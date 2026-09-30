@@ -1,9 +1,11 @@
 import re
 import time
+from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 from zapv2 import ZAPv2  # type: ignore
 
+from scan.normalize.param_filter import is_destructive_text
 from utilities.file_utils import load_json
 
 SESSION_NAME = "IBDSSession"
@@ -16,6 +18,35 @@ _DANGER_ELEMENT_WORDS = [  # 클릭 시 상태 변경 가능성이 있는 요소
     "flush", "truncate", "wipe", "destroy", "로그아웃", "삭제", "초기화",
 ]
 _DANGER_ELEMENT_TAGS = ["a", "button"]  # 위험 글자를 검사할 요소 태그
+
+
+# HTML에서 누르면 상태가 바뀔 수 있는 컨트롤(링크, 버튼 글자, input 버튼 value) 중 위험 단어가 든 것을 (태그, 글자)로 수집
+class _ControlParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.found: set[tuple[str, str]] = set()
+        self._tag = None  # 글자를 모으는 중인 a/button
+        self._buf: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag in ("a", "button"):
+            self._tag, self._buf = tag, []
+        elif tag == "input" and (attrs.get("type") or "").lower() in ("button", "submit", "reset", "image"):
+            value = (attrs.get("value") or "").strip()
+            if value and is_destructive_text(value):
+                self.found.add(("input", value))
+
+    def handle_data(self, data):
+        if self._tag:
+            self._buf.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == self._tag:
+            text = " ".join("".join(self._buf).split())  # 공백 정리
+            if text and is_destructive_text(text):
+                self.found.add((tag, text))
+            self._tag = None
 
 
 # ZAP 수집 인프라 래퍼
@@ -50,7 +81,7 @@ class ZapCollector:
     # Context 생성 + target include 등록
     def setup_context(self, target_url: str, name=CONTEXT_NAME) -> str:
         context_id = self.zap.context.new_context(contextname=name)
-        include_regex = f"{re.escape(target_url)}(?:$|[/?#].*)?" # target_url을 이스케이프 & 경로 뒤에 경계문자를 둬서 /app이 /application까지 포함하는 것을 방지
+        include_regex = f"{re.escape(target_url.rstrip('/'))}(?:$|[/?#].*)" # target_url을 이스케이프 & 경로 뒤에 경계문자를 둬서 /app이 /application까지 포함하는 것을 방지
         self.zap.context.include_in_context(contextname=name, regex=include_regex)
         print(f"[ZAP] Context 생성: {name} (id={context_id}), include: {include_regex}")
         return context_id
@@ -64,15 +95,30 @@ class ZapCollector:
         print(f"[ZAP] Context 위험 URL 제외 {len(patterns)}건 등록")
 
 
-    # Ajax Spider가 누르지 않을 위험 요소(로그아웃/삭제 등 글자를 가진 링크·버튼) 등록
-    def exclude_danger_elements(self, name=CONTEXT_NAME) -> int:
+    # Ajax Spider가 누르지 않을 위험 요소(로그아웃/삭제 등 글자를 가진 링크, 버튼) 등록
+    # messages(일반 Spider가 모은 HTML)에서 토큰 기준으로 찾은 위험 요소는 그 글자 그대로, 고정 단어 목록은 JS가 만드는 요소 대비로 함께 등록
+    def exclude_danger_elements(self, messages=(), name=CONTEXT_NAME) -> int:
         count = 0
+        controls: set[tuple[str, str]] = set()
+        for msg in messages:
+            if "html" not in (msg.get("responseHeader") or "").lower():  # HTML 응답만 분석
+                continue
+            parser = _ControlParser()
+            parser.feed(msg.get("responseBody") or "")
+            controls |= parser.found
+        for tag, text in controls:  # ZAP은 글자가 정확히 같아야 제외하므로 찾은 글자를 그대로 등록
+            if tag == "input":
+                self.zap.ajaxSpider.add_excluded_element(contextname=name, description=f"danger-found-input-{text}", element="input", attributename="value", attributevalue=text)
+            else:
+                self.zap.ajaxSpider.add_excluded_element(contextname=name, description=f"danger-found-{tag}-{text}", element=tag, text=text)
+            count += 1
+        print(f"[ZAP] 수집된 HTML에서 위험 요소 {len(controls)}건 발견")
         for word in _DANGER_ELEMENT_WORDS:
             for tag in _DANGER_ELEMENT_TAGS:
-                for text in {word, word.capitalize(), word.upper()}:  # 대소문자 표기 차이 대응 (ZAP 글자 비교 방식이 불명확해서 변형 모두 등록)
+                for text in {word, word.capitalize(), word.upper()}:  # 대소문자 표기 차이 대응
                     self.zap.ajaxSpider.add_excluded_element(contextname=name, description=f"danger-{tag}-{text}", element=tag, text=text)
                     count += 1
-            for text in {word, word.capitalize(), word.upper()}:  # input 버튼은 글자가 value 속성에 있어 속성으로 등록 (동작 확인됨: value=Login 제외 시 클릭 안 됨)
+            for text in {word, word.capitalize(), word.upper()}:  # input 버튼은 글자가 value 속성에 있어 속성으로 등록
                 self.zap.ajaxSpider.add_excluded_element(contextname=name, description=f"danger-input-{text}", element="input", attributename="value", attributevalue=text)
                 count += 1
         print(f"[ZAP] Ajax Spider 위험 요소 제외 {count}건 등록")
@@ -190,14 +236,15 @@ class ZapCollector:
 
 
     # Ajax Spider 실행 (SPA/JS 기반 요청 발견용, 선택 실행), timeout_seconds 초과 또는 should_stop() 신호 시 stop 후 결과 반환
-    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None, subtree_only=False) -> dict:
+    def run_ajax_spider(self, target_url: str, timeout_seconds: int, should_stop=None, subtree_only=False, random_inputs=True) -> dict:
         ajax = self.zap.ajaxSpider
+        ajax.set_option_random_inputs(random_inputs)  # 끄면 페이지에 미리 채워진 기본값 사용 (Benchmark처럼 기본값이 있는 대상에 유리)
         ajax.set_option_click_default_elems(False)  # 기본 요소(a/button) 외에 input[type=button] 등도 클릭해야 JS 전송 요청이 기록됨 (위험 요소는 별도 제외)
         ajax.set_option_number_of_browsers(_AJAX_BROWSERS)  # 병렬 브라우저 수 제한
         ajax.set_option_max_crawl_depth(_AJAX_MAX_CRAWL_DEPTH)  # 탐색 깊이 상한
         ajax.set_option_max_crawl_states(_AJAX_MAX_CRAWL_STATES)  # 탐색 상태 수 상한 (기본 무제한 방지)
         ajax.set_option_max_duration(max(1, -(-timeout_seconds // 60)))  # ZAP 쪽 실행시간 상한(분), 우리 제한시간 초과 시에도 ZAP이 스스로 종료
-        ajax.scan(url=target_url, inscope=True, subtreeonly=True if subtree_only else None)
+        ajax.scan(url=target_url, inscope=True, contextname=CONTEXT_NAME, subtreeonly=True if subtree_only else None)  # Context를 명시해야 범위가 정해져 실제로 탐색함 (실험에서 미지정 시 즉시 종료)
 
         time.sleep(2)
         start = time.time()
