@@ -38,6 +38,11 @@ def is_security_token(value: str) -> bool:
     return bool(_HEX_TOKEN_RE.match((value or "").strip()))
 
 
+# 글자(버튼·링크 문구 등)에 파괴적 액션 단어가 있으면 True (토큰 단위 일치라 "Log Out"·"delete user"도 잡음)
+def is_destructive_text(text: str) -> bool:
+    return bool(_phrases(text) & _DESTRUCTIVE_ACTION_WORDS)
+
+
 # params 값 중 파괴적 액션 단어가 하나라도 있으면 True
 def has_destructive_action(params: dict) -> bool:
     for value in params.values():
