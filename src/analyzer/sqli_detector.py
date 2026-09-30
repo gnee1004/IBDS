@@ -5,12 +5,12 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from .finding import Finding
+from .final_status import POTENTIAL_HIGH, POTENTIAL_MEDIUM, POTENTIAL_LOW, INCONCLUSIVE
 from .sqli.judge import (
     EXTRACT_MARKER,
     MIN_REPEAT_CONFIRM,
     judge_error_based_sqli,
     judge_time_based_sqli,
-    judge_union_sqli,
     _strip_dynamic,
     _strip_value,
 )
@@ -31,7 +31,7 @@ def _body(result: dict | None) -> str:
     return result.get("response_body") or ""
 
 
-def _finding(family: dict, result: dict, confidence: str, evidence: str, final_status: str = "inconclusive") -> Finding:
+def _finding(family: dict, result: dict, confidence: str, evidence: str, final_status: str = INCONCLUSIVE) -> Finding:
     case = result.get("case") or {}
     return Finding(
         vuln_type="sqli",
@@ -46,7 +46,10 @@ def _finding(family: dict, result: dict, confidence: str, evidence: str, final_s
         location=case.get("body_type"),
         value_index=family.get("value_index"),
         payload=case.get("payload"),
-        raw_verdict={"vulnerable": final_status == "vulnerable", "confidence": confidence, "evidence": evidence},
+        raw_verdict={
+            "vulnerable": final_status in (POTENTIAL_HIGH, POTENTIAL_MEDIUM),
+            "confidence": confidence, "evidence": evidence,
+        },
         headless_checked=False,
         headless_verdict=None,
         final_status=final_status,
@@ -96,7 +99,7 @@ def _analyze_boolean(family: dict) -> list[Finding]:
 
     # pair 필드가 없거나 성공한 공격 응답이 없으면 검사 미완료
     if not base_clean or not attacks:
-        return [_family_finding(family, "inconclusive", "boolean pair 요청이 없거나 성공한 요청이 없어 검사 미완료")]
+        return [_family_finding(family, INCONCLUSIVE, "boolean pair 요청이 없거나 성공한 요청이 없어 검사 미완료")]
 
     # control(비-SQL 잡음)로 노이즈 바닥 측정 — 입력만 바꿔도 흔들리는 페이지면 노이즈가 큼
     control_scores = [_sim(base_clean, family, m) for m in muts if _bcase(m, "role") == "control"]
@@ -127,7 +130,7 @@ def _analyze_boolean(family: dict) -> list[Finding]:
             hits.append((pid, gap, approx_min, differ_max, reproduced))
 
     if not hits:
-        return [_family_finding(family, "safe", "pair 내 expected 방향 분기 안보임(노이즈 이내)")]
+        return [_family_finding(family, POTENTIAL_LOW, "pair 내 expected 방향 분기 안보임(노이즈 이내)")]
 
     best_pid, best_gap, best_approx, best_differ, best_repro = max(hits, key=lambda h: h[1])
     confirmed = len(hits) >= MIN_REPEAT_CONFIRM and best_repro
@@ -138,15 +141,15 @@ def _analyze_boolean(family: dict) -> list[Finding]:
         f"(approx={best_approx:.3f}, differ={best_differ:.3f}, gap={best_gap:.3f}, noise={noise:.3f})"
     )
     rep = next((m for m in attacks if _bcase(m, "pair_id") == best_pid), attacks[0])
-    return [_finding(family, rep, confidence, evidence, "vulnerable")]
+    return [_finding(family, rep, confidence, evidence, POTENTIAL_HIGH if confirmed else POTENTIAL_MEDIUM)]
 
 
-# 무신호 종결 상태 (#6): 공격 일부가 전송 실패했으면 미검사 구간이 있어 safe 금지 → inconclusive
+# 무신호 종결 상태. 공격 일부가 전송 실패했으면 미검사 구간이 있어 POTENTIAL_LOW 금지 → inconclusive
 def _no_signal_status(raw_mutations: list, mutations: list, evidence: str) -> tuple[str, str]:
     failed = len(raw_mutations) - len(mutations)
     if failed > 0:
-        return "inconclusive", f"{evidence} — 공격 {failed}건 전송 실패로 미검사 구간 있음(safe 금지)"
-    return "safe", evidence
+        return INCONCLUSIVE, f"{evidence} — 공격 {failed}건 전송 실패로 미검사 구간 있음(POTENTIAL_LOW 금지)"
+    return POTENTIAL_LOW, evidence
 
 
 def _analyze_sqli(family: dict) -> list[Finding]:
@@ -155,49 +158,49 @@ def _analyze_sqli(family: dict) -> list[Finding]:
         return _analyze_boolean(family)
 
     baseline = family.get("baseline") or {}
-    baseline_body = _body(baseline)
-    baseline_elapsed = float(baseline.get("elapsed") or 0.0)
     raw_mutations = family.get("mutations") or []
     mutations = [item for item in raw_mutations if _successful(item)]
 
     # 성공한 공격 응답이 없음: 공격이 있었는데 전부 전송 실패면 검사 미완료, 애초에 없었으면 스킵
     if not mutations:
         if raw_mutations:
-            return [_family_finding(family, "inconclusive", "공격 요청 전송 실패로 검사 미완료")]
+            return [_family_finding(family, INCONCLUSIVE, "공격 요청 전송 실패로 검사 미완료")]
         return []
 
     if technique.startswith("time"):
         attack_muts = [m for m in mutations if not _is_time_control(m)]
         control_muts = [m for m in mutations if _is_time_control(m)]
         if not attack_muts:
-            return [_family_finding(family, "inconclusive", "공격 요청 전송 실패로 검사 미완료 (대조 요청만 성공)")]
+            return [_family_finding(family, INCONCLUSIVE, "공격 요청 전송 실패로 검사 미완료 (대조 요청만 성공)")]
+        baseline_elapsed = float(baseline.get("elapsed") or 0.0)
         attack_elapsed = [float(m.get("elapsed") or 0.0) for m in attack_muts]
         control_elapsed = [float(m.get("elapsed") or 0.0) for m in control_muts]
         verdict = judge_time_based_sqli(baseline_elapsed, attack_elapsed, control_elapsed)
         if verdict.vulnerable:
             slowest = max(attack_muts, key=lambda m: float(m.get("elapsed") or 0.0))
-            return [_finding(family, slowest, verdict.confidence, verdict.evidence, "vulnerable")]
-        return [_family_finding(family, "safe", verdict.evidence)]
+            return [_finding(family, slowest, verdict.confidence, verdict.evidence, verdict.final_status)]
+        return [_family_finding(family, POTENTIAL_LOW, verdict.evidence)]
 
-    # UNION 계열: 컬럼 수 불일치 DB 에러 시그니처가 공격 응답에만 있으면 취약, 없으면 안전 (2분기, 정보추출 없음) -> 지우는게 나응ㄹ듯
-    if technique == "union":
-        for mutation in mutations:
-            verdict = judge_union_sqli(baseline_body, _body(mutation))
-            if verdict.vulnerable:
-                return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
-        status, evidence = _no_signal_status(raw_mutations, mutations, "UNION 에러 시그니처 없음")
-        return [_family_finding(family, status, evidence)]
+    baseline_body = _body(baseline)
 
-    # error 계열: 마커 값 노출이면 vulnerable, 아니면 safe. error_extract technique는 extraction으로 분기
+    # error 계열(union 포함): 추출 마커 확인 시 HIGH, baseline엔 없던 DB 에러만 노출 시 MEDIUM.
+    # union의 컬럼 수 불일치 시그니처는 DB_ERROR_KEYWORDS에 이미 포함돼 있어 여기로 합류.
+    # error_extract technique는 extraction으로 분기
     judgment = "extraction" if technique == "error_extract" else str(family.get("judgment") or "structural")
     marker = family.get("extract_marker") or EXTRACT_MARKER
+    medium_hit = None
     for mutation in mutations:
         verdict = judge_error_based_sqli(
             baseline_body, _body(mutation), extract_marker=marker, judgment=judgment,
             payload=_payload_of(mutation),
         )
-        if verdict.final_status == "vulnerable":
-            return [_finding(family, mutation, verdict.confidence, verdict.evidence, "vulnerable")]
+        if verdict.final_status == POTENTIAL_HIGH:
+            return [_finding(family, mutation, verdict.confidence, verdict.evidence, POTENTIAL_HIGH)]
+        if verdict.final_status == POTENTIAL_MEDIUM and medium_hit is None:
+            medium_hit = (mutation, verdict)
+    if medium_hit is not None:
+        mutation, verdict = medium_hit
+        return [_finding(family, mutation, verdict.confidence, verdict.evidence, POTENTIAL_MEDIUM)]
     status, evidence = _no_signal_status(raw_mutations, mutations, "DB 에러·마커 시그니처 없음")
     return [_family_finding(family, status, evidence)]
 
@@ -206,5 +209,5 @@ def analyze_family(family: dict) -> list[Finding]:
     if str(family.get("vuln_type") or "").lower() != "sqli":
         return []
     if not _successful(family.get("baseline")):
-        return [_family_finding(family, "inconclusive", "기준값 전송 실패로 비교 불가")]
+        return [_family_finding(family, INCONCLUSIVE, "기준값 전송 실패로 비교 불가")]
     return _analyze_sqli(family)
