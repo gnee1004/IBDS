@@ -31,6 +31,17 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 
 
+# 전송 불명(delivery_unknown) case의 판정 대체 기록 — 확정본상 전송 실패는 inconclusive
+def _delivery_unknown_finding(family: RequestFamily, case_id: str) -> dict:
+    return {
+        "family_id": family.family_id, "target_id": family.target_id,
+        "param": family.param, "vuln_type": family.vuln_type, "technique": family.technique,
+        "case_id": case_id, "location": family.location, "value_index": family.value_index,  # 지점 식별용
+        "final_status": "inconclusive", "check_status": "incomplete", "reason": "delivery_unknown",
+        "stage": "request", "evidence": "전송 실패로 서버 처리 여부 불명 (POST류라 재시도 안 함)",
+    }
+
+
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
 def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, findings_path: str | None = None) -> list[RequestFamily]:
     if has_destructive_action(target.get("params", {})):
@@ -231,6 +242,11 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 total_count += 1
                 try:
                     sent = requester.send(baseline_case, zap)
+                except requester.RequestDeliveryUnknown as e:  # POST류 baseline 전송 불명 — 서버 처리 여부 모름 상태로 구분
+                    baseline_result = CaseResult(case=baseline_case, status="error", error=str(e), reason="delivery_unknown")
+                    progress.failed += 1
+                    progress.publish()
+                    print(f"[ERROR] baseline 전송 불명(서버 처리 여부 모름): target={sp.target_id} param={sp.name} - {e}")
                 except Exception as e:  # baseline 요청 실패는 이 ScanPoint의 모든 family에 동일하게 반영
                     baseline_result = CaseResult(case=baseline_case, status="error", error=str(e))
                     progress.failed += 1
@@ -268,6 +284,12 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
 
                     try:
                         sent = requester.send(case, zap)
+                    except requester.RequestDeliveryUnknown as e:  # 전송 불명 — 판정 대신 전송 사유 남기고 계속 진행
+                        progress.failed += 1
+                        progress.publish()
+                        case_results.append(CaseResult(case=case, status="error", error=str(e), reason="delivery_unknown"))
+                        print(f"[ERROR] 전송 불명(서버 처리 여부 모름): family={family.family_id} case={case.case_id} - {e}")
+                        continue
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
                         progress.failed += 1
                         progress.publish()
@@ -308,7 +330,10 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 append_jsonl(results_path, family_dict)
 
                 # SQLi 판정
-                if family.vuln_type == "sqli":  
+                if family.vuln_type == "sqli":
+                    if baseline_result.reason == "delivery_unknown":  # 기준값 전송 불명 -> 비교 불가, 판정 대신 전송 사유 기록
+                        append_jsonl(findings_path, _delivery_unknown_finding(family, family.baseline.case_id))
+                        continue
                     if len(case_results) - 1 < len(family.mutations):
                         append_jsonl(findings_path, {
                             "family_id": family.family_id, "target_id": family.target_id,
@@ -333,6 +358,9 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
 
                 # XSS 판정
                 for i, result in enumerate(case_results[1:]): # 수행한 요청만 판정 대상
+                    if result.reason == "delivery_unknown":  # 전송 불명 case -> 판정 대신 전송 사유 기록 (analyzer 판정과 중복 방지)
+                        append_jsonl(findings_path, _delivery_unknown_finding(family, result.case.case_id))
+                        continue
                     try:
                         finding = xss_detector.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))

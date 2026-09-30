@@ -80,6 +80,7 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_body: str | None = None
     elapsed: float | None = None
     error: str | None = None                             # status="error"일 때 예외 메시지
+    reason: str | None = None                            # 실패 사유 코드값(일반 에러와 구분) — 전송 불명 시 "delivery_unknown"
     effective_cookies: dict[str, str] | None = None      # 요청 전송 시점에 실제로 실린 누적 쿠키
     # stored 공격 후 재조회 결과
     before_revisit_body: str | None = None               # 공격 주입 전 본문

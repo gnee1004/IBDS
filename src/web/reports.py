@@ -8,6 +8,27 @@ from attack_requests import RULES
 
 _CATEGORY_BY_TECHNIQUE = {rule["technique"]: rule["category"] for rule in RULES}
 
+# 서진 확정본 final_status 어휘 (저장값 -> 화면 라벨)
+_STATUS_LABELS = {
+    "potential_high": "HIGH Potential",
+    "potential_medium": "MEDIUM Potential",
+    "potential_low": "LOW Potential",
+    "inconclusive": "Inconclusive",
+}
+# Potential 집계 우선순위 (HIGH > MEDIUM > LOW), inconclusive
+_STATUS_ORDER = ["potential_high", "potential_medium", "potential_low", "inconclusive"]
+# 구 어휘 -> 신 어휘 (예전 결과 폴더·미갱신 판정기 호환) 다 끝나면 지워주세요
+_LEGACY_STATUS = {
+    "vulnerable": "potential_high", "vuln": "potential_high",
+    "safe": "potential_low", "reflected_only": "potential_low",
+    "error_only": "potential_medium",
+}
+
+
+# final_status 저장값을 확정본 어휘로 정규화 (신 어휘는 그대로, 구 어휘는 매핑)
+def _normalize_status(status):
+    return _LEGACY_STATUS.get(status, status)
+
 
 # technique -> 결과 상세 옆에 표시할 카테고리 이름
 def _technique_category(technique):
@@ -91,7 +112,7 @@ def build_report(out_dir):
             continue
         if (fid, finding.get("case_id")) in failed_cases:
             continue
-        status = finding.get("final_status")   # 새 결과 계약: 모든 판정 기록이 final_status를 직접 보유
+        status = _normalize_status(finding.get("final_status"))
         if not status or target_id is None or param is None:
             continue
         technique = finding.get("technique") or info.get("technique")
@@ -117,7 +138,10 @@ def build_report(out_dir):
         group_name = _filter_group(vuln_type, technique)
         item["filter_group"] = group_name
         filter_groups.add(group_name)
+    # 확정본 우선순위대로 상태 나열 (목록에 없는 값은 뒤에 사전순)
+    statuses = [s for s in _STATUS_ORDER if s in counts] + sorted(s for s in counts if s not in _STATUS_ORDER)
     return {"groups": list(groups.values()), "errors": errors, "counts": dict(counts),
-            "error_count": len(errors), "statuses": sorted(counts),
+            "error_count": len(errors), "statuses": statuses,
+            "status_labels": {s: _STATUS_LABELS.get(s, s) for s in statuses},  # 화면 표시용 라벨
             "filter_groups": [g for g in ("xss", "sqli", "template") if g in filter_groups],
             "meta": run_metadata(directory)}

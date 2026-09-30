@@ -109,7 +109,7 @@ class HeadlessSession:
         browser = self._ensure_browser()  # 브라우저 실행 실패는 loudly 전파 — try 밖에 유지
         context = None
         try:
-            context = browser.new_context()  # context/쿠키/page 준비도 실패 가능하므로 try 안에서 처리, finally에서 반드시 정리
+            context = browser.new_context(ignore_https_errors=True)  # 자체 서명 인증서 대상(Benchmark 등) 허용, context/쿠키/page 준비도 실패 가능하므로 try 안에서 처리, finally에서 반드시 정리
             if cookies:
                 hostname = urlparse(url).hostname
                 context.add_cookies([
