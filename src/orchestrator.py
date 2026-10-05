@@ -213,6 +213,15 @@ def _resolve_case_revisit_url(sent: dict, case) -> str | None:
     return resolved if is_same_host(case.url, resolved) else None  # 범위 밖 목적지 -> 호출부가 family.revisit_url로 폴백
 
 
+# 응답이 다른 호스트로 보내는 이동이면 out_of_scope 반환
+def _scope_reason(case, sent: dict) -> str | None:
+    location = sent["response_headers"].get("location")
+    status = sent["response_status"]
+    if not location or not isinstance(status, int) or not 300 <= status < 400:
+        return None
+    return None if is_same_host(case.url, urljoin(case.url, location)) else "out_of_scope"
+
+
 # 로컬 웹 설정의 재방문 주소(A url -> B url)를 target["revisit_url"]에 반영 (resolve_revisit_url이 최우선으로 사용)
 def _apply_revisit_overrides(targets: list[dict]) -> None:
     overrides = load_json(_TARGET_CONFIG, default={}).get("revisit_urls") or {}
@@ -300,8 +309,10 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     progress.publish()
                     print(f"[ERROR] baseline 요청 실패: target={sp.target_id} param={sp.name} - {e}")
                 else:
+                    base_reason = _scope_reason(baseline_case, sent)
                     baseline_result = CaseResult(
-                        case=baseline_case, send_status="ok", progress_status="completed",
+                        case=baseline_case, send_status="ok",
+                        progress_status="partial" if base_reason else "completed", reason=base_reason,  # 범위 밖 이동은 응답은 받았으나 검증 불가
                         response_status=sent["response_status"],
                         response_headers=sent["response_headers"],
                         response_body=sent["response_body"],
@@ -354,11 +365,13 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         revisit_fields = _revisit_after_fields(case_revisit_url, family, case, requester, zap, target, revisit_before, before_note)
 
                     revisit_failed = needs_revisit and "revisit_status" not in revisit_fields  # 재조회 예외 때는 revisit_status 없음
+                    scope_reason = _scope_reason(case, sent)  # 먼저 발생한 사유(범위 밖 이동)가 우선, 재조회 실패는 메모로 보충
+                    revisit_note = revisit_fields.get("revisit_note") if revisit_failed else None
                     case_results.append(CaseResult(
                         case=case, send_status="ok",
-                        progress_status="partial" if revisit_failed else "completed",  # 응답은 받았으나 후속 검증 실패
-                        reason="revisit_failed" if revisit_failed else None,
-                        reason_note=revisit_fields.get("revisit_note") if revisit_failed else None,
+                        progress_status="partial" if (revisit_failed or scope_reason) else "completed",  # 응답은 받았으나 후속 검증 실패
+                        reason=scope_reason or ("revisit_failed" if revisit_failed else None),
+                        reason_note=f"재조회 실패도 발생 ({revisit_note})" if scope_reason and revisit_failed else revisit_note,
                         response_status=sent["response_status"],
                         response_headers=sent["response_headers"],
                         response_body=sent["response_body"],
