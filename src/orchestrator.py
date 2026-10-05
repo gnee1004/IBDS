@@ -14,15 +14,15 @@ for _stream in (sys.stdout, sys.stderr):
         _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 from collector.main_collector import run_collection
-from scan.mutation.discovery import measure_dynamic_markers, run_discovery
+from scan.mutation.discovery import DiscoveryFilterStat, measure_dynamic_markers, run_discovery
 from scan.mutation.request_builder import (
     FRAGMENT_LOCATION, build_fragment_points, generate_dom_fragment_families,
-    generate_sqli_families, generate_stored_xss_families, generate_xss_families,
+    generate_sqli_families, generate_stored_xss_families, generate_xss_families_counted,
 )
 from scan.mutation.scan_point import build_scan_points
 from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
-from scan.models import CaseResult, FamilyResult, RequestFamily, ScanPoint
+from scan.models import CaseResult, DiscoveryResult, FamilyResult, RequestFamily, ScanPoint
 from scan.progress import PipelineProgress
 from utilities.file_utils import append_jsonl, load_json
 from analyzer import xss_detector
@@ -122,18 +122,23 @@ def _sweep_urls(targets: list[dict]) -> list[str]:
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
 def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, findings_path: str | None = None,
-                      sweep_urls: list[str] | None = None, results_path: str | None = None) -> list[RequestFamily]:
+                      sweep_urls: list[str] | None = None, results_path: str | None = None, use_discovery: bool = True) -> tuple[list[RequestFamily], DiscoveryFilterStat | None]:
     if has_destructive_action(target.get("params", {})):
-        return []   # 파괴적 액션 있는 타겟은 검사 안함
+        return [], None   # 파괴적 액션 있는 타겟은 검사 안함
 
     if sp.location == FRAGMENT_LOCATION:  # 파라미터 없는 GET 페이지: DOM hash 검사만 (Discovery·stored·SQLi 대상 아님)
-        return generate_dom_fragment_families(sp, target)
+        return generate_dom_fragment_families(sp, target), None
 
     families: list[RequestFamily] = []
+    filter_stat: DiscoveryFilterStat | None = None
 
     try:
-        discovery = run_discovery(sp, target, zap) # 특수문자가 반사되는 것들만 filtering.
-        families.extend(generate_xss_families(sp, target, discovery)) # discovery에서 살아남은 것들 중에  xss_stored 가 아닌 것들만 extend로 풀어서 넣음
+        if use_discovery:
+            discovery = run_discovery(sp, target, zap)  # 특수문자가 반사되는 것들만 filtering.
+        else:
+            discovery = DiscoveryResult(reflected=True, valid_specials=set())  # 전체 전송 — 아래 use_discovery=False로 필터 무시
+        xss_families, filter_stat = generate_xss_families_counted(sp, target, discovery, use_discovery=use_discovery)
+        families.extend(xss_families)  # discovery에서 살아남은 것들 중 xss_stored가 아닌 것들
 
         # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
         if marker_factory is not None and sp.location == "form":
@@ -212,7 +217,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                 append_jsonl(results_path, _scan_point_record(sp, "failed", "prepare_failed", str(e), "sqli_prepare"))
             print(f"[WARN] SQLi 준비 단계 실패 : target={sp.target_id} param={sp.name} - {e}")
 
-    return families
+    return families, filter_stat
 
 
 # 공격 전 스냅샷
@@ -308,11 +313,14 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
 
     results_path = os.path.join(out_dir, "request_results.jsonl")
     findings_path = os.path.join(out_dir, "findings.jsonl")
+    metrics_path = os.path.join(out_dir, "metrics.jsonl")
+    use_discovery = bool(load_json(_TARGET_CONFIG, default={}).get("use_discovery", True))
     if progress.should_stop():
         progress.publish()
         return results_path
 
     requester.clear_cookie_store()             # 스캔 시작 시 이전 스캔에서 누적된 쿠키 초기화 (origin별로 1회 진행, 캡쳐한 원본 쿠키 안지움)
+    requester.reset_send_count()               # 전송 수 계측 초기화 — 시도당·지점당 요청 수를 카운터 차이로 구함
     zap = requester.get_zap_client()
     marker_factory = new_run_marker_factory()  # 이번 스캔 실행 전체에서 고유 마커를 발급 (ScanPoint당 1개)
     headless = HeadlessSession()               # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
@@ -326,9 +334,10 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 break
             started += 1
             target = target_by_id[sp.target_id]
+            point_start_count = requester.get_send_count()
+            point_browser_runs = 0
             try:
-                families = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path, sweep_urls=sweep_urls, results_path=results_path)
-            
+                families, filter_stat = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path, sweep_urls=sweep_urls, results_path=results_path, use_discovery=use_discovery)
             except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id, "param": sp.name,
@@ -352,6 +361,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
             baseline_result: CaseResult | None = None
             if families:
                 baseline_case = families[0].baseline
+                base_before = requester.get_send_count()
                 total_count += 1
                 try:
                     sent = requester.send(baseline_case, zap)
@@ -376,6 +386,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         elapsed=sent["elapsed"],
                         effective_cookies=sent["effective_cookies"],
                     )
+                if baseline_result is not None:
+                    baseline_result.request_count = requester.get_send_count() - base_before  # baseline 전송에 든 요청 수 (재시도 포함)
 
             processed = 0  # 처리를 시작한 family 수 (중단시 나머지는 미실행)
             for family in families:
@@ -389,6 +401,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     if progress.should_stop():
                         break
                     total_count += 1
+                    mut_before = requester.get_send_count()  # 이 시도가 쓴 요청 수 기준점
                     needs_revisit = bool(     # stored XSS + 마커 반사 확인된 family만 재조회
                         family.technique == "stored" and family.sink_confirmed and family.revisit_url
                     )
@@ -398,6 +411,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
                         if revisit_before is None:  # 사전 스냅샷 실패 -> 이미 판정 불가로 결과 고정, 공격 요청/사후 재조회 생략
                             case_results.append(CaseResult(case=case, send_status="ok", revisit_note=before_note, progress_status="not_run", reason="not_reached", reason_note=before_note))  # 공격 요청 미전송
+                            case_results[-1].request_count = requester.get_send_count() - mut_before  # 사전 스냅샷 요청까지 포함
                             continue
 
                     try:
@@ -406,12 +420,14 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         progress.failed += 1
                         progress.publish()
                         case_results.append(CaseResult(case=case, send_status="error", error=str(e), reason="delivery_unknown", progress_status="failed"))
+                        case_results[-1].request_count = requester.get_send_count() - mut_before
                         print(f"[ERROR] 전송 불명(서버 처리 여부 모름): family={family.family_id} case={case.case_id} - {e}")
                         continue
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
                         progress.failed += 1
                         progress.publish()
                         case_results.append(CaseResult(case=case, send_status="error", error=str(e), reason="attack_request_failed", progress_status="failed"))
+                        case_results[-1].request_count = requester.get_send_count() - mut_before
                         print(f"[ERROR] 요청 실패: family={family.family_id} case={case.case_id} - {e}")
                         continue
 
@@ -439,6 +455,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         effective_cookies=sent["effective_cookies"],  # headless가 재현 시 쓸 쿠키값
                         **revisit_fields,
                     ))
+                    case_results[-1].request_count = requester.get_send_count() - mut_before  # 공격 요청 + 재조회 요청 수
 
                 if baseline_result.send_status == "error":  # 기준 응답이 없어 비교 불가 (자체 사유가 없는 시도에만 baseline_failed 부여)
                     for r in case_results[1:]:
@@ -494,6 +511,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         append_jsonl(findings_path, _delivery_unknown_finding(family, result.case.case_id))
                         continue
                     try:
+                        point_browser_runs += 1  # 헤드리스 검증 1회 — analyzer를 건드리지 않고 orchestrator 호출 횟수로 계측
                         finding = xss_detector.judge_case(family_dict, family_dict["mutations"][i], headless) # 미리 변환해둔 dict 재사용
                         append_jsonl(findings_path, asdict(finding))
                     except Exception as e:
@@ -508,6 +526,20 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
 
             for rest in families[processed:]:  # 중단으로 시작도 못 한 family
                 append_jsonl(results_path, _unsent_family_dict(rest, "cancelled_by_user"))
+            
+            point_requests = requester.get_send_count() - point_start_count
+            metrics_record = {
+                "point_id": sp.point_id, "target_id": sp.target_id, "param": sp.name,
+                "location": sp.location, "value_index": sp.value_index,
+                "use_discovery": use_discovery,
+                "request_count": point_requests,
+                "browser_runs": point_browser_runs,
+            }
+            if filter_stat is not None:
+                rec = filter_stat.as_record()
+                metrics_record["discovery_filtered"] = rec["discovery_filtered"]
+                metrics_record["discovery_filtered_reasons"] = rec["discovery_filtered_reasons"]
+            append_jsonl(metrics_path, metrics_record)
 
             point_complete = not families or (
                 family is families[-1] and not incomplete
@@ -526,6 +558,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
         progress.publish()
         print(f"[RUN] request_results.jsonl -> {results_path} ({total_count - progress.failed}건 성공, {progress.failed}건 실패)")
         print(f"[RUN] findings.jsonl -> {findings_path}")
+        print(f"[RUN] metrics.jsonl -> {metrics_path} (검사 지점당 걸러낸 수·요청 수·브라우저 실행 수)")
     finally:
         headless.close()  # 스캔 전체가 끝나면 헤드리스 프로세스 정리
 

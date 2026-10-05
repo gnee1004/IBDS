@@ -7,7 +7,7 @@ from typing import Callable
 from scan.match.matcher import AttackRule, match_and_render
 from scan.match.rules_builder import get_rules
 from ..models import DiscoveryResult, RequestFamily, ScanPoint
-from .discovery import _CANDIDATE_SPECIALS
+from .discovery import _CANDIDATE_SPECIALS, DiscoveryFilterStat
 from .scan_point import build_scan_points
 from .variant import build_baseline_case, build_mutation_case
 
@@ -156,28 +156,62 @@ def _owns_fragment(sp: ScanPoint, target: dict) -> bool:
     return first is not None and (first.name, first.value_index) == (sp.name, sp.value_index)
 
 
-# XSS family 생성 — DOM 계열과 reflected 계열을 서버 반사 종속성 기준으로 분리 (#2)
-def generate_xss_families(sp: ScanPoint, target: dict, discovery: DiscoveryResult) -> list[RequestFamily]:
-    families: list[RequestFamily] = []
+# XSS family 생성 — DOM 계열과 reflected 계열을 서버 반사 종속성 기준으로 분리
+def generate_xss_families(
+    sp: ScanPoint, target: dict, discovery: DiscoveryResult, use_discovery: bool = True,
+) -> list[RequestFamily]:
+    families, _ = generate_xss_families_counted(sp, target, discovery, use_discovery)
+    return families
 
-    # DOM 계열: URL 소스라 GET 쿼리 지점에서만 생성(POST+쿼리는 헤드리스 GET 확인 불가라 제외), 필터 미적용
+
+# mutation case 수 합계 — 걸러낸 수 집계용. build_families_for_point은 순수 조립이라 네트워크 전송 없음
+def _count_mutations(sp: ScanPoint, target: dict, rules: list[AttackRule]) -> int:
+    return sum(len(f.mutations) for f in build_families_for_point(sp, target, rules))
+
+
+# generate_xss_families와 동일한 생성에 더해, Discovery가 걸러낸 수·이유를 함께 반환 (전송·판정 로직 변화 없음).
+# use_discovery=False면 전체 전송(필터 없음, 걸러낸 수 0)
+def generate_xss_families_counted(
+    sp: ScanPoint, target: dict, discovery: DiscoveryResult, use_discovery: bool = True,
+) -> tuple[list[RequestFamily], DiscoveryFilterStat]:
+    families: list[RequestFamily] = []
+    stat = DiscoveryFilterStat(point_id=sp.point_id)
+
+    # DOM 계열: URL 소스라 GET 쿼리 지점에서만 생성(POST+쿼리는 헤드리스 GET 확인 불가라 제외), Discovery 무관
     if sp.location == "query" and (sp.method or "GET") == "GET":
         dom_rules = [r for r in get_rules() if r.vuln_type == "xss" and r.technique == _DOM_TECHNIQUE]
         families.extend(build_families_for_point(sp, target, dom_rules, with_fragment=_owns_fragment(sp, target)))
 
-    # reflected 계열: 입력이 서버 응답에 반사돼야 의미가 있음 → 반사가 없으면 생성 안 함.
-    if discovery.reflected:
-        rules = [r for r in get_rules()
-                 if r.vuln_type == "xss" and r.technique not in ("stored", _DOM_TECHNIQUE)]
-        if discovery.injection_context is not None:
-            valid = _CONTEXT_TECHNIQUES.get(discovery.injection_context, set())
-            rules = [r for r in rules if r.technique in valid]
-        families.extend(build_families_for_point(
-            sp, target, rules,
-            payload_filter=lambda payload: _required_specials(payload).issubset(discovery.valid_specials),
-        ))
+    reflected_rules = [r for r in get_rules()
+                       if r.vuln_type == "xss" and r.technique not in ("stored", _DOM_TECHNIQUE)]
 
-    return families
+    # Discovery 미사용(전체 전송): 반사·문맥·특수문자 필터 모두 건너뜀 → 걸러낸 수 0
+    if not use_discovery:
+        families.extend(build_families_for_point(sp, target, reflected_rules))
+        return families, stat
+
+    # 반사 없음: reflected 계열 전체 제외 (DOM은 위에서 이미 생성)
+    if not discovery.reflected:
+        stat.not_reflected = _count_mutations(sp, target, reflected_rules)
+        return families, stat
+
+    # 문맥 불일치: injection_context에 안 맞는 기법의 룰 제외
+    rules = reflected_rules
+    if discovery.injection_context is not None:
+        valid = _CONTEXT_TECHNIQUES.get(discovery.injection_context, set())
+        dropped = [r for r in rules if r.technique not in valid]
+        stat.context_mismatch = _count_mutations(sp, target, dropped)
+        rules = [r for r in rules if r.technique in valid]
+
+    # 특수문자 미생존: 살아남지 못한 특수문자를 요구하는 payload 제외 (걸러낸 수 = 필터 거부 횟수)
+    def _specials_ok(payload: str) -> bool:
+        if _required_specials(payload).issubset(discovery.valid_specials):
+            return True
+        stat.specials_not_surviving += 1
+        return False
+
+    families.extend(build_families_for_point(sp, target, rules, payload_filter=_specials_ok))
+    return families, stat
 
 
 # 스캔 지점이 없는 GET 타겟용 fragment 전용 지점 (fragment는 URL 단위 소스라 파라미터가 없어도 hash 검사 필요)

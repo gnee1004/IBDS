@@ -16,6 +16,21 @@ _SEND_MAX_RETRIES = 2
 _SEND_RETRY_DELAY_SECS = 0.5
 _RETRY_SAFE_METHODS = frozenset({"GET", "HEAD"})
 
+# 실제로 ZAP에 보낸 HTTP 요청 수 — 재시도·재조회·probe까지 모든 전송이 _send_once를 거치므로 여기서 한곳에서 센다
+_send_count = 0
+
+
+# 누적 전송 수 조회 (호출부가 시도 전후 차이로 시도당 요청 수를 구함)
+def get_send_count() -> int:
+    return _send_count
+
+
+# 전송 카운터 초기화 (스캔 실행 시작 시 1회)
+def reset_send_count() -> None:
+    global _send_count
+    _send_count = 0
+
+
 class RequestDeliveryUnknown(RuntimeError):
     """POST처럼 서버에 뭔가 등록·수정하는 요청이 전송 도중 실패한 경우.
 
@@ -207,6 +222,8 @@ def _build_raw_request(case: MutationCase, cookies: dict[str, str]) -> str:
 
 
 def _send_once(raw_request: str, zap) -> tuple[dict, float]:
+    global _send_count
+    _send_count += 1
     started = time.perf_counter()
     result = zap.core.send_request(request=raw_request, followredirects=False)
     elapsed = time.perf_counter() - started
