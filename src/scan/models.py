@@ -74,6 +74,17 @@ class RequestFamily:              # 1파라미터 x 1룰 = 1Family. 분석기가
     sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
+# 진행 상태
+PROGRESS_STATUSES = ("completed", "partial", "failed", "not_run")  # 완료/부분 완료/실패/미실행
+
+# 사유 코드 — 사유는 가장 먼저 발생한 것 하나만 저장 나머지는 reason_note에 저장함.
+REASON_CODES = (
+    "delivery_unknown", "auth_failed", "session_expired", "baseline_failed", "attack_request_failed",
+    "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
+    "out_of_scope", "cancelled_by_user", "not_reached", "state_contamination_possible", "discovery_failed",
+)
+
+
 @dataclass
 class CaseResult:  # MutationCase 하나를 전송한 결과
     case: MutationCase                                   # 어떤 요청을 보냈는지 (원본 그대로 참조)
@@ -83,9 +94,9 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_body: str | None = None
     elapsed: float | None = None
     error: str | None = None                             # send_status="error"일 때 예외 메시지
-    reason: str | None = None                            # 실패 사유 코드값(일반 에러와 구분) — 전송 불명 시 "delivery_unknown"
-    progress_status: str | None = None                   # 검증 진행 상태 (4단계) — 계산 로직 연결 전까지 빈 값
-    reason_note: str | None = None                       # 사유 보충 한 줄 — 계산 로직 연결 전까지 빈 값
+    reason: str | None = None                            # 사유 코드값(REASON_CODES 중 하나)
+    progress_status: str | None = None                   # 검증 진행 상태 (PROGRESS_STATUSES 중 하나)
+    reason_note: str | None = None                       # 사유 보충용 (뒤따른 사유 등)
     effective_cookies: dict[str, str] | None = None      # 요청 전송 시점에 실제로 실린 누적 쿠키
     # stored 공격 후 재조회 결과
     before_revisit_body: str | None = None               # 공격 주입 전 본문

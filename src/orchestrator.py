@@ -37,11 +37,19 @@ _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 # 전송 불명(delivery_unknown) case의 판정 대체 기록 — 확정본상 전송 실패는 inconclusive
 def _delivery_unknown_finding(family: RequestFamily, case_id: str) -> dict:
     return {
-        "family_id": family.family_id, "target_id": family.target_id,
-        "param": family.param, "vuln_type": family.vuln_type, "technique": family.technique,
-        "case_id": case_id, "location": family.location, "value_index": family.value_index,  # 지점 식별용
-        "final_status": "inconclusive", "check_status": "incomplete", "reason": "delivery_unknown",
-        "stage": "request", "evidence": "전송 실패로 서버 처리 여부 불명 (POST류라 재시도 안 함)",
+        "family_id": family.family_id, 
+        "target_id": family.target_id,
+        "param": family.param, 
+        "vuln_type": family.vuln_type, 
+        "technique": family.technique,
+        "case_id": case_id, 
+        "location": family.location, 
+        "value_index": family.value_index,  # 지점 식별용
+        "final_status": "inconclusive", 
+        "progress_status": "failed", 
+        "reason": "delivery_unknown",
+        "stage": "request", 
+        "evidence": "전송 실패로 서버 처리 여부 불명 (POST류라 재시도 안 함)",
     }
 
 
@@ -119,6 +127,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     "value_index": sp.value_index,
                     "stage": "probe",
                     "final_status": "inconclusive",
+                    "reason": "sink_not_confirmed",
                     "probe_marker": marker,
                     "revisit_url": probe_result.revisit_url if probe_result is not None else None,
                     "sink_note": sink_note,
@@ -281,18 +290,18 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 try:
                     sent = requester.send(baseline_case, zap)
                 except requester.RequestDeliveryUnknown as e:  # POST류 baseline 전송 불명 — 서버 처리 여부 모름 상태로 구분
-                    baseline_result = CaseResult(case=baseline_case, send_status="error", error=str(e), reason="delivery_unknown")
+                    baseline_result = CaseResult(case=baseline_case, send_status="error", error=str(e), reason="delivery_unknown", progress_status="failed")
                     progress.failed += 1
                     progress.publish()
                     print(f"[ERROR] baseline 전송 불명(서버 처리 여부 모름): target={sp.target_id} param={sp.name} - {e}")
                 except Exception as e:  # baseline 요청 실패는 이 ScanPoint의 모든 family에 동일하게 반영
-                    baseline_result = CaseResult(case=baseline_case, send_status="error", error=str(e))
+                    baseline_result = CaseResult(case=baseline_case, send_status="error", error=str(e), reason="baseline_failed", progress_status="failed")
                     progress.failed += 1
                     progress.publish()
                     print(f"[ERROR] baseline 요청 실패: target={sp.target_id} param={sp.name} - {e}")
                 else:
                     baseline_result = CaseResult(
-                        case=baseline_case, send_status="ok",
+                        case=baseline_case, send_status="ok", progress_status="completed",
                         response_status=sent["response_status"],
                         response_headers=sent["response_headers"],
                         response_body=sent["response_body"],
@@ -317,7 +326,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     if needs_revisit:  # 공격 요청 전 스냅샷 - 마커로 미리 확인한 재방문 주소 기준으로 변형마다 새로 찍음
                         revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
                         if revisit_before is None:  # 사전 스냅샷 실패 -> 이미 판정 불가로 결과 고정, 공격 요청/사후 재조회 생략
-                            case_results.append(CaseResult(case=case, send_status="ok", revisit_note=before_note))
+                            case_results.append(CaseResult(case=case, send_status="ok", revisit_note=before_note, progress_status="not_run", reason="not_reached", reason_note=before_note))  # 공격 요청 미전송
                             continue
 
                     try:
@@ -325,13 +334,13 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     except requester.RequestDeliveryUnknown as e:  # 전송 불명 — 판정 대신 전송 사유 남기고 계속 진행
                         progress.failed += 1
                         progress.publish()
-                        case_results.append(CaseResult(case=case, send_status="error", error=str(e), reason="delivery_unknown"))
+                        case_results.append(CaseResult(case=case, send_status="error", error=str(e), reason="delivery_unknown", progress_status="failed"))
                         print(f"[ERROR] 전송 불명(서버 처리 여부 모름): family={family.family_id} case={case.case_id} - {e}")
                         continue
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
                         progress.failed += 1
                         progress.publish()
-                        case_results.append(CaseResult(case=case, send_status="error", error=str(e)))
+                        case_results.append(CaseResult(case=case, send_status="error", error=str(e), reason="attack_request_failed", progress_status="failed"))
                         print(f"[ERROR] 요청 실패: family={family.family_id} case={case.case_id} - {e}")
                         continue
 
@@ -344,8 +353,12 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                             revisit_before, before_note = None, "이전과 재방문 주소가 다름 (사전 스냅샷 무효)"
                         revisit_fields = _revisit_after_fields(case_revisit_url, family, case, requester, zap, target, revisit_before, before_note)
 
+                    revisit_failed = needs_revisit and "revisit_status" not in revisit_fields  # 재조회 예외 때는 revisit_status 없음
                     case_results.append(CaseResult(
                         case=case, send_status="ok",
+                        progress_status="partial" if revisit_failed else "completed",  # 응답은 받았으나 후속 검증 실패
+                        reason="revisit_failed" if revisit_failed else None,
+                        reason_note=revisit_fields.get("revisit_note") if revisit_failed else None,
                         response_status=sent["response_status"],
                         response_headers=sent["response_headers"],
                         response_body=sent["response_body"],
@@ -353,6 +366,13 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         effective_cookies=sent["effective_cookies"],  # headless가 재현 시 쓸 쿠키값
                         **revisit_fields,
                     ))
+
+                if baseline_result.send_status == "error":  # 기준 응답이 없어 비교 불가 (자체 사유가 없는 시도에만 baseline_failed 부여)
+                    for r in case_results[1:]:
+                        if r.reason:
+                            r.reason_note = f"기준 요청도 실패 ({r.reason_note})" if r.reason_note else "기준 요청도 실패"
+                        else:
+                            r.reason, r.progress_status = "baseline_failed", "partial"
 
                 family_result = FamilyResult(
                     family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
