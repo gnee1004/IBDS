@@ -25,7 +25,7 @@ def _is_headless_target(vulnerable: bool, technique: str) -> bool:
     return vulnerable or technique == _DOM_TECHNIQUE
 
 
-# headless가 실행 인정 시 요구할 토큰 — case마다 고유 (토큰 없는 예전 결과는 None → 첫 dialog 인정)
+# headless가 실행 인정 시 요구할 토큰 — case마다 고유 (None이면 dialog가 떠도 실행 미인정)
 def _expected_token(case: dict) -> str | None:
     return case.get("exec_token")
 
