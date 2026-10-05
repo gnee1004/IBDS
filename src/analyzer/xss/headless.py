@@ -135,7 +135,7 @@ class HeadlessSession:
     def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str,
                              exec_token: str | None = None) -> HeadlessVerdict:
         if method != "GET":  # TODO : POST 폼 재현은 추후구현
-            return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)", ok=False,
+            return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원", ok=False,
                                    reason="browser_failed")
 
         browser = self._ensure_browser()  # 브라우저 실행 실패는 loudly 전파 — try 밖에 유지
