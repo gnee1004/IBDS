@@ -40,8 +40,20 @@ def _final_status(headless_checked: bool, hv: HeadlessVerdict | None) -> str:
     return POTENTIAL_HIGH if hv.executed else POTENTIAL_LOW
 
 
+# inconclusive 사유 결정 - 시도 결과에 먼저 기록된 사유 우선, 판정 단계 사유는 reason_note로 보충
+def _inconclusive_reason(case_result: dict, own: str | None) -> tuple[str | None, str | None]:
+    prior = case_result.get("reason")
+    if prior and own and prior != own:
+        return prior, own
+    return prior or own, None
+
+
 # Finding 생성 헬퍼 (stored 분기용) — raw/headless 없으면 기본값 채움
-def _mk_finding(family: dict, case: dict, final_status: str, *, raw=None, hv=None, evidence: str = "") -> Finding:
+def _mk_finding(family: dict, case_result: dict, final_status: str, *, raw=None, hv=None, evidence: str = "",
+                reason: str | None = None) -> Finding:
+    case = case_result["case"]
+    reason, reason_note = (_inconclusive_reason(case_result, reason) if final_status == INCONCLUSIVE
+                           else (None, None))
     return Finding(
         vuln_type="xss",
         family_id=family["family_id"],
@@ -59,6 +71,8 @@ def _mk_finding(family: dict, case: dict, final_status: str, *, raw=None, hv=Non
         headless_checked=hv is not None,
         headless_verdict=asdict(hv) if hv else None,
         final_status=final_status,
+        reason=reason,
+        reason_note=reason_note,
     )
 
 
@@ -70,7 +84,7 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
 
     # 마커 반사 미확인 -> inconclusive
     if not family.get("sink_confirmed"):
-        return _mk_finding(family, case, INCONCLUSIVE, evidence="sink 미확인")
+        return _mk_finding(family, case_result, INCONCLUSIVE, evidence="sink 미확인", reason="sink_not_confirmed")
 
     before = case_result.get("before_revisit_body") or ""
     after = case_result.get("revisit_body") or ""
@@ -80,7 +94,7 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     if case_result.get("revisit_found") is False:
         # 재조회 응답 자체가 무효(403/500 등)면 재조회 실패
         if not _is_valid_revisit_status(case_result.get("revisit_status")):
-            return _mk_finding(family, case, INCONCLUSIVE,
+            return _mk_finding(family, case_result, INCONCLUSIVE, reason="revisit_failed",
                                 evidence=f"재조회 응답 무효(상태 코드 {case_result.get('revisit_status')})")
         echo = judge_xss(case_result.get("response_body") or "", payload) if payload else None
         if echo and echo.vulnerable:
@@ -91,25 +105,25 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
                 exec_token=_expected_token(case),
             )
             if not hv.ok:  # 렌더링 실패
-                return _mk_finding(family, case, INCONCLUSIVE, raw=echo, hv=hv)
+                return _mk_finding(family, case_result, INCONCLUSIVE, raw=echo, hv=hv, reason=hv.reason)
             # 등록 응답에 실행가능 반사는 있으나 저장 미확인 -> LOW
-            return _mk_finding(family, case, POTENTIAL_LOW, raw=echo, hv=hv)
+            return _mk_finding(family, case_result, POTENTIAL_LOW, raw=echo, hv=hv)
         # 에코 없음 / escape로 raw 미적중
-        return _mk_finding(family, case, POTENTIAL_LOW, evidence="재조회에 공격 요청 안보임")
+        return _mk_finding(family, case_result, POTENTIAL_LOW, evidence="재조회에 공격 요청 안보임")
 
     # 재조회 자체 실패(revisit_found None 등)로 payload 확인 불가 -> inconclusive
     if not payload or payload not in after:
-        return _mk_finding(family, case, INCONCLUSIVE, evidence="재조회 N회 실패(payload 미확인)")
+        return _mk_finding(family, case_result, INCONCLUSIVE, evidence="재조회 N회 실패(payload 미확인)", reason="revisit_failed")
 
     # diff로 새로 생긴 영역(추가된 줄) 추출
     new_region = diff_new_region(before, after)
     if not new_region:
-        return _mk_finding(family, case, POTENTIAL_LOW, evidence="diff 새 영역 없음(잔재)")
+        return _mk_finding(family, case_result, POTENTIAL_LOW, evidence="diff 새 영역 없음(잔재)")
 
     # 추가된 줄(새 영역)만 judge_xss에 넘김 (마커로 payload 유일 -> 새 줄에 잡힘)
     raw = judge_xss(new_region, payload)
     if not raw.vulnerable:
-        return _mk_finding(family, case, POTENTIAL_LOW, raw=raw, evidence="새 영역에 실행가능 반사 없음")
+        return _mk_finding(family, case_result, POTENTIAL_LOW, raw=raw, evidence="새 영역에 실행가능 반사 없음")
 
     # 이 case 직후의 재조회 스냅샷을 렌더링해 실행 확인 (지금 다시 열면 덮어쓰는 필드는 마지막 case 값만 남음)
     hv = headless.confirm_via_render(
@@ -119,9 +133,9 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
         exec_token=_expected_token(case),
     )
     if not hv.ok:  # navigate 검증 실패 -> 확인 불가 (POTENTIAL_HIGH/LOW로 확정 금지)
-        return _mk_finding(family, case, INCONCLUSIVE, raw=raw, hv=hv)
+        return _mk_finding(family, case_result, INCONCLUSIVE, raw=raw, hv=hv, reason=hv.reason)
     # 저장 확인(diff)됨 -> 실행 확인 여부로 HIGH/LOW만 갈림
-    return _mk_finding(family, case, POTENTIAL_HIGH if hv.executed else POTENTIAL_LOW, raw=raw, hv=hv)
+    return _mk_finding(family, case_result, POTENTIAL_HIGH if hv.executed else POTENTIAL_LOW, raw=raw, hv=hv)
 
 
 # mutation case 1건에 대한 raw 판정 + (필요시) headless 확인
@@ -131,6 +145,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
     payload = case.get("payload") or ""
 
     if case_result.get("send_status") == "error":  # 요청 자체가 실패한 case는 판정 불가
+        reason = case_result.get("reason") or "attack_request_failed"  # 전송 단계 사유 그대로
         return Finding(
             vuln_type="xss",
             family_id=family["family_id"],
@@ -148,6 +163,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             headless_checked=False,
             headless_verdict=None,
             final_status=INCONCLUSIVE,
+            reason=reason,
         )
 
     if technique == _STORED_TECHNIQUE:  # stored는 재조회 diff 게이트 경로로 분기
@@ -170,6 +186,12 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
                 exec_token=_expected_token(case),
             )
 
+    final_status = _final_status(headless_checked, headless_verdict)
+    reason, reason_note = None, None
+    if final_status == INCONCLUSIVE:
+        own = headless_verdict.reason if headless_verdict else "browser_failed"
+        reason, reason_note = _inconclusive_reason(case_result, own)
+
     return Finding(
         vuln_type="xss",
         family_id=family["family_id"],
@@ -186,11 +208,13 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
         raw_verdict=asdict(raw_verdict),
         headless_checked=headless_checked,
         headless_verdict=asdict(headless_verdict) if headless_verdict else None,
-        final_status=_final_status(headless_checked, headless_verdict),
+        final_status=final_status,
         # 쿼리 값은 서버로 전송되므로, 응답에 반사됐다면 JS(DOM)가 아니라 서버 반사로 발화한 것
         # (fragment는 서버로 안 가서 해당 없음, technique은 생성 추적용으로 dom 유지)
         server_reflected=technique == _DOM_TECHNIQUE and case.get("body_type") == "query"
                          and raw_verdict.vulnerable,
+        reason=reason,
+        reason_note=reason_note,
     )
 
 

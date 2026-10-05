@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright, Browser, Playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 _DROP_ON_FULFILL = {"content-encoding", "content-length", "transfer-encoding"}  # fulfill 시 제외할 응답 헤더
 _SETTLE_STEP_MS = 500  # dialog가 이 시간 동안 새로 안 뜨면 다 뜬 것으로 봄 (지연 실행 payload 대비 대기)
@@ -39,12 +40,19 @@ def _unmatched_evidence(messages: list[str], exec_token: str | None) -> str:
         return f"식별값 없는 시도라 dialog 실행 미인정: {messages[0]}"
     return f"우리 토큰 없는 dialog 무시(페이지 자체): {messages[0]}"
 
+
+# 브라우저 확인 실패 사유 코드
+def _failure_reason(e: Exception) -> str:
+    return "browser_timeout" if isinstance(e, PlaywrightTimeoutError) else "browser_failed"
+
+
 @dataclass
 class HeadlessVerdict:  # headless 확인 1건의 결과
     executed: bool    # alert 등 dialog가 실제로 발생했는지
     method: str       # "render"(재렌더링) 또는 "navigate"(실제 재요청)
     evidence: str     # 짧은 근거 텍스트
     ok: bool = True   # 검증 자체가 수행됐는지. 렌더/네비 실패·미지원이면 False -> 상위에서 inconclusive
+    reason: str | None = None  # 실패 또는 귀속 불가 사유 코드 (browser_timeout, browser_failed, state_contamination_possible)
 
 
 class HeadlessSession:
@@ -105,7 +113,8 @@ class HeadlessSession:
             _wait_dialogs_settle(page, dialog_messages)
         except Exception as e:
             if not dialog_messages:  # 이미 발화한 뒤의 타임아웃(느린 하위 리소스 등)은 발화로 인정
-                return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}", ok=False)
+                return HeadlessVerdict(executed=False, method="render", evidence=f"렌더링 실패: {e}", ok=False,
+                                       reason=_failure_reason(e))
         finally:
             page.close()
         hit = _pick_executed(dialog_messages, exec_token)
@@ -113,14 +122,16 @@ class HeadlessSession:
             return HeadlessVerdict(executed=True, method="render", evidence=f"dialog fired: {hit}")
         if dialog_messages:  # dialog는 떴지만 이번 시도 발화로 인정 불가 → 실행 아님
             return HeadlessVerdict(executed=False, method="render",
-                                   evidence=_unmatched_evidence(dialog_messages, exec_token))
+                                   evidence=_unmatched_evidence(dialog_messages, exec_token),
+                                   reason="state_contamination_possible")
         return HeadlessVerdict(executed=False, method="render", evidence="dialog 없음")
 
     # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (GET만)
     def confirm_via_navigate(self, url: str, cookies: dict[str, str], method: str,
                              exec_token: str | None = None) -> HeadlessVerdict:
         if method != "GET":  # TODO : POST 폼 재현은 추후구현
-            return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)", ok=False)
+            return HeadlessVerdict(executed=False, method="navigate", evidence="POST navigate 미지원 (ver1 범위 밖)", ok=False,
+                                   reason="browser_failed")
 
         browser = self._ensure_browser()  # 브라우저 실행 실패는 loudly 전파 — try 밖에 유지
         context = None
@@ -143,7 +154,8 @@ class HeadlessSession:
             page.goto(url, timeout=10000)
             _wait_dialogs_settle(page, dialog_messages)
         except Exception as e:
-            return HeadlessVerdict(executed=False, method="navigate", evidence=f"navigate 실패: {e}", ok=False)
+            return HeadlessVerdict(executed=False, method="navigate", evidence=f"navigate 실패: {e}", ok=False,
+                                   reason=_failure_reason(e))
         finally:
             if context is not None:
                 context.close()
@@ -152,5 +164,6 @@ class HeadlessSession:
             return HeadlessVerdict(executed=True, method="navigate", evidence=f"dialog fired: {hit}")
         if dialog_messages:  # dialog는 떴지만 이번 시도 발화로 인정 불가 -> 실행 아님
             return HeadlessVerdict(executed=False, method="navigate",
-                                   evidence=_unmatched_evidence(dialog_messages, exec_token))
+                                   evidence=_unmatched_evidence(dialog_messages, exec_token),
+                                   reason="state_contamination_possible")
         return HeadlessVerdict(executed=False, method="navigate", evidence="dialog 없음")
