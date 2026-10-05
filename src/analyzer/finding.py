@@ -23,5 +23,5 @@ class Finding:
     headless_verdict: dict | None  # headless 결과 (asdict), 대상 아니면 None
     final_status: str              # "potential_high" | "potential_medium" | "potential_low" | "inconclusive"
     server_reflected: bool = False # DOM 쿼리 소스인데 서버가 payload를 응답에 반사함 (실제로는 Reflected XSS)
-    reason: str | None = None      # inconclusive 사유 코드 (scan.models.REASON_CODES 중 하나)
+    reason: str | None = None      # 사유 코드 (REASON_CODES 중 하나) - inconclusive 원인 또는 귀속 불가 경고창
     reason_note: str | None = None # 뒤따른 사유 보충

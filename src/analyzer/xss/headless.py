@@ -41,6 +41,11 @@ def _unmatched_evidence(messages: list[str], exec_token: str | None) -> str:
     return f"우리 토큰 없는 dialog 무시(페이지 자체): {messages[0]}"
 
 
+# 실행으로 인정하지 않은 dialog의 사유 코드 - 토큰 없는 시도만 이번 시도와 구분 불가
+def _unmatched_reason(exec_token: str | None) -> str | None:
+    return "state_contamination_possible" if exec_token is None else None
+
+
 # 브라우저 확인 실패 사유 코드
 def _failure_reason(e: Exception) -> str:
     return "browser_timeout" if isinstance(e, PlaywrightTimeoutError) else "browser_failed"
@@ -123,7 +128,7 @@ class HeadlessSession:
         if dialog_messages:  # dialog는 떴지만 이번 시도 발화로 인정 불가 → 실행 아님
             return HeadlessVerdict(executed=False, method="render",
                                    evidence=_unmatched_evidence(dialog_messages, exec_token),
-                                   reason="state_contamination_possible")
+                                   reason=_unmatched_reason(exec_token))
         return HeadlessVerdict(executed=False, method="render", evidence="dialog 없음")
 
     # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (GET만)
@@ -165,5 +170,5 @@ class HeadlessSession:
         if dialog_messages:  # dialog는 떴지만 이번 시도 발화로 인정 불가 -> 실행 아님
             return HeadlessVerdict(executed=False, method="navigate",
                                    evidence=_unmatched_evidence(dialog_messages, exec_token),
-                                   reason="state_contamination_possible")
+                                   reason=_unmatched_reason(exec_token))
         return HeadlessVerdict(executed=False, method="navigate", evidence="dialog 없음")

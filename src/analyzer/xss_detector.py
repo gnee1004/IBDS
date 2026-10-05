@@ -52,8 +52,10 @@ def _inconclusive_reason(case_result: dict, own: str | None) -> tuple[str | None
 def _mk_finding(family: dict, case_result: dict, final_status: str, *, raw=None, hv=None, evidence: str = "",
                 reason: str | None = None) -> Finding:
     case = case_result["case"]
-    reason, reason_note = (_inconclusive_reason(case_result, reason) if final_status == INCONCLUSIVE
-                           else (None, None))
+    if final_status == INCONCLUSIVE:
+        reason, reason_note = _inconclusive_reason(case_result, reason)
+    else:  # 판정은 났지만 귀속 불가 경고창이 있었던 경우만 사유 기록
+        reason, reason_note = (hv.reason if hv else None), None
     return Finding(
         vuln_type="xss",
         family_id=family["family_id"],
@@ -187,10 +189,11 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
             )
 
     final_status = _final_status(headless_checked, headless_verdict)
-    reason, reason_note = None, None
+    hv_reason = headless_verdict.reason if headless_verdict else None
     if final_status == INCONCLUSIVE:
-        own = headless_verdict.reason if headless_verdict else "browser_failed"
-        reason, reason_note = _inconclusive_reason(case_result, own)
+        reason, reason_note = _inconclusive_reason(case_result, hv_reason or "browser_failed")
+    else:  # 판정은 났지만 귀속 불가 경고창이 있었던 경우만 사유 기록
+        reason, reason_note = hv_reason, None
 
     return Finding(
         vuln_type="xss",
