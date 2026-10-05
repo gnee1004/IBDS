@@ -53,6 +53,53 @@ def _delivery_unknown_finding(family: RequestFamily, case_id: str) -> dict:
     }
 
 
+# 보내지 못한 요청의 자리표시 결과
+def _unsent_result(case, reason: str, note: str | None = None) -> CaseResult:
+    return CaseResult(case=case, send_status="not_sent", progress_status="not_run", reason=reason, reason_note=note)
+
+
+# RequestFamily와 전송 결과 목록으로 FamilyResult 생성
+def _family_result(family: RequestFamily, case_results: list[CaseResult]) -> FamilyResult:
+    return FamilyResult(
+        family_id=family.family_id,
+        vuln_type=family.vuln_type,
+        technique=family.technique,
+        target_id=family.target_id,
+        param=family.param,
+        attack_id=family.attack_id,
+        baseline=case_results[0],
+        mutations=case_results[1:],
+        location=family.location,
+        value_index=family.value_index,  # 지점 식별용
+        dynamic_markers=family.dynamic_markers,
+        baseline_match_ratio=family.baseline_match_ratio,
+        sink_confirmed=family.sink_confirmed,
+        revisit_url=family.revisit_url,
+        probe_marker=family.probe_marker,
+        sink_note=family.sink_note,
+    )
+
+
+# 하나도 전송하지 못한 family의 자리표시 기록 (baseline, 변형 요청 모두 미실행)
+def _unsent_family_dict(family: RequestFamily, reason: str) -> dict:
+    return asdict(_family_result(family, [_unsent_result(c, reason) for c in [family.baseline, *family.mutations]]))
+
+
+# family가 없는 검사 지점 단위 기록 (family_id 없음)
+def _scan_point_record(sp: ScanPoint, progress_status: str, reason: str, note: str | None = None, stage: str | None = None) -> dict:
+    return {
+        "scope": "scan_point",
+        "target_id": sp.target_id,
+        "param": sp.name,
+        "location": sp.location,
+        "value_index": sp.value_index,
+        "stage": stage,
+        "progress_status": progress_status,
+        "reason": reason,
+        "reason_note": note,
+    }
+
+
 # family id와 그 case id들에 접미사 부착 (같은 지점의 family를 출력 위치별로 여러 세트 만들 때 id 충돌 방지)
 def _suffix_family_id(family: RequestFamily, suffix: str) -> None:
     old = family.family_id
@@ -75,8 +122,7 @@ def _sweep_urls(targets: list[dict]) -> list[str]:
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
 def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, findings_path: str | None = None,
-                      sweep_urls: list[str] | None = None, use_discovery: bool = True,
-                      ) -> tuple[list[RequestFamily], DiscoveryFilterStat | None]:
+                      sweep_urls: list[str] | None = None, results_path: str | None = None, use_discovery: bool = True) -> tuple[list[RequestFamily], DiscoveryFilterStat | None]:
     if has_destructive_action(target.get("params", {})):
         return [], None   # 파괴적 액션 있는 타겟은 검사 안함
 
@@ -119,6 +165,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                         f.revisit_source = source
                         f.probe_marker = probe_result.probe_marker
                     families.extend(stored)
+        
             elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
                 if probe_err is not None:
                     sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
@@ -127,7 +174,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id,
                     "param": sp.name,
-                    "vuln_type": "xss",       # 새 결과 계약: probe 기록도 다른 판정과 동일한 필드로 통일
+                    "vuln_type": "xss",
                     "technique": "stored",
                     "location": sp.location,        # 지점 식별용
                     "value_index": sp.value_index,
@@ -149,6 +196,8 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     "status": "error",
                     "error": str(e),
             })
+        if results_path:  # 시도 결과에도 검사 지점 단위 실패 기록
+            append_jsonl(results_path, _scan_point_record(sp, "failed", "prepare_failed", str(e), "xss_prepare"))
         print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
 
     # SQLi 
@@ -164,6 +213,8 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                         "status": "error",
                         "error": str(e),
                 })
+            if results_path:
+                append_jsonl(results_path, _scan_point_record(sp, "failed", "prepare_failed", str(e), "sqli_prepare"))
             print(f"[WARN] SQLi 준비 단계 실패 : target={sp.target_id} param={sp.name} - {e}")
 
     return families, filter_stat
@@ -277,20 +328,22 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
     total_count = 0
 
     try:
+        started = 0  # 처리를 시작한 검사 지점 수 (중단 시 나머지는 미실행 기록)
         for sp in scan_points:
             if progress.should_stop():
                 break
+            started += 1
             target = target_by_id[sp.target_id]
             point_start_count = requester.get_send_count()
             point_browser_runs = 0
             try:
-                families, filter_stat = _route_scan_point(sp, target, zap, marker_factory=marker_factory,
-                                             findings_path=findings_path, sweep_urls=sweep_urls, use_discovery=use_discovery)
-            except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김.
+                families, filter_stat = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path, sweep_urls=sweep_urls, results_path=results_path, use_discovery=use_discovery)
+            except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id, "param": sp.name,
                     "status": "error", "stage": "route", "error": str(e),
                 })
+                append_jsonl(results_path, _scan_point_record(sp, "failed", "prepare_failed", str(e), "route"))
                 print(f"[ERROR] ScanPoint 라우팅 실패: target={sp.target_id} param={sp.name} - {e}")
                 progress.completed += 1
                 progress.publish()
@@ -299,6 +352,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
             if progress.should_stop():
                 if not families:
                     progress.completed += 1
+                for f in families:  # 준비만 되고 하나도 못 보낸 family는 미실행
+                    append_jsonl(results_path, _unsent_family_dict(f, "cancelled_by_user"))
                 progress.publish()
                 break
 
@@ -334,8 +389,11 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 if baseline_result is not None:
                     baseline_result.request_count = requester.get_send_count() - base_before  # baseline 전송에 든 요청 수 (재시도 포함)
 
+            processed = 0  # 처리를 시작한 family 수 (중단시 나머지는 미실행)
             for family in families:
+                processed += 1
                 assert baseline_result is not None  # families가 비어있지 않으면 위에서 반드시 채워짐
+                
                 # 위에서 보낸 baseline 결과를 family 고유 case_id로 갈아끼워 재사용
                 case_results: list[CaseResult] = [replace(baseline_result, case=family.baseline)]
 
@@ -406,18 +464,11 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         else:
                             r.reason, r.progress_status = "baseline_failed", "partial"
 
-                family_result = FamilyResult(
-                    family_id=family.family_id, vuln_type=family.vuln_type, technique=family.technique,
-                    target_id=family.target_id, param=family.param, attack_id=family.attack_id,
-                    baseline=case_results[0], mutations=case_results[1:],
-                    location=family.location, value_index=family.value_index,  # 지점 식별용
-                    dynamic_markers=family.dynamic_markers,
-                    baseline_match_ratio=family.baseline_match_ratio,
-                    sink_confirmed=family.sink_confirmed,
-                    revisit_url=family.revisit_url,
-                    probe_marker=family.probe_marker,
-                    sink_note=family.sink_note,
-                )
+                sent_count = len(case_results) - 1  # 실제 처리한 변형 요청 수
+                incomplete = sent_count < len(family.mutations)  # 중단으로 변형 요청이 남은 경우
+                case_results += [_unsent_result(c, "cancelled_by_user") for c in family.mutations[sent_count:]]
+
+                family_result = _family_result(family, case_results)
                 family_dict = asdict(family_result)
                 append_jsonl(results_path, family_dict)
 
@@ -426,13 +477,19 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     if baseline_result.reason == "delivery_unknown":  # 기준값 전송 불명 -> 비교 불가, 판정 대신 전송 사유 기록
                         append_jsonl(findings_path, _delivery_unknown_finding(family, family.baseline.case_id))
                         continue
-                    if len(case_results) - 1 < len(family.mutations):
+
+                    if incomplete:
                         append_jsonl(findings_path, {
-                            "family_id": family.family_id, "target_id": family.target_id,
-                            "param": family.param, "vuln_type": family.vuln_type,
-                            "technique": family.technique, "final_status": "inconclusive",
-                            "location": family.location, "value_index": family.value_index,  # 지점 식별용
-                            "stage": "stop", "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
+                            "family_id": family.family_id, 
+                            "target_id": family.target_id,
+                            "param": family.param,
+                            "vuln_type": family.vuln_type,
+                            "technique": family.technique,
+                            "final_status": "inconclusive",
+                            "location": family.location,
+                            "value_index": family.value_index,  # 지점 식별용
+                            "stage": "stop",
+                            "evidence": "사용자 중단으로 비교 요청 묶음 미완료",
                         })
                         break
                     try:
@@ -449,8 +506,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     continue
 
                 # XSS 판정
-                for i, result in enumerate(case_results[1:]): # 수행한 요청만 판정 대상
-                    if result.reason == "delivery_unknown":  # 전송 불명 case -> 판정 대신 전송 사유 기록 (analyzer 판정과 중복 방지)
+                for i, result in enumerate(case_results[1:1 + sent_count]): # 자리표시를 제외하고 수행한 요청만 판정 대상
+                    if result.reason == "delivery_unknown":  # 전송 불명 case -> 전송 사유 기록
                         append_jsonl(findings_path, _delivery_unknown_finding(family, result.case.case_id))
                         continue
                     try:
@@ -467,6 +524,9 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 if progress.should_stop():
                     break
 
+            for rest in families[processed:]:  # 중단으로 시작도 못 한 family
+                append_jsonl(results_path, _unsent_family_dict(rest, "cancelled_by_user"))
+            
             point_requests = requester.get_send_count() - point_start_count
             metrics_record = {
                 "point_id": sp.point_id, "target_id": sp.target_id, "param": sp.name,
@@ -482,13 +542,16 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
             append_jsonl(metrics_path, metrics_record)
 
             point_complete = not families or (
-                family is families[-1] and len(case_results) == len(family.mutations) + 1
+                family is families[-1] and not incomplete
             )
             if point_complete:
                 progress.completed += 1
             progress.publish()
             if progress.should_stop():
                 break
+
+        for sp in scan_points[started:]:  # 중단으로 시작도 못 한 검사 지점
+            append_jsonl(results_path, _scan_point_record(sp, "not_run", "cancelled_by_user"))
 
         if progress.completed == progress.total:
             progress.stopped = False
