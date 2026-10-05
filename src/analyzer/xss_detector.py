@@ -130,7 +130,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
     technique = family["technique"]
     payload = case.get("payload") or ""
 
-    if case_result.get("status") == "error":  # 요청 자체가 실패한 case는 판정 불가
+    if case_result.get("send_status") == "error":  # 요청 자체가 실패한 case는 판정 불가
         return Finding(
             vuln_type="xss",
             family_id=family["family_id"],

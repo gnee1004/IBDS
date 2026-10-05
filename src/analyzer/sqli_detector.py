@@ -22,7 +22,7 @@ _STATIC_EPS = 0.002
 
 
 def _successful(result: dict | None) -> bool:
-    return bool(result) and result.get("status") == "ok"
+    return bool(result) and result.get("send_status") == "ok"
 
 
 def _body(result: dict | None) -> str:

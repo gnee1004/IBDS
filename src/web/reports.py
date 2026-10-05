@@ -90,7 +90,7 @@ def build_report(out_dir):
                          "method": target.get("method") or original.get("method"),
                          "vuln_type": family.get("vuln_type"), "technique": family.get("technique")}
         for result in [baseline, *(family.get("mutations") or [])]:
-            if result.get("status") != "error":
+            if (result.get("send_status") or result.get("status")) != "error":  # 옛 결과 폴더는 status 이름 사용
                 continue
             case = result.get("case") or {}
             failed_cases.add((fid, case.get("case_id")))

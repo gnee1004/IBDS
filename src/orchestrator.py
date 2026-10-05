@@ -281,18 +281,18 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                 try:
                     sent = requester.send(baseline_case, zap)
                 except requester.RequestDeliveryUnknown as e:  # POST류 baseline 전송 불명 — 서버 처리 여부 모름 상태로 구분
-                    baseline_result = CaseResult(case=baseline_case, status="error", error=str(e), reason="delivery_unknown")
+                    baseline_result = CaseResult(case=baseline_case, send_status="error", error=str(e), reason="delivery_unknown")
                     progress.failed += 1
                     progress.publish()
                     print(f"[ERROR] baseline 전송 불명(서버 처리 여부 모름): target={sp.target_id} param={sp.name} - {e}")
                 except Exception as e:  # baseline 요청 실패는 이 ScanPoint의 모든 family에 동일하게 반영
-                    baseline_result = CaseResult(case=baseline_case, status="error", error=str(e))
+                    baseline_result = CaseResult(case=baseline_case, send_status="error", error=str(e))
                     progress.failed += 1
                     progress.publish()
                     print(f"[ERROR] baseline 요청 실패: target={sp.target_id} param={sp.name} - {e}")
                 else:
                     baseline_result = CaseResult(
-                        case=baseline_case, status="ok",
+                        case=baseline_case, send_status="ok",
                         response_status=sent["response_status"],
                         response_headers=sent["response_headers"],
                         response_body=sent["response_body"],
@@ -317,7 +317,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     if needs_revisit:  # 공격 요청 전 스냅샷 - 마커로 미리 확인한 재방문 주소 기준으로 변형마다 새로 찍음
                         revisit_before, before_note = _revisit_before(family, case, requester, zap, target)
                         if revisit_before is None:  # 사전 스냅샷 실패 -> 이미 판정 불가로 결과 고정, 공격 요청/사후 재조회 생략
-                            case_results.append(CaseResult(case=case, status="ok", revisit_note=before_note))
+                            case_results.append(CaseResult(case=case, send_status="ok", revisit_note=before_note))
                             continue
 
                     try:
@@ -325,13 +325,13 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                     except requester.RequestDeliveryUnknown as e:  # 전송 불명 — 판정 대신 전송 사유 남기고 계속 진행
                         progress.failed += 1
                         progress.publish()
-                        case_results.append(CaseResult(case=case, status="error", error=str(e), reason="delivery_unknown"))
+                        case_results.append(CaseResult(case=case, send_status="error", error=str(e), reason="delivery_unknown"))
                         print(f"[ERROR] 전송 불명(서버 처리 여부 모름): family={family.family_id} case={case.case_id} - {e}")
                         continue
                     except Exception as e:  # 개별 요청 실패는 로그만 남기고 계속 진행
                         progress.failed += 1
                         progress.publish()
-                        case_results.append(CaseResult(case=case, status="error", error=str(e)))
+                        case_results.append(CaseResult(case=case, send_status="error", error=str(e)))
                         print(f"[ERROR] 요청 실패: family={family.family_id} case={case.case_id} - {e}")
                         continue
 
@@ -345,7 +345,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
                         revisit_fields = _revisit_after_fields(case_revisit_url, family, case, requester, zap, target, revisit_before, before_note)
 
                     case_results.append(CaseResult(
-                        case=case, status="ok",
+                        case=case, send_status="ok",
                         response_status=sent["response_status"],
                         response_headers=sent["response_headers"],
                         response_body=sent["response_body"],
