@@ -6,7 +6,7 @@ from dataclasses import asdict
 
 from utilities.file_utils import append_jsonl
 from .finding import Finding
-from .final_status import POTENTIAL_HIGH, POTENTIAL_LOW, INCONCLUSIVE
+from .final_status import POTENTIAL_HIGH, POTENTIAL_MEDIUM, POTENTIAL_LOW, INCONCLUSIVE
 from .xss.headless import HeadlessSession, HeadlessVerdict
 from .xss.revisit import diff_new_region
 from .xss.judge import judge_xss
@@ -31,13 +31,15 @@ def _expected_token(case: dict) -> str | None:
 
 
 # headless 확인 결과까지 반영한 최종 상태 판정 (reflected/DOM 공용).
-# XSS는 표현 확정본상 MEDIUM이 없음 — 실행 미확인은 반사 여부와 무관하게 POTENTIAL_LOW로 통일
-def _final_status(headless_checked: bool, hv: HeadlessVerdict | None) -> str:
+# 반사 확인 + 실행 미확인은 MEDIUM(취약 신호 관찰), 검증을 끝내지 못한 경우(판단 보류)와 구분
+def _final_status(headless_checked: bool, hv: HeadlessVerdict | None, raw_reflected: bool) -> str:
     if not headless_checked:
         return POTENTIAL_LOW  # raw 판정만으로 실행가능 반사 없음 (headless 대상 아님)
     if hv is None or not hv.ok:
         return INCONCLUSIVE  # headless 검증을 끝내지 못함 → 안전 아님
-    return POTENTIAL_HIGH if hv.executed else POTENTIAL_LOW
+    if hv.executed:
+        return POTENTIAL_HIGH
+    return POTENTIAL_MEDIUM if raw_reflected else POTENTIAL_LOW  # 반사 확인 + 실행 미확인 -> 취약 신호 관찰
 
 
 # inconclusive 사유 결정 - 시도 결과에 먼저 기록된 사유 우선, 판정 단계 사유는 reason_note로 보충
@@ -136,8 +138,8 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
     )
     if not hv.ok:  # navigate 검증 실패 -> 확인 불가 (POTENTIAL_HIGH/LOW로 확정 금지)
         return _mk_finding(family, case_result, INCONCLUSIVE, raw=raw, hv=hv, reason=hv.reason)
-    # 저장 확인(diff)됨 -> 실행 확인 여부로 HIGH/LOW만 갈림
-    return _mk_finding(family, case_result, POTENTIAL_HIGH if hv.executed else POTENTIAL_LOW, raw=raw, hv=hv)
+    # 저장 확인(diff)됨 + 반사 확인 -> 실행되면 HIGH, 실행 미확인이면 MEDIUM(취약 신호 관찰)
+    return _mk_finding(family, case_result, POTENTIAL_HIGH if hv.executed else POTENTIAL_MEDIUM, raw=raw, hv=hv)
 
 
 # mutation case 1건에 대한 raw 판정 + (필요시) headless 확인
@@ -188,7 +190,7 @@ def judge_case(family: dict, case_result: dict, headless: HeadlessSession) -> Fi
                 exec_token=_expected_token(case),
             )
 
-    final_status = _final_status(headless_checked, headless_verdict)
+    final_status = _final_status(headless_checked, headless_verdict, raw_verdict.vulnerable)
     hv_reason = headless_verdict.reason if headless_verdict else None
     if final_status == INCONCLUSIVE:
         reason, reason_note = _inconclusive_reason(case_result, hv_reason or "browser_failed")
