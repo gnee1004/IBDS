@@ -43,7 +43,7 @@ def _unmatched_evidence(messages: list[str], exec_token: str | None) -> str:
 
 # 실행으로 인정하지 않은 dialog의 사유 코드 - 토큰 없는 시도만 이번 시도와 구분 불가
 def _unmatched_reason(exec_token: str | None) -> str | None:
-    return "state_contamination_possible" if exec_token is None else None
+    return "state_unclear" if exec_token is None else None
 
 
 # 브라우저 확인 실패 사유 코드
@@ -57,7 +57,7 @@ class HeadlessVerdict:  # headless 확인 1건의 결과
     method: str       # "render"(재렌더링) 또는 "navigate"(실제 재요청)
     evidence: str     # 짧은 근거 텍스트
     ok: bool = True   # 검증 자체가 수행됐는지. 렌더/네비 실패·미지원이면 False -> 상위에서 inconclusive
-    reason: str | None = None  # 실패 또는 귀속 불가 사유 코드 (browser_timeout, browser_failed, state_contamination_possible)
+    reason: str | None = None  # 실패 또는 귀속 불가 사유 코드 (browser_timeout, browser_failed, state_unclear)
 
 
 class HeadlessSession:
