@@ -17,7 +17,7 @@ _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 _DANGER_URL_FILE = os.path.join(_THIS_DIR, "spider_exclude.txt")
 
 _DEFAULT_AJAX_TIMEOUT = 600  # Ajax Spider 최대 대기시간(초) 기본값 (웹 설정값이 있으면 그 값 우선)
-_DEFAULT_SPIDER_TIMEOUT = 1200  # 일반 Spider 최대 대기시간(초)
+_DEFAULT_SPIDER_TIMEOUT = 1800  # 일반 Spider 최대 대기시간(초), Benchmark SQLi/XSS 약 960건 수집 여유분
 
 
 # 위험 URL 정규식 목록 로드 (빈 줄/주석 제외)
