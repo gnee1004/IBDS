@@ -93,6 +93,7 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     response_headers: dict[str, str] | None = None
     response_body: str | None = None
     elapsed: float | None = None
+    request_count: int | None = None                     # 이 시도가 실제로 보낸 HTTP 요청 수 (재시도·재조회 포함)
     error: str | None = None                             # send_status="error"일 때 예외 메시지
     reason: str | None = None                            # 사유 코드값(REASON_CODES 중 하나)
     progress_status: str | None = None                   # 검증 진행 상태 (PROGRESS_STATUSES 중 하나)

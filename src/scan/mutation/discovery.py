@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 
 from bs4 import BeautifulSoup, NavigableString
@@ -8,6 +9,28 @@ from bs4 import BeautifulSoup, NavigableString
 from scan.models import DiscoveryResult, ScanPoint
 from scan.mutation.variant import build_baseline_case, build_mutation_case
 from scan.requester import requester
+
+@dataclass
+class DiscoveryFilterStat:
+    point_id: str
+    not_reflected: int = 0 
+    context_mismatch: int = 0
+    specials_not_surviving: int = 0
+
+    @property
+    def total(self) -> int:
+        return self.not_reflected + self.context_mismatch + self.specials_not_surviving
+
+    def as_record(self) -> dict:
+        return {
+            "point_id": self.point_id,
+            "discovery_filtered": self.total,
+            "discovery_filtered_reasons": {
+                "not_reflected": self.not_reflected,
+                "context_mismatch": self.context_mismatch,
+                "specials_not_surviving": self.specials_not_surviving,
+            },
+        }
 
 _CANDIDATE_SPECIALS = ["<", ">", '"', "'", "=", "(", ")", "/", "\\", "`"]
 _SPECIALS_MARK_START = "ibdsA"

@@ -16,6 +16,20 @@ _SEND_MAX_RETRIES = 2
 _SEND_RETRY_DELAY_SECS = 0.5
 _RETRY_SAFE_METHODS = frozenset({"GET", "HEAD"})
 
+# 실제로 ZAP에 보낸 HTTP 요청 수 — 재시도·재조회·probe까지 모든 전송이 _send_once를 거치므로 여기서 한곳에서 센다
+_send_count = 0
+
+
+# 누적 전송 수 조회 (호출부가 시도 전후 차이로 시도당 요청 수를 구함)
+def get_send_count() -> int:
+    return _send_count
+
+
+# 전송 카운터 초기화 (스캔 실행 시작 시 1회)
+def reset_send_count() -> None:
+    global _send_count
+    _send_count = 0
+
 class RequestDeliveryUnknown(RuntimeError):
     """POST처럼 서버에 뭔가 등록·수정하는 요청이 전송 도중 실패한 경우.
 
@@ -207,6 +221,8 @@ def _build_raw_request(case: MutationCase, cookies: dict[str, str]) -> str:
 
 
 def _send_once(raw_request: str, zap) -> tuple[dict, float]:
+    global _send_count
+    _send_count += 1
     started = time.perf_counter()
     result = zap.core.send_request(request=raw_request, followredirects=False)
     elapsed = time.perf_counter() - started
@@ -239,17 +255,4 @@ def send(case: MutationCase, zap) -> dict:
                 f"{case.method} {case.case_id} 전송 실패, 서버 처리 여부 불명 (POST류라 재시도 안 함): {last_error}",
                 case_id=case.case_id, method=case.method, original_error=last_error,
             ) from last_error
-        raise last_error or RuntimeError("ZAP send_request 재시도 모두 실패")
-
-    response_header = msg.get("responseHeader", "")
-
-    _update_cookies_from_response(origin, response_header, _request_path(case.url))  # 다음 요청부터 갱신된 쿠키 사용
-
-    return {
-        "case_id": case.case_id,
-        "response_status": _parse_response_status(response_header),
-        "response_headers": _parse_headers_block(response_header),
-        "response_body": msg.get("responseBody", ""),
-        "elapsed": elapsed,
-        "effective_cookies": cookies,  # headless 재현 시 실제 전송 쿠키 복원용
-    }
+     
