@@ -23,16 +23,21 @@ def _wait_dialogs_settle(page, dialog_messages: list[str]) -> None:
             return
 
 
-# 실행으로 인정할 dialog 메시지 선택 - exec_token이 주어지면 그 토큰이 담긴 메시지만 우리 payload 발화로 인정한다.
+# 실행으로 인정할 dialog 메시지 선택 - exec_token이 담긴 메시지만 우리 payload 발화로 인정
 def _pick_executed(messages: list[str], exec_token: str | None) -> str | None:
-    if not messages:
-        return None # 토큰 없는 dialog는 페이지가 원래 띄운 것으로 보고 무시
-    if exec_token is None:
-        return messages[0]
+    if not messages or exec_token is None:  # 식별값 없는 시도는 dialog가 떠도 이번 시도 발화로 귀속 불가
+        return None
     for msg in messages:
         if exec_token in msg:
             return msg
-    return None # exec_token=None이면 첫 메시지
+    return None
+
+
+# 실행으로 인정하지 않은 dialog의 근거 문구
+def _unmatched_evidence(messages: list[str], exec_token: str | None) -> str:
+    if exec_token is None:
+        return f"식별값 없는 시도라 dialog 실행 미인정: {messages[0]}"
+    return f"우리 토큰 없는 dialog 무시(페이지 자체): {messages[0]}"
 
 @dataclass
 class HeadlessVerdict:  # headless 확인 1건의 결과
@@ -106,9 +111,9 @@ class HeadlessSession:
         hit = _pick_executed(dialog_messages, exec_token)
         if hit is not None:
             return HeadlessVerdict(executed=True, method="render", evidence=f"dialog fired: {hit}")
-        if dialog_messages:  # dialog는 떴지만 우리 토큰 아님 → 페이지 자체 것으로 보고 실행 아님
+        if dialog_messages:  # dialog는 떴지만 이번 시도 발화로 인정 불가 → 실행 아님
             return HeadlessVerdict(executed=False, method="render",
-                                   evidence=f"우리 토큰 없는 dialog 무시(페이지 자체): {dialog_messages[0]}")
+                                   evidence=_unmatched_evidence(dialog_messages, exec_token))
         return HeadlessVerdict(executed=False, method="render", evidence="dialog 없음")
 
     # 실제 URL로 navigate, 쿠키 주입 후 alert 발생 여부 확인 (GET만)
@@ -145,7 +150,7 @@ class HeadlessSession:
         hit = _pick_executed(dialog_messages, exec_token)
         if hit is not None:
             return HeadlessVerdict(executed=True, method="navigate", evidence=f"dialog fired: {hit}")
-        if dialog_messages:  # dialog는 떴지만 우리 토큰 아님 -> 페이지 자체 것으로 보고 실행 아님
-            return HeadlessVerdict(executed=False, method="navigate", 
-                                   evidence=f"우리가 발급한 토큰이 없는 dialog 무시(페이지 자체): {dialog_messages[0]}")
+        if dialog_messages:  # dialog는 떴지만 이번 시도 발화로 인정 불가 -> 실행 아님
+            return HeadlessVerdict(executed=False, method="navigate",
+                                   evidence=_unmatched_evidence(dialog_messages, exec_token))
         return HeadlessVerdict(executed=False, method="navigate", evidence="dialog 없음")
