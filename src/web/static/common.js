@@ -1,5 +1,5 @@
 export const $ = (id) => document.getElementById(id);
-export const labels = {potential_high:'취약',potential_medium:'의심',inconclusive:'판단보류',potential_low:'안전'};
+export const labels = {potential_high:'취약 가능성 높음',potential_medium:'취약 신호 관찰',inconclusive:'검토 필요',potential_low:'공격 근거 미확인'};
 export const stages = {idle:'실행 대기',collecting:'요청 수집 중',scanning:'검사 진행 중',completed:'검사 완료',stopped:'사용자에 의해 중단됨',failed:'실패로 중단됨',interrupted:'서버 종료로 중단됨',legacy:'이전 실행 · 상태 정보 없음'};
 export const order = ['potential_high','potential_medium','inconclusive','potential_low'];
 export const rank = (s) => order.includes(s) ? order.indexOf(s) : 2.5;
