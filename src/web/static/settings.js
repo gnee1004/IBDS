@@ -1,6 +1,6 @@
 import {$,api,element,notice} from './common.js';
 let nextId=0;
-function updateEmpty(){ $('override-empty').hidden=$('overrides').children.length>0; }
+function updateEmpty(){ const n=$('overrides').children.length; $('override-empty').hidden=n>0; $('override-state').textContent=n?`${n}개 등록`:'등록 없음'; }  // 접힌 제목에 등록 개수 표시
 function addRow(from='',to='') {
     const row=element('div',undefined,'override-row');
     const id=++nextId;
@@ -10,7 +10,7 @@ function addRow(from='',to='') {
         const input=element('input'); input.type='url';input.required=true;input.id=title.htmlFor;input.value=value;input.placeholder='https://example.com/page';input.dataset.field=name;input.spellcheck=false;
         field.append(title,input);row.append(field);
     }
-    const remove=element('button','삭제','secondary remove');remove.type='button';remove.setAttribute('aria-label',`재방문 주소 ${id} 삭제`);remove.onclick=()=>{row.remove();updateEmpty();};row.append(remove);$('overrides').append(row);updateEmpty();return row;
+    const remove=element('button','삭제','secondary remove');remove.type='button';remove.setAttribute('aria-label',`재방문 주소 ${id} 삭제`);remove.onclick=()=>{row.remove();updateEmpty();};row.append(remove);$('overrides').append(row);$('override-box').open=true;updateEmpty();return row;  // 행이 생기면 접힌 영역 자동 펼침(필수 입력칸이 숨은 채 제출 검증에 걸리는 것 방지)
 }
 function syncAjax(){ const on=$('ajax-spider').checked; $('ajax-random').disabled=!on; $('ajax-timeout').disabled=!on; $('ajax-state').textContent=on?`사용 · 최대 ${$('ajax-timeout').value||600}초`:'사용 안 함'; }  // Ajax Spider를 켠 경우에만 하위 설정 활성화, 접힌 제목에 현재 상태 표시
 $('ajax-spider').onchange=syncAjax;$('ajax-timeout').oninput=syncAjax;
