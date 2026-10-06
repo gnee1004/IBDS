@@ -1,6 +1,18 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Literal, get_args
 
+# 진행 상태 — 완료/부분 완료/실패/미실행
+ProgressStatus = Literal["completed", "partial", "failed", "not_run"]
+PROGRESS_STATUSES = get_args(ProgressStatus)  # 실행 중 검사용 목록 (타입 한 곳에서만 정의)
+
+# 사유 코드 — 사유는 가장 먼저 발생한 것 하나만 저장 나머지는 reason_note에 저장함.
+ReasonCode = Literal[
+    "delivery_unknown", "baseline_failed", "attack_request_failed",
+    "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
+    "out_of_scope", "cancelled_by_user", "not_reached", "state_unclear", "discovery_failed", "prepare_failed",
+]
+REASON_CODES = get_args(ReasonCode)
 
 @dataclass
 class ScanPoint:  # RequestTarget에서 공격 대상 파라미터를 하나씩 분리한 것.
@@ -74,15 +86,6 @@ class RequestFamily:              # 1파라미터 x 1룰 = 1Family. 분석기가
     sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
-# 진행 상태
-PROGRESS_STATUSES = ("completed", "partial", "failed", "not_run")  # 완료/부분 완료/실패/미실행
-
-# 사유 코드 — 사유는 가장 먼저 발생한 것 하나만 저장 나머지는 reason_note에 저장함.
-REASON_CODES = (
-    "delivery_unknown", "baseline_failed", "attack_request_failed",
-    "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
-    "out_of_scope", "cancelled_by_user", "not_reached", "state_unclear", "discovery_failed", "prepare_failed",
-)
 
 
 @dataclass
@@ -95,8 +98,8 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     elapsed: float | None = None
     request_count: int | None = None                     # 이 시도가 실제로 보낸 HTTP 요청 수 (재시도·재조회 포함)
     error: str | None = None                             # send_status="error"일 때 예외 메시지
-    reason: str | None = None                            # 사유 코드값(REASON_CODES 중 하나)
-    progress_status: str | None = None                   # 검증 진행 상태 (PROGRESS_STATUSES 중 하나)
+    reason: ReasonCode | None = None                     # 사유 코드값(REASON_CODES 중 하나)
+    progress_status: ProgressStatus | None = None        # 검증 진행 상태 (PROGRESS_STATUSES 중 하나)
     reason_note: str | None = None                       # 사유 보충용 (뒤따른 사유 등)
     effective_cookies: dict[str, str] | None = None      # 요청 전송 시점에 실제로 실린 누적 쿠키
     # stored 공격 후 재조회 결과
@@ -108,6 +111,14 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     revisit_attempts: int | None = None                  # 재시도 횟수
     revisit_found: bool | None = None                    # after 응답에 payload 반사됐는지 (before 실패로 diff 못 해도 기록)
     revisit_note: str | None = None                      # 재조회 특이사항 메모 (예: before 스냅샷 실패로 diff 신뢰 불가)
+
+    # 진행 상태, 사유 코드가 목록 밖 값이면 즉시 오류 (생성 시와 이후 대입 모두 검사)
+    def __setattr__(self, name, value):
+        if name == "progress_status" and value is not None and value not in PROGRESS_STATUSES:
+            raise ValueError(f"알 수 없는 progress_status: {value!r}")
+        if name == "reason" and value is not None and value not in REASON_CODES:
+            raise ValueError(f"알 수 없는 reason: {value!r}")
+        super().__setattr__(name, value)
 
 
 @dataclass
