@@ -459,6 +459,21 @@ progress.stopped::-webkit-progress-value{
 .finding details{
   margin-top:10px;
   font-size:14px}
+.facts{
+  display:grid;
+  grid-template-columns:max-content 1fr;
+  gap:4px 16px;
+  margin:12px 0 0;
+  font-size:14px}
+.facts dt{
+  color:var(--muted)}
+.facts dd{
+  margin:0;
+  overflow-wrap:anywhere}
+.rates{
+  margin-top:10px}
+.group-name .tag{
+  margin-left:8px}
 .error-row{
   padding:16px 0;
   border-bottom:1px solid var(--line);

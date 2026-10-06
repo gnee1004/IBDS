@@ -22,6 +22,8 @@ _STAGE_PROGRESS = {"probe": "partial", "judge": "partial", "stop": "not_run", "r
                    "route": "failed", "xss_prepare": "failed", "sqli_prepare": "failed"}
 _PREPARE_STAGES = ("route", "xss_prepare", "sqli_prepare")
 _STAGE_VULN = {"xss_prepare": "xss", "sqli_prepare": "sqli"}  # 검사 지점 줄은 vuln_type이 없어 준비 단계로 구분
+# 옛 결과 폴더의 판정 어휘
+_LEGACY_STATUS = {"vulnerable": HIGH, "vuln": HIGH, "safe": LOW, "reflected_only": LOW, "error_only": MEDIUM}
 
 
 def _load_jsonl(path):
@@ -70,6 +72,7 @@ def _point_verdict(verdicts, progress_status):
 
 def _new_point():
     return {"progress": [], "verdicts": [], "reasons": [], "case_ids": [], "url": None,
+            "attempts": [], "findings": [],  # 화면 근거 카드용 원본 기록
             "discovery_filtered": None, "discovery_filtered_reasons": None,
             "request_count": None, "browser_runs": None}
 
@@ -105,24 +108,31 @@ def build_points(out_dir, targets=None):
     for fam in _load_jsonl(os.path.join(out_dir, "request_results.jsonl")):
         if fam.get("scope") == "scan_point":  # 시작 못 했거나 준비에 실패한 지점, family 없이 지점당 한 줄
             has_point_rows = True
-            key = _point_key(fam, _STAGE_VULN.get(fam.get("stage")))
+            stage_vuln = _STAGE_VULN.get(fam.get("stage"))
+            # 준비 단계가 없으면 그 지점의 모든 취약점 종류가 미실행이나 실패
+            vulns = [stage_vuln] if stage_vuln else ["xss"] if fam.get("location") == "fragment" else ["xss", "sqli"]
+            keys = [_point_key(fam, v) for v in vulns]
             attempts = [fam]
         else:
-            key = _point_key(fam)
-            family_keys[fam.get("family_id")] = key
+            keys = [_point_key(fam)]
+            family_keys[fam.get("family_id")] = keys[0]
             # baseline은 공격 시도로 세지 않고 변형 요청이 없을 때만 지점 자리로 씀
             attempts = fam.get("mutations") or [fam.get("baseline") or {}]
-        p = points.setdefault(key, _new_point())
         for cr in attempts:
-            case_id = (cr.get("case") or {}).get("case_id")
-            p["progress"].append(_case_progress(cr))
-            p["case_ids"].append(case_id)
             if cr.get("reason"):
-                p["reasons"].append(cr["reason"])
+                count_reason(cr["reason"])
+                case_id = (cr.get("case") or {}).get("case_id")
                 if case_id:
                     attempt_reason[case_id] = cr["reason"]
-                count_reason(cr["reason"])
-        p["url"] = p["url"] or (fam.get("baseline") or {}).get("case", {}).get("url")
+        for key in keys:
+            p = points.setdefault(key, _new_point())
+            p["attempts"].extend(attempts)
+            for cr in attempts:
+                p["progress"].append(_case_progress(cr))
+                p["case_ids"].append((cr.get("case") or {}).get("case_id"))
+                if cr.get("reason"):
+                    p["reasons"].append(cr["reason"])
+            p["url"] = p["url"] or (fam.get("baseline") or {}).get("case", {}).get("url")
 
     for fd in _load_jsonl(os.path.join(out_dir, "findings.jsonl")):
         if has_point_rows and fd.get("stage") in _PREPARE_STAGES:
@@ -130,6 +140,8 @@ def build_points(out_dir, targets=None):
         key = family_keys.get(fd.get("family_id")) or _point_key(fd)
         p = points.setdefault(key, _new_point())
         if fd.get("final_status"):
+            fd["final_status"] = _LEGACY_STATUS.get(fd["final_status"], fd["final_status"])
+            p["findings"].append(fd)
             p["verdicts"].append(fd["final_status"])
         if fd.get("stage") in _STAGE_PROGRESS:
             p["progress"].append(_STAGE_PROGRESS[fd["stage"]])
