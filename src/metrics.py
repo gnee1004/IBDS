@@ -110,7 +110,7 @@ def build_points(out_dir, targets=None):
         else:
             key = _point_key(fam)
             family_keys[fam.get("family_id")] = key
-            # baseline은 공격 시도로 세지 않음
+            # baseline은 공격 시도로 세지 않고 변형 요청이 없을 때만 지점 자리로 씀
             attempts = fam.get("mutations") or [fam.get("baseline") or {}]
         p = points.setdefault(key, _new_point())
         for cr in attempts:
@@ -192,7 +192,7 @@ def compute(points, reason_counts, totals, truth=None, excluded=None):
         by_progress[p["progress_status"]] = by_progress.get(p["progress_status"], 0) + 1
         by_verdict[p["verdict"]] += 1
         if p["progress_status"] != "completed" and p["raw_verdict"] == LOW:
-            silent.append(key)  # 미완료인데 미확인으로 기록된 지점
+            silent.append(key)
 
     collection_missed = 0
     if truth is not None:
