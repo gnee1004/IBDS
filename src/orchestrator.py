@@ -22,7 +22,10 @@ from scan.mutation.request_builder import (
 from scan.mutation.scan_point import build_scan_points
 from scan.normalize.param_filter import has_destructive_action
 from scan.requester import requester
-from scan.models import CaseResult, DiscoveryResult, FamilyResult, RequestFamily, ScanPoint
+from scan.models import (
+    CaseResult, DeliveryUnknownFinding, DiscoveryResult, FamilyResult, RequestFamily,
+    ScanPoint, ScanPointRecord, SinkNotConfirmedFinding,
+)
 from scan.progress import PipelineProgress
 from utilities.file_utils import append_jsonl, load_json
 from analyzer import xss_detector
@@ -34,23 +37,18 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _TARGET_CONFIG = os.path.join(_PROJECT_ROOT, "config", "target_config.json")
 
 
-# 전송 불명(delivery_unknown) case의 판정 대체 기록 — 확정본상 전송 실패는 inconclusive
+# delivery_unknown case의 판정 대체 기록
 def _delivery_unknown_finding(family: RequestFamily, case_id: str) -> dict:
-    return {
-        "family_id": family.family_id, 
-        "target_id": family.target_id,
-        "param": family.param, 
-        "vuln_type": family.vuln_type, 
-        "technique": family.technique,
-        "case_id": case_id, 
-        "location": family.location, 
-        "value_index": family.value_index,  # 지점 식별용
-        "final_status": "inconclusive", 
-        "progress_status": "failed", 
-        "reason": "delivery_unknown",
-        "stage": "request", 
-        "evidence": "전송 실패로 서버 처리 여부 불명 (POST류라 재시도 안 함)",
-    }
+    return asdict(DeliveryUnknownFinding(
+        family_id=family.family_id,
+        target_id=family.target_id,
+        param=family.param,
+        vuln_type=family.vuln_type,
+        technique=family.technique,
+        case_id=case_id,
+        location=family.location,
+        value_index=family.value_index,  # 지점 식별용
+    ))
 
 
 # 보내지 못한 요청의 자리표시 결과
@@ -87,17 +85,16 @@ def _unsent_family_dict(family: RequestFamily, reason: str) -> dict:
 
 # family가 없는 검사 지점 단위 기록 (family_id 없음)
 def _scan_point_record(sp: ScanPoint, progress_status: str, reason: str, note: str | None = None, stage: str | None = None) -> dict:
-    return {
-        "scope": "scan_point",
-        "target_id": sp.target_id,
-        "param": sp.name,
-        "location": sp.location,
-        "value_index": sp.value_index,
-        "stage": stage,
-        "progress_status": progress_status,
-        "reason": reason,
-        "reason_note": note,
-    }
+    return asdict(ScanPointRecord(
+        target_id=sp.target_id,
+        param=sp.name,
+        location=sp.location,
+        value_index=sp.value_index,
+        progress_status=progress_status,
+        reason=reason,
+        stage=stage,
+        reason_note=note,
+    ))
 
 
 # family id와 그 case id들에 접미사 부착 (같은 지점의 family를 출력 위치별로 여러 세트 만들 때 id 충돌 방지)
@@ -171,20 +168,15 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
                 else:
                     sink_note = "판정 불가 - 마커 재조회 확인 실패"
-                append_jsonl(findings_path, {
-                    "target_id": sp.target_id,
-                    "param": sp.name,
-                    "vuln_type": "xss",
-                    "technique": "stored",
-                    "location": sp.location,        # 지점 식별용
-                    "value_index": sp.value_index,
-                    "stage": "probe",
-                    "final_status": "inconclusive",
-                    "reason": "sink_not_confirmed",
-                    "probe_marker": marker,
-                    "revisit_url": probe_result.revisit_url if probe_result is not None else None,
-                    "sink_note": sink_note,
-                })
+                append_jsonl(findings_path, asdict(SinkNotConfirmedFinding(
+                    target_id=sp.target_id,
+                    param=sp.name,
+                    location=sp.location,
+                    value_index=sp.value_index,
+                    probe_marker=marker,
+                    revisit_url=probe_result.revisit_url if probe_result is not None else None,
+                    sink_note=sink_note,
+                )))
         else:
             families.extend(generate_stored_xss_families(sp, target))
     except Exception as e:

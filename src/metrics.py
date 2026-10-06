@@ -10,7 +10,8 @@ _SRC_ROOT = os.path.dirname(os.path.abspath(__file__))
 _PROJECT_ROOT = os.path.dirname(_SRC_ROOT)
 sys.path.insert(0, _SRC_ROOT)
 
-from utilities.file_utils import save_json
+from scan.normalize.param_filter import has_destructive_action
+from utilities.file_utils import load_json, save_json
 from web.runs import latest_out_dir
 
 HIGH, MEDIUM, LOW, INCONCLUSIVE = "potential_high", "potential_medium", "potential_low", "inconclusive"
@@ -19,6 +20,10 @@ PROGRESS_STATUSES = ("completed", "partial", "failed", "not_run")
 # findings에만 남은 기록의 진행 상태
 _STAGE_PROGRESS = {"probe": "partial", "judge": "partial", "stop": "not_run", "request": "failed",
                    "route": "failed", "xss_prepare": "failed", "sqli_prepare": "failed"}
+_PREPARE_STAGES = ("route", "xss_prepare", "sqli_prepare")
+_STAGE_VULN = {"xss_prepare": "xss", "sqli_prepare": "sqli"}  # 검사 지점 줄은 vuln_type이 없어 준비 단계로 구분
+# 옛 결과 폴더의 판정 어휘
+_LEGACY_STATUS = {"vulnerable": HIGH, "vuln": HIGH, "safe": LOW, "reflected_only": LOW, "error_only": MEDIUM}
 
 
 def _load_jsonl(path):
@@ -67,11 +72,30 @@ def _point_verdict(verdicts, progress_status):
 
 def _new_point():
     return {"progress": [], "verdicts": [], "reasons": [], "case_ids": [], "url": None,
+            "attempts": [], "findings": [],  # 화면 근거 카드용 원본 기록
             "discovery_filtered": None, "discovery_filtered_reasons": None,
             "request_count": None, "browser_runs": None}
 
 
-def build_points(out_dir):
+def _load_targets(out_dir):
+    return load_json(os.path.join(out_dir, "scan_targets.json"), default=[]) or []
+
+
+# 정책으로 검사하지 않은 검사 지점 수, 분모에 들어가지 않으므로 개수만 표기
+def excluded_counts(targets):
+    noscan = destructive = 0
+    for t in targets:
+        params = t.get("params") or {}
+        scannable = params.keys() if t.get("scannable_params") is None else t["scannable_params"]
+        occurrences = {name: len(values) for name, values in params.items()}
+        if has_destructive_action(params):  # 로그아웃, 삭제 등 파괴적 액션 타겟은 orchestrator가 검사 안 함
+            destructive += sum(occurrences[n] for n in scannable if n in occurrences)
+        noscan += sum(n for name, n in occurrences.items() if name not in scannable)  # 토큰, 액션 버튼 등
+    return {"excluded_noscan_param": noscan, "excluded_destructive_target": destructive}
+
+
+def build_points(out_dir, targets=None):
+    targets = _load_targets(out_dir) if targets is None else targets
     points = {}
     family_keys = {}      # XSS 판정의 location은 요청 방식이라 family_id로 지점을 찾음
     reason_counts = {}
@@ -80,25 +104,44 @@ def build_points(out_dir):
     def count_reason(reason):
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
 
+    has_point_rows = False
     for fam in _load_jsonl(os.path.join(out_dir, "request_results.jsonl")):
-        key = _point_key(fam)
-        family_keys[fam.get("family_id")] = key
-        p = points.setdefault(key, _new_point())
-        # baseline은 공격 시도로 세지 않음
-        for cr in fam.get("mutations") or [fam.get("baseline") or {}]:
-            case_id = (cr.get("case") or {}).get("case_id")
-            p["progress"].append(_case_progress(cr))
-            p["case_ids"].append(case_id)
+        if fam.get("scope") == "scan_point":  # 시작 못 했거나 준비에 실패한 지점, family 없이 지점당 한 줄
+            has_point_rows = True
+            stage_vuln = _STAGE_VULN.get(fam.get("stage"))
+            # 준비 단계가 없으면 그 지점의 모든 취약점 종류가 미실행이나 실패
+            vulns = [stage_vuln] if stage_vuln else ["xss"] if fam.get("location") == "fragment" else ["xss", "sqli"]
+            keys = [_point_key(fam, v) for v in vulns]
+            attempts = [fam]
+        else:
+            keys = [_point_key(fam)]
+            family_keys[fam.get("family_id")] = keys[0]
+            # baseline은 공격 시도로 세지 않고 변형 요청이 없을 때만 지점 자리로 씀
+            attempts = fam.get("mutations") or [fam.get("baseline") or {}]
+        for cr in attempts:
             if cr.get("reason"):
-                p["reasons"].append(cr["reason"])
-                attempt_reason[case_id] = cr["reason"]
                 count_reason(cr["reason"])
-        p["url"] = p["url"] or (fam.get("baseline") or {}).get("case", {}).get("url")
+                case_id = (cr.get("case") or {}).get("case_id")
+                if case_id:
+                    attempt_reason[case_id] = cr["reason"]
+        for key in keys:
+            p = points.setdefault(key, _new_point())
+            p["attempts"].extend(attempts)
+            for cr in attempts:
+                p["progress"].append(_case_progress(cr))
+                p["case_ids"].append((cr.get("case") or {}).get("case_id"))
+                if cr.get("reason"):
+                    p["reasons"].append(cr["reason"])
+            p["url"] = p["url"] or (fam.get("baseline") or {}).get("case", {}).get("url")
 
     for fd in _load_jsonl(os.path.join(out_dir, "findings.jsonl")):
+        if has_point_rows and fd.get("stage") in _PREPARE_STAGES:
+            continue  # 지점 위치가 없는 중복 기록, 검사 지점 줄로 이미 셈
         key = family_keys.get(fd.get("family_id")) or _point_key(fd)
         p = points.setdefault(key, _new_point())
         if fd.get("final_status"):
+            fd["final_status"] = _LEGACY_STATUS.get(fd["final_status"], fd["final_status"])
+            p["findings"].append(fd)
             p["verdicts"].append(fd["final_status"])
         if fd.get("stage") in _STAGE_PROGRESS:
             p["progress"].append(_STAGE_PROGRESS[fd["stage"]])
@@ -126,7 +169,9 @@ def build_points(out_dir):
                     p["discovery_filtered"] = mr.get("discovery_filtered")
                     p["discovery_filtered_reasons"] = mr.get("discovery_filtered_reasons")
 
-    for p in points.values():
+    target_urls = {f"t{i}": t.get("url") for i, t in enumerate(targets)}
+    for key, p in points.items():
+        p["url"] = p["url"] or target_urls.get(key[0])  # probe, 준비 실패 기록은 url이 없어 타겟 주소로 채움
         p["progress_status"] = _merge_progress(p["progress"])
         p["raw_verdict"] = max(p["verdicts"], key=lambda v: _RANK.get(v, 0), default=INCONCLUSIVE)
         p["verdict"] = _point_verdict(p["verdicts"], p["progress_status"])
@@ -151,7 +196,7 @@ def _rate(num, den):
     return round(num / den, 3) if den else 0.0
 
 
-def compute(points, reason_counts, totals, truth=None):
+def compute(points, reason_counts, totals, truth=None, excluded=None):
     by_progress = {s: 0 for s in PROGRESS_STATUSES}
     by_verdict = {v: 0 for v in _RANK}
     silent = []
@@ -159,7 +204,7 @@ def compute(points, reason_counts, totals, truth=None):
         by_progress[p["progress_status"]] = by_progress.get(p["progress_status"], 0) + 1
         by_verdict[p["verdict"]] += 1
         if p["progress_status"] != "completed" and p["raw_verdict"] == LOW:
-            silent.append(key)  # 미완료인데 미확인으로 기록된 지점
+            silent.append(key)
 
     collection_missed = 0
     if truth is not None:
@@ -177,12 +222,13 @@ def compute(points, reason_counts, totals, truth=None):
         "by_progress": by_progress,
         "by_verdict": by_verdict,
         "reasons": dict(sorted(reason_counts.items(), key=lambda kv: -kv[1])),
+        **(excluded or {}),
         **totals,
     }
     if truth is None:
         return result
 
-    # 판단 보류는 TP, FN, FP, TN에 넣지 않고 따로 셈
+    # 검토 필요는 TP, FN, FP, TN에 넣지 않고 따로 셈
     score = {"TP": 0, "FN": 0, "FP": 0, "TN": 0, "inconclusive_real": 0, "inconclusive_safe": 0, "no_truth": 0}
     misattributed = []
     for key, p in points.items():
@@ -245,8 +291,9 @@ def main():
     run_id = os.path.basename(os.path.normpath(out_dir))
 
     truth = load_truth(args.truth) if args.truth else None
-    points, reason_counts, totals = build_points(out_dir)
-    m = compute(points, reason_counts, totals, truth)
+    targets = _load_targets(out_dir)
+    points, reason_counts, totals = build_points(out_dir, targets)
+    m = compute(points, reason_counts, totals, truth, excluded_counts(targets))
     m["run_id"] = run_id
 
     summary_path = os.path.join(out_dir, "metrics_summary.json")
@@ -257,19 +304,21 @@ def main():
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     print(f"[METRICS] run_id: {run_id}")
-    print(f"검사 지점 {m['points']}개 | 완료율 {m['completion_rate']:.1%} | 판단보류율 {m['inconclusive_rate']:.1%} "
+    print(f"검사 지점 {m['points']}개 | 완료율 {m['completion_rate']:.1%} | 검토 필요율 {m['inconclusive_rate']:.1%} "
           f"| 침묵 음성 {m['silent_negatives']}건")
     print(f"진행 상태: {m['by_progress']}")
     print(f"판정: {m['by_verdict']}")
     print(f"사유: {m['reasons']}")
+    print(f"분모 제외 검사 지점: 검사 제외 파라미터 {m['excluded_noscan_param']}개 "
+          f"| 파괴적 액션 타겟 {m['excluded_destructive_target']}개, 쿠키와 헤더 입력은 수집 대상 아님")
     print(f"요청 수 {m['request_count']} | 브라우저 실행 수 {m['browser_runs']} | Discovery 걸러낸 수 {m['discovery_filtered']}")
     if truth is None:
         print("정답 기반 지표: 정답표 없음, --truth로 지정")
     else:
         print(f"수집 실패 {m['collection_missed']}개 | 채점 {m['score']}")
-        print(f"검출률 {m['detection_rate']:.1%} | 판단 보류를 놓침으로 본 검출률 {m['detection_rate_inconclusive_as_fn']:.1%} "
+        print(f"검출률 {m['detection_rate']:.1%} | 검토 필요를 놓침으로 본 검출률 {m['detection_rate_inconclusive_as_fn']:.1%} "
               f"| 오귀속 양성 {m['misattributed_positives']}건 | 높음 판정 오류율 {m['high_error_rate']:.1%} "
-              f"| 판단보류 내 실제 취약 비율 {m['inconclusive_real_ratio']:.1%}")
+              f"| 검토 필요 내 실제 취약 비율 {m['inconclusive_real_ratio']:.1%}")
     print(f"[METRICS] {summary_path}")
     print(f"[METRICS] {rows_path}")
 

@@ -30,7 +30,7 @@
         </div>
         <p id="run-meta" class="hint"></p>
         <div id="run-error" class="notice danger" role="alert" hidden></div>
-        <section class="report-summary" aria-label="판정 요약"><div id="kpis" class="kpis"></div></section>
+        <section class="report-summary" aria-label="판정 요약"><div id="kpis" class="kpis"></div><p id="rates" class="hint rates" hidden></p></section>
         <section id="error-panel" class="section" hidden>
             <div class="section-bar">
                 <h2>오류 상세</h2>
@@ -44,9 +44,9 @@
                 <select id="status-filter"><option value="">모든 판정</option></select>
             </div>
             <div>
-                <label for="technique-filter">공격기법</label>
+                <label for="technique-filter">취약점 종류</label>
                 <select id="technique-filter">
-                    <option value="">모든 기법</option>
+                    <option value="">모든 종류</option>
                 </select>
             </div>
             <div>
@@ -62,7 +62,7 @@
             <span id="result-count" class="hint"></span>
         </div>
         <div id="groups"></div>
-        <div id="empty" class="empty" hidden><div class="empty-icon" aria-hidden="true">≡</div><h2>아직 스캔 결과가 없습니다</h2><p>스캔을 실행하면 URL과 파라미터별 결과가 표시됩니다.</p><a href="/run" class="button primary">스캔 실행으로</a></div>
+        <div id="empty" class="empty" hidden><div class="empty-icon" aria-hidden="true">≡</div><h2>아직 스캔 결과가 없습니다</h2><p>스캔을 실행하면 검사 지점별 결과가 표시됩니다.</p><a href="/run" class="button primary">스캔 실행으로</a></div>
         </section>
         <footer>IBDS · 웹 취약점 검사 <span></span></footer>
     </main>
