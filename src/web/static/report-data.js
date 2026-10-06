@@ -1,17 +1,10 @@
 import {rank} from './common.js';
 
-export function worstStatus(group) {
-    return group.items.map(item => item.final_status).sort((a,b) => rank(a)-rank(b))[0];
-}
-
-export function selectGroups(source, status='', filterGroup='', sort='severity') {
-    const groups = source.map(group => ({
-        ...group,
-        items: group.items.filter(item => (!status || item.final_status===status) &&
-                                         (!filterGroup || item.filter_group===filterGroup))
-    })).filter(group => group.items.length);
+export function selectGroups(source, status='', vulnType='', sort='severity') {
+    const groups = source.filter(group => (!status || group.final_status===status) &&
+                                          (!vulnType || group.vuln_type===vulnType));
     const byName = (a,b) => a.url.localeCompare(b.url) || a.param.localeCompare(b.param) ||
-                            a.method.localeCompare(b.method);
-    groups.sort(sort==='name' ? byName : (a,b) => rank(worstStatus(a))-rank(worstStatus(b)) || byName(a,b));
+                            a.method.localeCompare(b.method) || a.vuln_type.localeCompare(b.vuln_type);
+    groups.sort(sort==='name' ? byName : (a,b) => rank(a.final_status)-rank(b.final_status) || byName(a,b));
     return groups;
 }
