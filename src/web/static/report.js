@@ -26,7 +26,7 @@ function renderKpis(){
     $('kpis').append(node);
     const rates=report.rates;
     $('rates').hidden=!rates;
-    if(rates)$('rates').textContent=`검사 지점 ${rates.points}개, 완료율 ${percent(rates.completion)}, 판단보류율 ${percent(rates.inconclusive)}, 침묵 음성 ${rates.silent_negatives}건`;
+    if(rates)$('rates').textContent=`검사 지점 ${rates.points}개, 완료율 ${percent(rates.completion)}, 검토 필요율 ${percent(rates.inconclusive)}, 침묵 음성 ${rates.silent_negatives}건`;
 }
 // 진행 상태와 대표 사유 한 줄
 function progressText(progress,reason){return `${progressLabels[progress]||progress||'진행 상태 없음'}${reason?`, 사유: ${reasonLabels[reason]||reason}`:''}`;}

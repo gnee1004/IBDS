@@ -8,7 +8,7 @@ from metrics import HIGH, MEDIUM, LOW, INCONCLUSIVE, _STAGE_PROGRESS, build_poin
 
 _CATEGORY_BY_TECHNIQUE = {rule["technique"]: rule["category"] for rule in RULES}
 
-# 화면 나열 순서 (높음, 관찰, 미확인, 판단 보류)
+# 화면 나열 순서 (높음, 관찰, 미확인, 검토 필요)
 _STATUS_ORDER = [HIGH, MEDIUM, LOW, INCONCLUSIVE]
 _VULN_TYPES = ("xss", "sqli")
 
