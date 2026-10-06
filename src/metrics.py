@@ -19,6 +19,8 @@ PROGRESS_STATUSES = ("completed", "partial", "failed", "not_run")
 # findings에만 남은 기록의 진행 상태
 _STAGE_PROGRESS = {"probe": "partial", "judge": "partial", "stop": "not_run", "request": "failed",
                    "route": "failed", "xss_prepare": "failed", "sqli_prepare": "failed"}
+_PREPARE_STAGES = ("route", "xss_prepare", "sqli_prepare")
+_STAGE_VULN = {"xss_prepare": "xss", "sqli_prepare": "sqli"}  # 검사 지점 줄은 vuln_type이 없어 준비 단계로 구분
 
 
 def _load_jsonl(path):
@@ -80,22 +82,32 @@ def build_points(out_dir):
     def count_reason(reason):
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
 
+    has_point_rows = False
     for fam in _load_jsonl(os.path.join(out_dir, "request_results.jsonl")):
-        key = _point_key(fam)
-        family_keys[fam.get("family_id")] = key
+        if fam.get("scope") == "scan_point":  # 시작 못 했거나 준비에 실패한 지점, family 없이 지점당 한 줄
+            has_point_rows = True
+            key = _point_key(fam, _STAGE_VULN.get(fam.get("stage")))
+            attempts = [fam]
+        else:
+            key = _point_key(fam)
+            family_keys[fam.get("family_id")] = key
+            # baseline은 공격 시도로 세지 않음
+            attempts = fam.get("mutations") or [fam.get("baseline") or {}]
         p = points.setdefault(key, _new_point())
-        # baseline은 공격 시도로 세지 않음
-        for cr in fam.get("mutations") or [fam.get("baseline") or {}]:
+        for cr in attempts:
             case_id = (cr.get("case") or {}).get("case_id")
             p["progress"].append(_case_progress(cr))
             p["case_ids"].append(case_id)
             if cr.get("reason"):
                 p["reasons"].append(cr["reason"])
-                attempt_reason[case_id] = cr["reason"]
+                if case_id:
+                    attempt_reason[case_id] = cr["reason"]
                 count_reason(cr["reason"])
         p["url"] = p["url"] or (fam.get("baseline") or {}).get("case", {}).get("url")
 
     for fd in _load_jsonl(os.path.join(out_dir, "findings.jsonl")):
+        if has_point_rows and fd.get("stage") in _PREPARE_STAGES:
+            continue  # 지점 위치가 없는 중복 기록, 검사 지점 줄로 이미 셈
         key = family_keys.get(fd.get("family_id")) or _point_key(fd)
         p = points.setdefault(key, _new_point())
         if fd.get("final_status"):
