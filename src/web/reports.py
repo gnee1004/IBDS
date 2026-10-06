@@ -10,10 +10,10 @@ _CATEGORY_BY_TECHNIQUE = {rule["technique"]: rule["category"] for rule in RULES}
 
 # 서진 확정본 final_status 어휘 (저장값 -> 화면 라벨)
 _STATUS_LABELS = {
-    "potential_high": "HIGH Potential",
-    "potential_medium": "MEDIUM Potential",
-    "potential_low": "LOW Potential",
-    "inconclusive": "Inconclusive",
+    "potential_high": "취약 가능성 높음",
+    "potential_medium": "취약 신호 관찰",
+    "potential_low": "공격 근거 미확인",
+    "inconclusive": "검토 필요",
 }
 # Potential 집계 우선순위 (HIGH > MEDIUM > LOW), inconclusive
 _STATUS_ORDER = ["potential_high", "potential_medium", "potential_low", "inconclusive"]

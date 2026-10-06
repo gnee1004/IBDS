@@ -257,7 +257,7 @@ def main():
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
     print(f"[METRICS] run_id: {run_id}")
-    print(f"검사 지점 {m['points']}개 | 완료율 {m['completion_rate']:.1%} | 판단보류율 {m['inconclusive_rate']:.1%} "
+    print(f"검사 지점 {m['points']}개 | 완료율 {m['completion_rate']:.1%} | 검토 필요율 {m['inconclusive_rate']:.1%} "
           f"| 침묵 음성 {m['silent_negatives']}건")
     print(f"진행 상태: {m['by_progress']}")
     print(f"판정: {m['by_verdict']}")
@@ -267,9 +267,9 @@ def main():
         print("정답 기반 지표: 정답표 없음, --truth로 지정")
     else:
         print(f"수집 실패 {m['collection_missed']}개 | 채점 {m['score']}")
-        print(f"검출률 {m['detection_rate']:.1%} | 판단 보류를 놓침으로 본 검출률 {m['detection_rate_inconclusive_as_fn']:.1%} "
+        print(f"검출률 {m['detection_rate']:.1%} | 검토 필요를 놓침으로 본 검출률 {m['detection_rate_inconclusive_as_fn']:.1%} "
               f"| 오귀속 양성 {m['misattributed_positives']}건 | 높음 판정 오류율 {m['high_error_rate']:.1%} "
-              f"| 판단보류 내 실제 취약 비율 {m['inconclusive_real_ratio']:.1%}")
+              f"| 검토 필요 내 실제 취약 비율 {m['inconclusive_real_ratio']:.1%}")
     print(f"[METRICS] {summary_path}")
     print(f"[METRICS] {rows_path}")
 
