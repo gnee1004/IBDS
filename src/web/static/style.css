@@ -647,5 +647,14 @@ main{
 .optional>summary .hint{
   font-weight:400;
   font-size:14px}
+.optional>summary::-webkit-details-marker{
+  display:none}
+.optional>summary:after{
+  content:"＋";
+  color:#9098a2;
+  margin-left:auto;
+  font-size:20px}
+.optional[open]>summary:after{
+  content:"−"}
 .optional[open]>summary{
   margin-bottom:12px}

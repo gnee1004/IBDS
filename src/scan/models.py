@@ -157,7 +157,7 @@ class SinkProbeResult:  # stored XSS 재조회 전 저장 여부 확인
     param: str           # 어느 파라미터에 대한 프로브인지
     revisit_url: str     # 마커 반사 확인을 위해 GET 날린 URL
     sink_confirmed: bool # 마커가 revisit_url 응답에 반사됐으면 True → Phase 2 진행
-    inconclusive: bool   # 재시도까지 소진했는데도 판단 불가 → safe로 뭉개지 않고 inconclusive 유지
+    inconclusive: bool   # 재시도까지 소진했는데도 판단 불가 → 공격 근거 미확인으로 뭉개지 않고 inconclusive 유지
     probe_marker: str    # 이번 프로브에 사용한 마커
     revisit_source: str | None = None  # revisit_url 출처
     extra_sinks: list[str] = field(default_factory=list)  # 저장 확인 후 수집 페이지 전체 확인으로 찾은 다른 출력 위치 (revisit_url 제외)
