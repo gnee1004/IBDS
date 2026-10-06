@@ -118,10 +118,11 @@ def _attempt_card(attempt):
         "exec_token": case.get("exec_token"),
         "browser": None, "probe_marker": None, "revisit_url": None, "revisit_found": None,
         "evidence": "",
-        "raw": {k: v for k, v in attempt.items() if "body" not in k and k != "response_headers"},  # 응답 본문은 화면에 안 보냄
+        "raw": {k: v for k, v in attempt.items() if "body" not in k and k != "response_headers"},  # 응답 본문과 헤더는 화면에 안 보냄
     }
 
 
+# 지점 하나의 근거 카드 목록, 판정 순서로 정렬
 def _cards(point):
     attempts = {a["case"]["case_id"]: a for a in point["attempts"] if (a.get("case") or {}).get("case_id")}
     cards = [_finding_card(f, attempts.get(f.get("case_id")) or {}) for f in point["findings"]]
