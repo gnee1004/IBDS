@@ -1,5 +1,28 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
+from typing import Literal, get_args
+
+# 진행 상태 — 완료/부분 완료/실패/미실행
+ProgressStatus = Literal["completed", "partial", "failed", "not_run"]
+PROGRESS_STATUSES = get_args(ProgressStatus)  # 실행 중 검사용 목록 (타입 한 곳에서만 정의)
+
+# 사유 코드 — 사유는 가장 먼저 발생한 것 하나만 저장 나머지는 reason_note에 저장함.
+ReasonCode = Literal[
+    "delivery_unknown", "baseline_failed", "attack_request_failed",
+    "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
+    "out_of_scope", "cancelled_by_user", "not_reached", "state_unclear", "discovery_failed", "prepare_failed",
+]
+REASON_CODES = get_args(ReasonCode)
+
+
+# 진행 상태·사유 코드가 목록 밖 값이면 즉시 ValueError (생성 시와 이후 대입 모두 검사) — 이 값을 담는 결과 클래스가 상속
+class StatusGuarded:
+    def __setattr__(self, name, value):
+        if name == "progress_status" and value is not None and value not in PROGRESS_STATUSES:
+            raise ValueError(f"알 수 없는 progress_status: {value!r}")
+        if name == "reason" and value is not None and value not in REASON_CODES:
+            raise ValueError(f"알 수 없는 reason: {value!r}")
+        super().__setattr__(name, value)
 
 
 @dataclass
@@ -74,19 +97,10 @@ class RequestFamily:              # 1파라미터 x 1룰 = 1Family. 분석기가
     sink_note: str | None = None         # inconclusive 시 실패 이유
 
 
-# 진행 상태
-PROGRESS_STATUSES = ("completed", "partial", "failed", "not_run")  # 완료/부분 완료/실패/미실행
-
-# 사유 코드 — 사유는 가장 먼저 발생한 것 하나만 저장 나머지는 reason_note에 저장함.
-REASON_CODES = (
-    "delivery_unknown", "baseline_failed", "attack_request_failed",
-    "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
-    "out_of_scope", "cancelled_by_user", "not_reached", "state_unclear", "discovery_failed", "prepare_failed",
-)
 
 
 @dataclass
-class CaseResult:  # MutationCase 하나를 전송한 결과
+class CaseResult(StatusGuarded):  # MutationCase 하나를 전송한 결과
     case: MutationCase                                   # 어떤 요청을 보냈는지 (원본 그대로 참조)
     send_status: str                                     # 전송 성공 여부
     response_status: int | None = None
@@ -95,8 +109,8 @@ class CaseResult:  # MutationCase 하나를 전송한 결과
     elapsed: float | None = None
     request_count: int | None = None                     # 이 시도가 실제로 보낸 HTTP 요청 수 (재시도·재조회 포함)
     error: str | None = None                             # send_status="error"일 때 예외 메시지
-    reason: str | None = None                            # 사유 코드값(REASON_CODES 중 하나)
-    progress_status: str | None = None                   # 검증 진행 상태 (PROGRESS_STATUSES 중 하나)
+    reason: ReasonCode | None = None                     # 사유 코드값(REASON_CODES 중 하나)
+    progress_status: ProgressStatus | None = None        # 검증 진행 상태 (PROGRESS_STATUSES 중 하나)
     reason_note: str | None = None                       # 사유 보충용 (뒤따른 사유 등)
     effective_cookies: dict[str, str] | None = None      # 요청 전송 시점에 실제로 실린 누적 쿠키
     # stored 공격 후 재조회 결과
@@ -139,11 +153,56 @@ class DiscoveryResult:  # XSS family 생성 전 Discovery 단계의 결과
 
 
 @dataclass
-class SinkProbeResult:  # Phase 1 sink 확인 프로브 결과 — stored XSS 재조회 착수 전 저장 여부 확인
+class SinkProbeResult:  # stored XSS 재조회 전 저장 여부 확인
     param: str           # 어느 파라미터에 대한 프로브인지
     revisit_url: str     # 마커 반사 확인을 위해 GET 날린 URL
     sink_confirmed: bool # 마커가 revisit_url 응답에 반사됐으면 True → Phase 2 진행
     inconclusive: bool   # 재시도까지 소진했는데도 판단 불가 → safe로 뭉개지 않고 inconclusive 유지
-    probe_marker: str    # 이번 프로브에 사용한 마커 — 재현·디버깅용
-    revisit_source: str | None = None  # revisit_url 출처 ("explicit"/"location"/"default"/"sweep")
-    extra_sinks: list[str] = field(default_factory=list)  # 저장 확인 후 수집 페이지 전체 확인(sweep)으로 찾은 다른 출력 위치 (revisit_url 제외)
+    probe_marker: str    # 이번 프로브에 사용한 마커
+    revisit_source: str | None = None  # revisit_url 출처
+    extra_sinks: list[str] = field(default_factory=list)  # 저장 확인 후 수집 페이지 전체 확인으로 찾은 다른 출력 위치 (revisit_url 제외)
+
+
+@dataclass
+class ScanPointRecord(StatusGuarded):  # 검사 지점 하나에 대한 결과 - 보낸 요청이 없어 family_id가 없는 경우
+    target_id: str
+    param: str                    # 공격 대상 파라미터 이름
+    location: str | None          # 지점 식별용
+    value_index: int | None       # 지점 식별용
+    progress_status: ProgressStatus
+    reason: ReasonCode
+    stage: str | None = None      # 준비 실패가 난 단계 (route / xss_prepare / sqli_prepare)
+    reason_note: str | None = None
+    scope: str = "scan_point"     # 결과 파일 안에서 이 줄이 어떤 종류인지 알려 주는 표시
+
+@dataclass
+class DeliveryUnknownFinding(StatusGuarded):  # 전송 불명 case의 판정 대체 기록
+    family_id: str
+    target_id: str
+    param: str
+    vuln_type: str
+    technique: str
+    case_id: str
+    location: str | None          # 지점 식별용
+    value_index: int | None       # 지점 식별용
+    final_status: str = "inconclusive"
+    progress_status: ProgressStatus = "failed"
+    reason: ReasonCode = "delivery_unknown"
+    stage: str = "request"
+    evidence: str = "전송 실패로 서버 처리 여부 불명 (POST류라 재시도 안 함)"
+
+
+@dataclass
+class SinkNotConfirmedFinding(StatusGuarded):  # 저장형 XSS 저장 위치(마커 재조회) 확인 실패로 판단 보류한 기록
+    target_id: str
+    param: str
+    location: str | None          # 지점 식별용
+    value_index: int | None       # 지점 식별용
+    probe_marker: str
+    revisit_url: str | None
+    sink_note: str                # 판정 불가 사유 설명 (프로브 오류 또는 재조회 확인 실패)
+    vuln_type: str = "xss"
+    technique: str = "stored"
+    stage: str = "probe"
+    final_status: str = "inconclusive"
+    reason: ReasonCode = "sink_not_confirmed"
