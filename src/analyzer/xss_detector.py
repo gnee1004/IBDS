@@ -110,8 +110,8 @@ def _judge_stored(family: dict, case_result: dict, headless: HeadlessSession) ->
             )
             if not hv.ok:  # 렌더링 실패
                 return _mk_finding(family, case_result, INCONCLUSIVE, raw=echo, hv=hv, reason=hv.reason)
-            # 등록 응답에 실행가능 반사는 있으나 저장 미확인 -> LOW
-            return _mk_finding(family, case_result, POTENTIAL_LOW, raw=echo, hv=hv)
+            # 등록 응답에 반사 확인, 저장 미확인 -> 실행되면 MEDIUM(반사형 신호), 아니면 LOW
+            return _mk_finding(family, case_result, POTENTIAL_MEDIUM if hv.executed else POTENTIAL_LOW, raw=echo, hv=hv)
         # 에코 없음 / escape로 raw 미적중
         return _mk_finding(family, case_result, POTENTIAL_LOW, evidence="재조회에 공격 요청 안보임")
 
