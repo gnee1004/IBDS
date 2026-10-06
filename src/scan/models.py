@@ -79,16 +79,16 @@ PROGRESS_STATUSES = ("completed", "partial", "failed", "not_run")  # 완료/부�
 
 # 사유 코드 — 사유는 가장 먼저 발생한 것 하나만 저장 나머지는 reason_note에 저장함.
 REASON_CODES = (
-    "delivery_unknown", "auth_failed", "session_expired", "baseline_failed", "attack_request_failed",
+    "delivery_unknown", "baseline_failed", "attack_request_failed",
     "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
-    "out_of_scope", "cancelled_by_user", "not_reached", "state_contamination_possible", "discovery_failed",
+    "out_of_scope", "cancelled_by_user", "not_reached", "state_unclear", "discovery_failed", "prepare_failed",
 )
 
 
 @dataclass
 class CaseResult:  # MutationCase 하나를 전송한 결과
     case: MutationCase                                   # 어떤 요청을 보냈는지 (원본 그대로 참조)
-    send_status: str                                     # 전송 성공 여부 — "ok" 또는 "error"
+    send_status: str                                     # 전송 성공 여부
     response_status: int | None = None
     response_headers: dict[str, str] | None = None
     response_body: str | None = None
