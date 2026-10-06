@@ -128,10 +128,13 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
 
     families: list[RequestFamily] = []
     filter_stat: DiscoveryFilterStat | None = None
+    xss_fail_reason = "prepare_failed"  # 아래 except에서 남길 사유
 
     try:
         if use_discovery:
+            xss_fail_reason = "discovery_failed"  # 사전 확인 실패는 반사 없음으로 넘기지 않고 검토 필요
             discovery = run_discovery(sp, target, zap)  # 특수문자가 반사되는 것들만 filtering.
+            xss_fail_reason = "prepare_failed"
         else:
             discovery = DiscoveryResult(reflected=True, valid_specials=set())  # 전체 전송 — 아래 use_discovery=False로 필터 무시
         xss_families, filter_stat = generate_xss_families_counted(sp, target, discovery, use_discovery=use_discovery)
@@ -189,8 +192,8 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     "error": str(e),
             })
         if results_path:  # 시도 결과에도 검사 지점 단위 실패 기록
-            append_jsonl(results_path, _scan_point_record(sp, "failed", "prepare_failed", str(e), "xss_prepare"))
-        print(f"[WARN] XSS 준비 단계 실패: target={sp.target_id} param={sp.name} - {e}")
+            append_jsonl(results_path, _scan_point_record(sp, "failed", xss_fail_reason, str(e), "xss_prepare"))
+        print(f"[WARN] XSS 준비 단계 실패({xss_fail_reason}): target={sp.target_id} param={sp.name} - {e}")
 
     # SQLi 
     try : 
