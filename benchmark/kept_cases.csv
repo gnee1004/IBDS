@@ -1,0 +1,452 @@
+﻿test,type,truth,source,url
+BenchmarkTest00024,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00024
+BenchmarkTest00025,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00025
+BenchmarkTest00026,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00026
+BenchmarkTest00027,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00027
+BenchmarkTest00036,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00036
+BenchmarkTest00037,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00037
+BenchmarkTest00038,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00038
+BenchmarkTest00039,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00039
+BenchmarkTest00047,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00047
+BenchmarkTest00048,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00048
+BenchmarkTest00049,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00049
+BenchmarkTest00375,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00375
+BenchmarkTest00376,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00376
+BenchmarkTest00377,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00377
+BenchmarkTest00378,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00378
+BenchmarkTest00379,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00379
+BenchmarkTest00380,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00380
+BenchmarkTest00381,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00381
+BenchmarkTest00382,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00382
+BenchmarkTest00383,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00383
+BenchmarkTest00384,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00384
+BenchmarkTest00385,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00385
+BenchmarkTest00386,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00386
+BenchmarkTest00387,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00387
+BenchmarkTest00388,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00388
+BenchmarkTest00389,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00389
+BenchmarkTest00390,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00390
+BenchmarkTest00391,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00391
+BenchmarkTest00392,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00392
+BenchmarkTest00393,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00393
+BenchmarkTest00394,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00394
+BenchmarkTest00395,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00395
+BenchmarkTest00428,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00428
+BenchmarkTest00429,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00429
+BenchmarkTest00430,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00430
+BenchmarkTest00431,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00431
+BenchmarkTest00432,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00432
+BenchmarkTest00433,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00433
+BenchmarkTest00434,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00434
+BenchmarkTest00435,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00435
+BenchmarkTest00436,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00436
+BenchmarkTest00437,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00437
+BenchmarkTest00438,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00438
+BenchmarkTest00439,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00439
+BenchmarkTest00440,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00440
+BenchmarkTest00441,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-00/BenchmarkTest00441
+BenchmarkTest00541,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00541
+BenchmarkTest00542,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00542
+BenchmarkTest00543,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-00/BenchmarkTest00543
+BenchmarkTest00544,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00544
+BenchmarkTest00545,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00545
+BenchmarkTest00546,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00546
+BenchmarkTest00547,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00547
+BenchmarkTest00548,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00548
+BenchmarkTest00549,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00549
+BenchmarkTest00550,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00550
+BenchmarkTest00551,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00551
+BenchmarkTest00552,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00552
+BenchmarkTest00553,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00553
+BenchmarkTest00554,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00554
+BenchmarkTest00555,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00555
+BenchmarkTest00556,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00556
+BenchmarkTest00557,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00557
+BenchmarkTest00589,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00589
+BenchmarkTest00590,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00590
+BenchmarkTest00591,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00591
+BenchmarkTest00592,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00592
+BenchmarkTest00593,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00593
+BenchmarkTest00594,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00594
+BenchmarkTest00595,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00595
+BenchmarkTest00596,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00596
+BenchmarkTest00597,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00597
+BenchmarkTest00598,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00598
+BenchmarkTest00599,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00599
+BenchmarkTest00600,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00600
+BenchmarkTest00601,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00601
+BenchmarkTest00602,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00602
+BenchmarkTest00603,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00603
+BenchmarkTest00604,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00604
+BenchmarkTest00605,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00605
+BenchmarkTest00606,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00606
+BenchmarkTest00711,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00711
+BenchmarkTest00712,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00712
+BenchmarkTest00713,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00713
+BenchmarkTest00714,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00714
+BenchmarkTest00715,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00715
+BenchmarkTest00716,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00716
+BenchmarkTest00717,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00717
+BenchmarkTest00718,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00718
+BenchmarkTest00719,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00719
+BenchmarkTest00720,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00720
+BenchmarkTest00721,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00721
+BenchmarkTest00722,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00722
+BenchmarkTest00723,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00723
+BenchmarkTest00724,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00724
+BenchmarkTest00725,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00725
+BenchmarkTest00726,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00726
+BenchmarkTest00727,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00727
+BenchmarkTest00728,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00728
+BenchmarkTest00729,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00729
+BenchmarkTest00730,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00730
+BenchmarkTest00737,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00737
+BenchmarkTest00760,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00760
+BenchmarkTest00761,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00761
+BenchmarkTest00762,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00762
+BenchmarkTest00763,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00763
+BenchmarkTest00764,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00764
+BenchmarkTest00765,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00765
+BenchmarkTest00766,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00766
+BenchmarkTest00767,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00767
+BenchmarkTest00768,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00768
+BenchmarkTest00769,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00769
+BenchmarkTest00770,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00770
+BenchmarkTest00771,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00771
+BenchmarkTest00772,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00772
+BenchmarkTest00773,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00773
+BenchmarkTest00774,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00774
+BenchmarkTest00799,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00799
+BenchmarkTest00800,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00800
+BenchmarkTest00801,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00801
+BenchmarkTest00802,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00802
+BenchmarkTest00803,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00803
+BenchmarkTest00804,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00804
+BenchmarkTest00805,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00805
+BenchmarkTest00806,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00806
+BenchmarkTest00807,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00807
+BenchmarkTest00808,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00808
+BenchmarkTest00809,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00809
+BenchmarkTest00810,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00810
+BenchmarkTest00811,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00811
+BenchmarkTest00812,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00812
+BenchmarkTest00813,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00813
+BenchmarkTest00822,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-01/BenchmarkTest00822
+BenchmarkTest00837,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00837
+BenchmarkTest00838,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00838
+BenchmarkTest00839,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00839
+BenchmarkTest00840,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00840
+BenchmarkTest00841,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00841
+BenchmarkTest00842,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00842
+BenchmarkTest00843,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00843
+BenchmarkTest00844,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00844
+BenchmarkTest00845,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00845
+BenchmarkTest00846,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00846
+BenchmarkTest00847,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00847
+BenchmarkTest00848,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00848
+BenchmarkTest00849,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00849
+BenchmarkTest00850,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00850
+BenchmarkTest00851,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-01/BenchmarkTest00851
+BenchmarkTest01251,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01251
+BenchmarkTest01252,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01252
+BenchmarkTest01253,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01253
+BenchmarkTest01254,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01254
+BenchmarkTest01255,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01255
+BenchmarkTest01256,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01256
+BenchmarkTest01257,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01257
+BenchmarkTest01258,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01258
+BenchmarkTest01259,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01259
+BenchmarkTest01260,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01260
+BenchmarkTest01261,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01261
+BenchmarkTest01262,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01262
+BenchmarkTest01263,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01263
+BenchmarkTest01264,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01264
+BenchmarkTest01265,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01265
+BenchmarkTest01266,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01266
+BenchmarkTest01267,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01267
+BenchmarkTest01268,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01268
+BenchmarkTest01284,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01284
+BenchmarkTest01301,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01301
+BenchmarkTest01302,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01302
+BenchmarkTest01303,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01303
+BenchmarkTest01304,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01304
+BenchmarkTest01305,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01305
+BenchmarkTest01306,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01306
+BenchmarkTest01307,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01307
+BenchmarkTest01308,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01308
+BenchmarkTest01309,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01309
+BenchmarkTest01310,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01310
+BenchmarkTest01311,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01311
+BenchmarkTest01312,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01312
+BenchmarkTest01313,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01313
+BenchmarkTest01314,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01314
+BenchmarkTest01315,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-02/BenchmarkTest01315
+BenchmarkTest01417,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01417
+BenchmarkTest01418,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01418
+BenchmarkTest01419,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01419
+BenchmarkTest01420,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01420
+BenchmarkTest01421,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01421
+BenchmarkTest01422,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01422
+BenchmarkTest01423,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01423
+BenchmarkTest01424,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01424
+BenchmarkTest01425,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01425
+BenchmarkTest01426,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01426
+BenchmarkTest01427,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01427
+BenchmarkTest01428,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01428
+BenchmarkTest01429,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01429
+BenchmarkTest01437,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01437
+BenchmarkTest01438,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01438
+BenchmarkTest01439,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-02/BenchmarkTest01439
+BenchmarkTest01459,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01459
+BenchmarkTest01460,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01460
+BenchmarkTest01461,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01461
+BenchmarkTest01462,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01462
+BenchmarkTest01463,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01463
+BenchmarkTest01464,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01464
+BenchmarkTest01465,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01465
+BenchmarkTest01466,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01466
+BenchmarkTest01467,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01467
+BenchmarkTest01468,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01468
+BenchmarkTest01469,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01469
+BenchmarkTest01470,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01470
+BenchmarkTest01471,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01471
+BenchmarkTest01472,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01472
+BenchmarkTest01473,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01473
+BenchmarkTest01474,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01474
+BenchmarkTest01475,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01475
+BenchmarkTest01476,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01476
+BenchmarkTest01477,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01477
+BenchmarkTest01583,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01583
+BenchmarkTest01584,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01584
+BenchmarkTest01585,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01585
+BenchmarkTest01586,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01586
+BenchmarkTest01587,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01587
+BenchmarkTest01588,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01588
+BenchmarkTest01589,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01589
+BenchmarkTest01590,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01590
+BenchmarkTest01591,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01591
+BenchmarkTest01592,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01592
+BenchmarkTest01593,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01593
+BenchmarkTest01594,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01594
+BenchmarkTest01595,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01595
+BenchmarkTest01596,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01596
+BenchmarkTest01597,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01597
+BenchmarkTest01598,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01598
+BenchmarkTest01599,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01599
+BenchmarkTest01620,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01620
+BenchmarkTest01621,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01621
+BenchmarkTest01622,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01622
+BenchmarkTest01623,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01623
+BenchmarkTest01624,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01624
+BenchmarkTest01625,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01625
+BenchmarkTest01626,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01626
+BenchmarkTest01627,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01627
+BenchmarkTest01628,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01628
+BenchmarkTest01629,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01629
+BenchmarkTest01630,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01630
+BenchmarkTest01631,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01631
+BenchmarkTest01657,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01657
+BenchmarkTest01658,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01658
+BenchmarkTest01659,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01659
+BenchmarkTest01660,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01660
+BenchmarkTest01661,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01661
+BenchmarkTest01662,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01662
+BenchmarkTest01663,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01663
+BenchmarkTest01664,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01664
+BenchmarkTest01665,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01665
+BenchmarkTest01666,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01666
+BenchmarkTest01667,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01667
+BenchmarkTest01668,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01668
+BenchmarkTest01669,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01669
+BenchmarkTest01670,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01670
+BenchmarkTest01671,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest01671
+BenchmarkTest01712,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01712
+BenchmarkTest01713,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01713
+BenchmarkTest01714,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01714
+BenchmarkTest01715,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01715
+BenchmarkTest01716,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01716
+BenchmarkTest01717,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01717
+BenchmarkTest01718,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01718
+BenchmarkTest01719,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01719
+BenchmarkTest01720,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01720
+BenchmarkTest01721,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01721
+BenchmarkTest01722,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01722
+BenchmarkTest01723,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01723
+BenchmarkTest01724,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01724
+BenchmarkTest01725,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01725
+BenchmarkTest01726,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01726
+BenchmarkTest01727,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01727
+BenchmarkTest01728,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01728
+BenchmarkTest01729,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01729
+BenchmarkTest01730,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01730
+BenchmarkTest01731,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01731
+BenchmarkTest01732,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01732
+BenchmarkTest01733,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-03/BenchmarkTest01733
+BenchmarkTest02122,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-03/BenchmarkTest02122
+BenchmarkTest02123,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02123
+BenchmarkTest02124,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02124
+BenchmarkTest02125,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02125
+BenchmarkTest02126,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02126
+BenchmarkTest02127,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02127
+BenchmarkTest02128,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02128
+BenchmarkTest02129,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02129
+BenchmarkTest02130,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02130
+BenchmarkTest02131,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02131
+BenchmarkTest02132,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02132
+BenchmarkTest02133,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02133
+BenchmarkTest02134,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02134
+BenchmarkTest02135,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02135
+BenchmarkTest02136,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02136
+BenchmarkTest02145,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02145
+BenchmarkTest02169,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02169
+BenchmarkTest02170,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02170
+BenchmarkTest02171,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02171
+BenchmarkTest02172,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02172
+BenchmarkTest02173,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02173
+BenchmarkTest02174,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02174
+BenchmarkTest02175,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02175
+BenchmarkTest02176,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02176
+BenchmarkTest02177,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02177
+BenchmarkTest02178,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02178
+BenchmarkTest02179,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02179
+BenchmarkTest02180,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02180
+BenchmarkTest02181,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02181
+BenchmarkTest02182,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02182
+BenchmarkTest02183,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02183
+BenchmarkTest02184,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02184
+BenchmarkTest02185,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02185
+BenchmarkTest02186,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02186
+BenchmarkTest02187,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02187
+BenchmarkTest02188,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-04/BenchmarkTest02188
+BenchmarkTest02313,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02313
+BenchmarkTest02314,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02314
+BenchmarkTest02315,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02315
+BenchmarkTest02316,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02316
+BenchmarkTest02317,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02317
+BenchmarkTest02318,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02318
+BenchmarkTest02319,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02319
+BenchmarkTest02320,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02320
+BenchmarkTest02321,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02321
+BenchmarkTest02322,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02322
+BenchmarkTest02323,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02323
+BenchmarkTest02324,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02324
+BenchmarkTest02325,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02325
+BenchmarkTest02326,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02326
+BenchmarkTest02327,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02327
+BenchmarkTest02328,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02328
+BenchmarkTest02329,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02329
+BenchmarkTest02330,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02330
+BenchmarkTest02331,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02331
+BenchmarkTest02332,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02332
+BenchmarkTest02353,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02353
+BenchmarkTest02354,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02354
+BenchmarkTest02355,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02355
+BenchmarkTest02356,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02356
+BenchmarkTest02357,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02357
+BenchmarkTest02358,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02358
+BenchmarkTest02359,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02359
+BenchmarkTest02360,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02360
+BenchmarkTest02361,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02361
+BenchmarkTest02362,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02362
+BenchmarkTest02363,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02363
+BenchmarkTest02364,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02364
+BenchmarkTest02365,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02365
+BenchmarkTest02366,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02366
+BenchmarkTest02367,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02367
+BenchmarkTest02368,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02368
+BenchmarkTest02369,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02369
+BenchmarkTest02480,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02480
+BenchmarkTest02481,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02481
+BenchmarkTest02482,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02482
+BenchmarkTest02483,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02483
+BenchmarkTest02484,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02484
+BenchmarkTest02485,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02485
+BenchmarkTest02486,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-04/BenchmarkTest02486
+BenchmarkTest02487,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02487
+BenchmarkTest02488,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02488
+BenchmarkTest02489,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02489
+BenchmarkTest02490,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02490
+BenchmarkTest02491,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02491
+BenchmarkTest02492,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02492
+BenchmarkTest02493,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02493
+BenchmarkTest02494,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02494
+BenchmarkTest02495,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02495
+BenchmarkTest02509,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02509
+BenchmarkTest02528,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02528
+BenchmarkTest02529,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02529
+BenchmarkTest02530,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02530
+BenchmarkTest02531,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02531
+BenchmarkTest02532,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02532
+BenchmarkTest02533,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02533
+BenchmarkTest02534,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02534
+BenchmarkTest02535,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02535
+BenchmarkTest02536,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02536
+BenchmarkTest02537,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02537
+BenchmarkTest02538,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02538
+BenchmarkTest02539,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02539
+BenchmarkTest02540,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02540
+BenchmarkTest02541,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02541
+BenchmarkTest02542,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02542
+BenchmarkTest02543,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02543
+BenchmarkTest02544,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02544
+BenchmarkTest02545,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02545
+BenchmarkTest02546,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02546
+BenchmarkTest02578,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02578
+BenchmarkTest02579,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02579
+BenchmarkTest02580,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02580
+BenchmarkTest02581,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02581
+BenchmarkTest02582,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02582
+BenchmarkTest02583,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02583
+BenchmarkTest02584,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02584
+BenchmarkTest02585,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02585
+BenchmarkTest02586,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02586
+BenchmarkTest02587,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02587
+BenchmarkTest02588,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02588
+BenchmarkTest02589,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02589
+BenchmarkTest02590,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02590
+BenchmarkTest02591,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02591
+BenchmarkTest02592,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02592
+BenchmarkTest02593,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02593
+BenchmarkTest02594,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02594
+BenchmarkTest02595,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02595
+BenchmarkTest02596,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02596
+BenchmarkTest02597,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02597
+BenchmarkTest02598,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02598
+BenchmarkTest02599,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02599
+BenchmarkTest02600,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02600
+BenchmarkTest02601,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02601
+BenchmarkTest02608,xss,정답: 취약,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02608
+BenchmarkTest02609,xss,정답: 취약 아님,parameter,https://localhost:8443/benchmark/xss-05/BenchmarkTest02609
+BenchmarkTest02625,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02625
+BenchmarkTest02626,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02626
+BenchmarkTest02627,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02627
+BenchmarkTest02628,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02628
+BenchmarkTest02629,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02629
+BenchmarkTest02630,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02630
+BenchmarkTest02631,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02631
+BenchmarkTest02632,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02632
+BenchmarkTest02633,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02633
+BenchmarkTest02634,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02634
+BenchmarkTest02635,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02635
+BenchmarkTest02636,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02636
+BenchmarkTest02637,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02637
+BenchmarkTest02638,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02638
+BenchmarkTest02639,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02639
+BenchmarkTest02640,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02640
+BenchmarkTest02641,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02641
+BenchmarkTest02642,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02642
+BenchmarkTest02643,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02643
+BenchmarkTest02644,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02644
+BenchmarkTest02645,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02645
+BenchmarkTest02646,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02646
+BenchmarkTest02647,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-05/BenchmarkTest02647
+BenchmarkTest02648,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02648
+BenchmarkTest02649,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02649
+BenchmarkTest02650,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02650
+BenchmarkTest02651,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02651
+BenchmarkTest02652,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02652
+BenchmarkTest02653,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02653
+BenchmarkTest02654,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02654
+BenchmarkTest02655,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02655
+BenchmarkTest02656,sqli,정답: 취약,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02656
+BenchmarkTest02657,sqli,정답: 취약 아님,parameter,https://localhost:8443/benchmark/sqli-06/BenchmarkTest02657

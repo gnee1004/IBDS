@@ -34,7 +34,7 @@ def _msg_url(msg: dict) -> str:
     if url:
         return url
     first = (msg.get("requestHeader") or "").replace("\r\n", "\n").split("\n", 1)[0] # 첫줄 꺼내기
-    parts = first.strip().split(" ") 
+    parts = first.strip().split(" ")
     return parts[1] if len(parts) >= 2 else "" # 두번쨰 토큰 꺼내기
 
 
@@ -47,11 +47,32 @@ def _drop_danger_messages(messages: list[dict], patterns: list[str]) -> tuple[li
     drop: list[str] = []
     for msg in messages:
         url = _msg_url(msg)
-        if url and any(rx.search(url) for rx in compiled):  
-            drop.append(url)                             
+        if url and any(rx.search(url) for rx in compiled):
+            drop.append(url)
         else:
             keep.append(msg)                                # url 파싱 실패일 경우 keep으로 넘김
     return keep, drop                                    # 남긴 메시지 리스트, 제외된 URL 리스트
+
+
+# 벤치마크 축소용: scan_keep_file(한 줄에 식별 문자열 하나, 예: BenchmarkTest00008)이 주어지면
+# base_url에 그 문자열을 포함하는 target만 남긴다. 설정이 없으면 전체 유지 (평소 동작 불변).
+# 상대경로는 실행 위치(CWD)가 아니라 프로젝트 루트 기준으로 찾는다 (웹앱을 어디서 띄워도 동작)
+def _apply_keep_filter(targets, keep_file):
+    if not keep_file:
+        return targets
+    if not os.path.isabs(keep_file):
+        keep_file = os.path.join(_PROJECT_ROOT, keep_file)
+    if not os.path.exists(keep_file):
+        print(f"[FILTER] scan_keep_file 경로 없음, 전체 유지: {keep_file}")
+        return targets
+    with open(keep_file, encoding="utf-8") as f:
+        keys = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+    if not keys:
+        print(f"[FILTER] scan_keep_file 비어 있음, 전체 유지: {keep_file}")
+        return targets
+    kept = [t for t in targets if any(k in (t.base_url or t.url or "") for k in keys)]
+    print(f"[FILTER] scan_keep_file 적용: {len(targets)} -> {len(kept)}건 (케이스 {len(keys)}개 기준)")
+    return kept
 
 
 # ZAP 수집 + normalize 실행, (out_dir, scan_targets.json 경로) 반환. 실패 시 예외를 그대로 던짐
@@ -105,7 +126,7 @@ def run_collection(on_output_ready=None, output_dir=None, should_stop=None) -> t
         ajax_meta["ajax_spider_stop_reason"] = result["stop_reason"]  # finished/timeout/user/zap_limit
         ajax_meta["ajax_spider_elapsed_seconds"] = result["elapsed_seconds"]
 
-    messages = collector.get_all_messages(target_url)                # 프록시 히스토리 
+    messages = collector.get_all_messages(target_url)                # 프록시 히스토리
     messages, drop = _drop_danger_messages(messages, danger_patterns)  # 프록시 히스토리에도 위험 패턴 적용
     if drop:
         print(f"[ZAP] 위험 패턴 매칭 {len(drop)}건 프록시 히스토리에서 제외")
@@ -119,6 +140,7 @@ def run_collection(on_output_ready=None, output_dir=None, should_stop=None) -> t
 
     # 수집된 raw 메시지를 scan target으로 정규화
     targets = to_targets(messages)
+    targets = _apply_keep_filter(targets, target_cfg.get("scan_keep_file"))  # 벤치마크용: 고른 케이스만 남김 (설정 없으면 전체)
     targets_path = os.path.join(out_dir, "scan_targets.json")
     target_dicts = [t.to_dict() for t in targets]
     for d in target_dicts:  # 출처 표시: Ajax 실행 이후 새로 잡힌 요청이면 "ajax", 아니면 "spider"

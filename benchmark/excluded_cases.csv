@@ -1,0 +1,509 @@
+﻿test,type,truth,source,reason
+BenchmarkTest00008,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00013,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00014,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00018,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00030,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00032,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00033,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00034,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00041,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00043,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00052,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00100,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00101,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00102,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00103,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00104,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest00105,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest00106,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00107,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest00108,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00109,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00110,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest00111,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00112,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00113,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest00114,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest00115,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00144,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00145,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00146,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00147,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00148,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00149,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00150,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00151,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00152,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00153,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00154,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00155,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00156,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00157,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00190,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00191,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00192,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00193,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00194,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00195,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00196,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00197,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00198,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00199,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00200,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00201,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00202,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00203,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00204,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00205,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00206,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00275,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00276,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00277,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00278,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00279,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00280,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00281,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00282,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00283,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00284,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00285,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00286,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00287,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00288,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00289,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00290,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00291,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00292,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00301,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00328,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00329,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00330,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00331,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00332,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00333,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00334,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00335,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00336,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00337,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00338,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00339,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00340,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00341,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00342,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest00343,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00344,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest00467,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00468,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00469,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00470,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00471,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00472,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00473,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00474,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00475,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00476,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00477,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00478,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00479,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00492,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00493,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00509,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00510,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00511,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00512,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00513,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00514,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00515,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00516,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00517,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00518,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00519,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00642,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00643,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00644,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00645,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00646,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00647,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00648,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00649,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00650,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00651,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00656,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00672,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00673,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00674,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00675,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00676,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00677,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00678,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00679,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00680,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00681,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest00682,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00879,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00880,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00881,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00882,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00883,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00884,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00885,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00886,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00887,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00888,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00889,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00890,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00891,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00892,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00893,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00894,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00924,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00925,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00926,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00927,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00928,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00929,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00930,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00931,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00932,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00933,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00934,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00935,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00936,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00937,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00938,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00939,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00940,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest00996,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00997,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00998,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest00999,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01000,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01001,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01002,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01003,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01004,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01005,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01006,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01007,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01008,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01009,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01010,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01011,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01012,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01046,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01047,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01048,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01049,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01050,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01051,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01052,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01053,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01054,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01055,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01056,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01057,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01063,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01083,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01084,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01085,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01086,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01087,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01088,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01089,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01090,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01091,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01092,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01093,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01094,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01095,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01096,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01097,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01098,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01171,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01172,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01173,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01174,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01175,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01176,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01177,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01178,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01179,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01180,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01181,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01188,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01208,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01209,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01210,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01211,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01212,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01213,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01214,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01215,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01216,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01217,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01218,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01219,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01220,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01221,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01222,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01335,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01336,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01337,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01338,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01339,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01340,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01341,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01342,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01343,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01344,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01345,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01346,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01347,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01348,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01349,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01350,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01351,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01352,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01378,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01379,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01380,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01381,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01382,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01383,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01384,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01385,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01386,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01387,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01388,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01389,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01390,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01391,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01392,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01393,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01394,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01395,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01396,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01505,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01506,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01507,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01508,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01509,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01510,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01511,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01512,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01513,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01514,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01515,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01525,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01552,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01553,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01554,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01555,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01556,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01557,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01558,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01559,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01560,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest01767,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01768,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01769,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01770,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01771,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01772,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01773,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01774,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01775,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01776,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01777,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01790,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01803,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01804,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01805,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01806,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01807,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01808,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01809,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01810,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01811,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01812,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01813,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01814,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01815,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01816,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01817,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01818,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01819,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01820,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest01877,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01878,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01879,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01880,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01881,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01882,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01883,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01884,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01885,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01886,sqli,정답: 취약 아님,cookie,URL 파싱 실패
+BenchmarkTest01887,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01888,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01889,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01890,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01891,sqli,정답: 취약,cookie,URL 파싱 실패
+BenchmarkTest01914,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01915,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01916,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01917,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01918,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01919,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01920,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01921,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01922,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01923,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01924,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01925,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01926,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01927,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01961,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01962,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01963,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01964,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01965,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01966,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01967,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01968,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01969,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest01970,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01971,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01972,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest01973,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02045,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02046,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02047,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02048,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02049,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02050,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02051,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02052,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02053,xss,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02054,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02055,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02056,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02057,xss,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02087,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02088,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02089,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02090,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02091,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02092,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02093,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02094,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02095,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02096,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02097,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02098,sqli,정답: 취약 아님,header,URL 파싱 실패
+BenchmarkTest02099,sqli,정답: 취약,header,URL 파싱 실패
+BenchmarkTest02221,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02222,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02223,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02224,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02225,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02226,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02227,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02228,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02229,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02230,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02231,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02232,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02233,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02234,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02235,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02236,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02237,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02238,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02239,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02240,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02241,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02264,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02265,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02266,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02267,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02268,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02269,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02270,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02271,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02272,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02273,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02274,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02275,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02276,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02277,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02278,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02279,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02280,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02281,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02282,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02283,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02284,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02285,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02286,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02287,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02288,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02394,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02395,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02396,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02397,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02398,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02399,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02400,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02401,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02402,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02403,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02404,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02405,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02406,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02407,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02408,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02409,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02410,xss,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02449,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02450,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02451,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02452,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02453,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02454,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02455,sqli,정답: 취약,other,URL 파싱 실패
+BenchmarkTest02456,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02679,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02680,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02681,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02682,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02683,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02684,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02685,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02686,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02687,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02688,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02689,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02690,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02691,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02692,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02693,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02694,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02695,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02696,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02712,xss,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02727,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02728,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02729,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02730,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02731,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02732,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02733,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02734,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02735,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02736,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02737,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02738,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02739,sqli,정답: 취약 아님,other,URL 파싱 실패
+BenchmarkTest02740,sqli,정답: 취약 아님,other,URL 파싱 실패
