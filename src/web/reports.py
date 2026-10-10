@@ -89,8 +89,7 @@ def _finding_card(finding, attempt):
         # 서버 반사로 발화한 DOM 쿼리 결과는 Reflected로 표시 (technique은 dom 유지)
         "category": ("reflected (DOM 쿼리 payload)" if finding.get("server_reflected")
                      else _technique_category(technique) if technique else None),
-        "progress_status": (attempt.get("progress_status") or finding.get("progress_status")
-                            or _STAGE_PROGRESS.get(finding.get("stage"))),
+        "progress_status": attempt.get("progress_status") or _STAGE_PROGRESS.get(finding.get("stage")),
         "reason": attempt.get("reason") or finding.get("reason"),  # 먼저 발생한 시도 단계 사유 우선
         "reason_note": attempt.get("reason_note") or finding.get("reason_note"),
         "payload": finding.get("payload") or case.get("payload"),

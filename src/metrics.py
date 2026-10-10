@@ -143,8 +143,8 @@ def build_points(out_dir, targets=None):
             fd["final_status"] = _LEGACY_STATUS.get(fd["final_status"], fd["final_status"])
             p["findings"].append(fd)
             p["verdicts"].append(fd["final_status"])
-        if fd.get("stage") in _STAGE_PROGRESS:  # 저장 없음 probe처럼 기록에 진행 상태가 있으면 그 값을 씀
-            p["progress"].append(fd.get("progress_status") or _STAGE_PROGRESS[fd["stage"]])
+        if fd.get("stage") in _STAGE_PROGRESS:
+            p["progress"].append(_STAGE_PROGRESS[fd["stage"]])
         if fd.get("reason") and fd.get("case_id") not in attempt_reason:
             p["reasons"].append(fd["reason"])
             count_reason(fd["reason"])
