@@ -151,7 +151,7 @@ def export_results(run: str):
         raise HTTPException(404, "실행 기록을 찾을 수 없습니다.")
     body = render_pdf({**build_report(directory), "run": directory.name})
     return Response(body, media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="ibds_report_{directory.name}.pdf"'})
+                    headers={"Content-Disposition": f'attachment; filename="biscan_report_{directory.name}.pdf"'})
 
 
 if __name__ == "__main__":
