@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, replace
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 for _stream in (sys.stdout, sys.stderr):
     if isinstance(_stream, io.TextIOWrapper):
@@ -20,7 +20,7 @@ from scan.mutation.request_builder import (
     generate_sqli_families, generate_stored_xss_families, generate_xss_families_counted,
 )
 from scan.mutation.scan_point import build_scan_points
-from scan.normalize.param_filter import has_destructive_action
+from scan.normalize.param_filter import has_destructive_action, is_destructive_text
 from scan.requester import requester
 from scan.models import (
     CaseResult, DeliveryUnknownFinding, DiscoveryResult, FamilyResult, RequestFamily,
@@ -108,26 +108,35 @@ def _suffix_family_id(family: RequestFamily, suffix: str) -> None:
 
 
 # 저장 출력 위치 탐색(sweep)용 수집된 GET 주소와 그 주소를 수집한 타겟 목록 (파괴적 액션 타겟 제외)
-def _sweep_pages(targets: list[dict]) -> list[tuple[str, dict]]:
+# 저장형 출력 위치 후보 GET 페이지 목록 (url, 그 페이지를 수집한 target)
+# 요청을 보내기 전에 거른다 - 외부 호스트와 로그아웃·삭제 같은 위험 주소는 훑지 않는다
+# 파라미터 없는 /logout 같은 GET은 has_destructive_action(값만 봄)으로 못 거르므로 URL 경로도 본다
+def _sweep_pages(targets: list[dict], base_host: str) -> list[tuple[str, dict]]:
     pages: list[tuple[str, dict]] = []
     seen: set[str] = set()
     for target in targets:
         if has_destructive_action(target.get("params", {})):
             continue
         url = (target.get("url") or "").split("#", 1)[0]
-        if (target.get("method") or "").upper() == "GET" and url and url not in seen:
-            seen.add(url)
-            pages.append((url, target))
+        if (target.get("method") or "").upper() != "GET" or not url or url in seen:
+            continue
+        if base_host and urlparse(url).netloc != base_host:                 # 외부 호스트 제외 (요청 전)
+            continue
+        if is_destructive_text(urlparse(url).path.replace("/", " ").replace(".", " ")):  # 로그아웃·삭제 등 위험 URL 제외 (logout.php 같은 확장자 포함)
+            continue
+        seen.add(url)
+        pages.append((url, target))
     return pages
 
 
-# 같은 타겟(같은 폼)의 지점은 서로 다른 묶음에 나눈다
+# 같은 폼의 지점은 서로 다른 묶음에 나눈다
 # 같은 폼의 다른 필드를 한 묶음에 넣으면 뒤 저장 요청이 앞 필드를 원래 값으로 덮어써 훑기 전에 마커가 사라진다
-def _stored_batches(points: list[ScanPoint]) -> list[list[ScanPoint]]:
+# 같은 폼이 서로 다른 target_id로 중복 수집될 수 있어 target_id 대신 폼 서명(form_key, 보통 method+url)으로 가른다
+def _stored_batches(points: list[ScanPoint], form_key) -> list[list[ScanPoint]]:
     batches: list[list[ScanPoint]] = []
     for sp in points:
         for batch in batches:
-            if len(batch) < STORED_BATCH_SIZE and all(p.target_id != sp.target_id for p in batch):
+            if len(batch) < STORED_BATCH_SIZE and all(form_key(p) != form_key(sp) for p in batch):
                 batch.append(sp)
                 break
         else:
@@ -143,7 +152,13 @@ def _run_stored_probes(scan_points: list[ScanPoint], target_by_id: dict, zap, ma
     points = [sp for sp in scan_points
               if sp.location == "form" and not has_destructive_action(target_by_id[sp.target_id].get("params", {}))]
     stored_probes: dict = {}
-    for batch_id, batch_points in enumerate(_stored_batches(points)):
+    # 폼 서명 - 같은 action(method, url)을 쓰는 지점은 같은 폼으로 보고 다른 묶음에 나눈다
+    def form_key(sp):
+        t = target_by_id[sp.target_id]
+        return ((t.get("method") or "").upper(), (t.get("url") or "").split("#", 1)[0])
+    batches = _stored_batches(points, form_key)
+    progress.total += len(batches)  # 사전 확인 묶음도 진행 단위에 포함 - 스캔 시작 전 구간이 멈춘 것처럼 보이지 않게
+    for batch_id, batch_points in enumerate(batches):
         if progress.should_stop():
             break
         batch: list = []
@@ -162,6 +177,8 @@ def _run_stored_probes(scan_points: list[ScanPoint], target_by_id: dict, zap, ma
             sweep_markers(batch, sweep_pages, requester, zap, batch_id)
             for _, result in batch:
                 finalize_probe(result)
+        progress.completed += 1  # 묶음 하나 완료 - 사전 확인 진행률 반영
+        progress.publish()
     return stored_probes
 
 
@@ -355,7 +372,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
     target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)} # 타겟에 ID 부여 (ex. t0)
     scan_points = build_scan_points(targets)   # 타겟들을 파라미터 단위로 쪼갬.
     scan_points += build_fragment_points(targets, scan_points)  # 스캔 지점 없는 GET 페이지는 DOM hash 검사용 지점 1개
-    sweep_pages = _sweep_pages(targets)        # 저장형 출력 위치 탐색 후보 (form 지점 마커를 묶음마다 함께 찾음)
+    base_host = urlparse(load_json(_TARGET_CONFIG, default={}).get("target_url", "")).netloc  # 훑기 외부 호스트 제외 기준
+    sweep_pages = _sweep_pages(targets, base_host)  # 저장형 출력 위치 탐색 후보 (form 지점 마커를 묶음마다 함께 찾음)
     progress.total = len(scan_points)
     progress.publish()
 

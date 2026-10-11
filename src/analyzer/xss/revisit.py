@@ -244,6 +244,10 @@ def finalize_probe(r) -> None:
         notes.insert(0, "저장 요청 뒤 로그인 화면으로 이동")
     if notes:
         r.stored_status, r.fail_note = "probe_failed", "; ".join(notes)
+    elif r.checked_count == 0:
+        # 훑은 페이지가 하나도 없으면 수집 범위 내 미발견이라 부를 근거가 없다 (수집 GET 페이지 0곳이거나 전부 조회 실패)
+        r.stored_status = "probe_failed"
+        r.fail_note = f"훑은 페이지 없음 (조회 실패 {len(r.failed_urls)}곳)" if r.failed_urls else "훑은 페이지 없음 (수집 GET 페이지 0곳)"
     else:
         r.stored_status = "not_found_in_scope"
         r.fail_note = f"훑기 조회 실패 {len(r.failed_urls)}곳으로 일부 범위 미탐색" if r.failed_urls else None
