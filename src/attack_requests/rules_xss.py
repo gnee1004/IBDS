@@ -252,12 +252,12 @@ XSS_RULES: list[dict] = [
             ],
         },
     },
-    # ── template: 템플릿 인젝션(SSTI 계열) ──
+    # ── ssti: 서버사이드 템플릿 인젝션(SSTI). XSS 파이프라인으로 전송하되 라벨은 ssti로 구분 ──
     {
-        "attack_id": "PL-XSS-TEMPLATE",
+        "attack_id": "PL-XSS-SSTI",
         "vuln_type": "xss",
-        "technique": "template",
-        "category": "template",
+        "technique": "ssti",
+        "category": "ssti",
         "sequence": ["baseline", "attack"],
         "payload_templates": {
             "attack": [

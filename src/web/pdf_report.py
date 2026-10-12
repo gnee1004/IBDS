@@ -16,7 +16,7 @@ _REASON = {"delivery_unknown": "전송 결과 불명", "attack_request_failed": 
 _STAGE = {"completed": "검사 완료", "stopped": "사용자에 의해 중단됨", "failed": "실패로 중단됨",
           "interrupted": "서버 종료로 중단됨", "scanning": "검사 진행 중", "collecting": "요청 수집 중"}
 _VULN = {"xss": "XSS", "sqli": "SQLi"}
-_TITLE = "IBDS 검사 보고서"
+_TITLE = "BIScan 검사 보고서"
 _FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI','Malgun Gothic',sans-serif"
 _MARGIN = {"top": "20mm", "bottom": "20mm", "left": "18mm", "right": "18mm"}
 
