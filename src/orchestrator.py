@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from dataclasses import asdict, replace
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 for _stream in (sys.stdout, sys.stderr):
     if isinstance(_stream, io.TextIOWrapper):
@@ -20,7 +20,7 @@ from scan.mutation.request_builder import (
     generate_sqli_families, generate_stored_xss_families, generate_xss_families_counted,
 )
 from scan.mutation.scan_point import build_scan_points
-from scan.normalize.param_filter import has_destructive_action
+from scan.normalize.param_filter import has_destructive_action, is_destructive_text
 from scan.requester import requester
 from scan.models import (
     CaseResult, DeliveryUnknownFinding, DiscoveryResult, FamilyResult, RequestFamily,
@@ -30,7 +30,9 @@ from scan.progress import PipelineProgress
 from utilities.file_utils import append_jsonl, load_json
 from analyzer import xss_detector
 from analyzer.xss.headless import HeadlessSession
-from analyzer.xss.revisit import probe_sink, new_run_marker_factory, refetch, is_same_host
+from analyzer.xss.revisit import (
+    STORED_BATCH_SIZE, finalize_probe, is_same_host, new_run_marker_factory, probe_sink, refetch, sweep_markers,
+)
 from analyzer.sqli_detector import analyze_family
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -105,21 +107,84 @@ def _suffix_family_id(family: RequestFamily, suffix: str) -> None:
         case.case_id = case.case_id.replace(old, family.family_id, 1)
 
 
-# 저장 출력 위치 탐색(sweep)용 수집된 GET 주소 목록 (파괴적 액션 타겟 제외)
-def _sweep_urls(targets: list[dict]) -> list[str]:
-    urls: list[str] = []
+# 저장 출력 위치 탐색(sweep)용 수집된 GET 주소와 그 주소를 수집한 타겟 목록 (파괴적 액션 타겟 제외)
+# 저장형 출력 위치 후보 GET 페이지 목록 (url, 그 페이지를 수집한 target)
+# 요청을 보내기 전에 거른다 - 외부 호스트와 로그아웃·삭제 같은 위험 주소는 훑지 않는다
+# 파라미터 없는 /logout 같은 GET은 has_destructive_action(값만 봄)으로 못 거르므로 URL 경로도 본다
+def _sweep_pages(targets: list[dict], base_host: str) -> list[tuple[str, dict]]:
+    pages: list[tuple[str, dict]] = []
+    seen: set[str] = set()
     for target in targets:
         if has_destructive_action(target.get("params", {})):
             continue
         url = (target.get("url") or "").split("#", 1)[0]
-        if (target.get("method") or "").upper() == "GET" and url and url not in urls:
-            urls.append(url)
-    return urls
+        if (target.get("method") or "").upper() != "GET" or not url or url in seen:
+            continue
+        if base_host and urlparse(url).netloc != base_host:                 # 외부 호스트 제외 (요청 전)
+            continue
+        if is_destructive_text(urlparse(url).path.replace("/", " ").replace(".", " ")):  # 로그아웃·삭제 등 위험 URL 제외 (logout.php 같은 확장자 포함)
+            continue
+        seen.add(url)
+        pages.append((url, target))
+    return pages
+
+
+# 같은 폼의 지점은 서로 다른 묶음에 나눈다
+# 같은 폼의 다른 필드를 한 묶음에 넣으면 뒤 저장 요청이 앞 필드를 원래 값으로 덮어써 훑기 전에 마커가 사라진다
+# 같은 폼이 서로 다른 target_id로 중복 수집될 수 있어 target_id 대신 폼 서명(form_key, 보통 method+url)으로 가른다
+def _stored_batches(points: list[ScanPoint], form_key) -> list[list[ScanPoint]]:
+    batches: list[list[ScanPoint]] = []
+    for sp in points:
+        for batch in batches:
+            if len(batch) < STORED_BATCH_SIZE and all(form_key(p) != form_key(sp) for p in batch):
+                batch.append(sp)
+                break
+        else:
+            batches.append([sp])
+    return batches
+
+
+# 스캔 전 저장형 사전 확인 - form 지점에 마커를 묶음으로 주입하고 수집 페이지를 함께 훑어 지점별 출력 위치를 정한다
+# 지점마다 모든 페이지를 훑으면 요청이 지점 수와 페이지 수의 곱만큼 늘어나서 묶음 단위로 한 번씩만 훑는다
+# 반환: point_id -> (마커, probe 결과, 프로브 오류)
+def _run_stored_probes(scan_points: list[ScanPoint], target_by_id: dict, zap, marker_factory,
+                       sweep_pages: list[tuple[str, dict]], progress) -> dict:
+    points = [sp for sp in scan_points
+              if sp.location == "form" and not has_destructive_action(target_by_id[sp.target_id].get("params", {}))]
+    stored_probes: dict = {}
+    # 폼 서명 - 같은 action(method, url)을 쓰는 지점은 같은 폼으로 보고 다른 묶음에 나눈다
+    def form_key(sp):
+        t = target_by_id[sp.target_id]
+        return ((t.get("method") or "").upper(), (t.get("url") or "").split("#", 1)[0])
+    batches = _stored_batches(points, form_key)
+    progress.total += len(batches)  # 사전 확인 묶음도 진행 단위에 포함 - 스캔 시작 전 구간이 멈춘 것처럼 보이지 않게
+    for batch_id, batch_points in enumerate(batches):
+        if progress.should_stop():
+            break
+        batch: list = []
+        for sp in batch_points:
+            target = target_by_id[sp.target_id]
+            marker = marker_factory(sp.name)
+            try:
+                result = probe_sink(sp, target, marker, requester, zap)
+            except Exception as e:  # 지점 하나만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
+                stored_probes[sp.point_id] = (marker, None, str(e))
+                print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+                continue
+            stored_probes[sp.point_id] = (marker, result, None)
+            batch.append((target, result))
+        if batch:
+            sweep_markers(batch, sweep_pages, requester, zap, batch_id)
+            for _, result in batch:
+                finalize_probe(result)
+        progress.completed += 1  # 묶음 하나 완료 - 사전 확인 진행률 반영
+        progress.publish()
+    return stored_probes
 
 
 # ScanPoint 하나를 value_type에 따라 sqli, xss_stored, xss_reflected 경로로 라우팅
-def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, findings_path: str | None = None,
-                      sweep_urls: list[str] | None = None, results_path: str | None = None, use_discovery: bool = True) -> tuple[list[RequestFamily], DiscoveryFilterStat | None]:
+def _route_scan_point(sp: ScanPoint, target: dict, zap, stored_probes: dict | None = None, findings_path: str | None = None,
+                      results_path: str | None = None, use_discovery: bool = True) -> tuple[list[RequestFamily], DiscoveryFilterStat | None]:
     if has_destructive_action(target.get("params", {})):
         return [], None   # 파괴적 액션 있는 타겟은 검사 안함
 
@@ -140,18 +205,11 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
         xss_families, filter_stat = generate_xss_families_counted(sp, target, discovery, use_discovery=use_discovery)
         families.extend(xss_families)  # discovery에서 살아남은 것들 중 xss_stored가 아닌 것들
 
-        # form 파라미터에만 마커 반사 확인 -  마커가 저장/반사되면 stored XSS family 생성
-        if marker_factory is not None and sp.location == "form":
-            marker = marker_factory(sp.name)
-            probe_result = None
-            probe_err = None
-            try:
-                probe_result = probe_sink(sp, target, marker, requester, zap, sweep_urls=sweep_urls)
-            except Exception as e:  # probe_sink 호출만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
-                probe_err = str(e)
-                print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
+        # form 파라미터에만 저장형 사전 확인 결과 적용 - 출력 위치가 확인되면 stored XSS family 생성
+        if stored_probes is not None and sp.location == "form":
+            marker, probe_result, probe_err = stored_probes.get(sp.point_id, ("", None, "사전 확인 미실행"))
 
-            if probe_result is not None and probe_result.sink_confirmed:
+            if probe_result is not None and probe_result.stored_status == "sink_found":
                 # 출력 위치마다 stored family 세트 하나 — 기본 재방문 주소 + sweep으로 찾은 추가 위치
                 sinks = [(probe_result.revisit_url, probe_result.revisit_source)]
                 sinks += [(url, "sweep") for url in probe_result.extra_sinks]
@@ -160,17 +218,22 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     for f in stored:    # sink 확인된 param 의 stored family 에만 프로브 결과 부착
                         if sink_idx:    # 추가 위치 세트는 family/case id를 구분
                             _suffix_family_id(f, f"_sink{sink_idx}")
-                        f.sink_confirmed = probe_result.sink_confirmed
+                        f.sink_confirmed = True
                         f.revisit_url = revisit_url
                         f.revisit_source = source
                         f.probe_marker = probe_result.probe_marker
                     families.extend(stored)
-        
-            elif findings_path:     # sink 미확인(마커 미반사) or 프로브 오류 -> inconclusive
+
+            elif findings_path:     # 출력 위치 미확인 -> 저장형만 inconclusive (반사형 결과는 그대로)
+                # 수집 범위 내 미발견도 저장 없음으로 닫지 않고 판단 보류 유지, stored_status로 확인 실패와 구분
                 if probe_err is not None:
                     sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
+                elif probe_result.stored_status == "not_found_in_scope":
+                    sink_note = f"판정 불가 - 수집 범위 내 미발견: 주입 직후 {len(probe_result.checked_urls)}곳, 훑기 {probe_result.checked_count}곳에서 마커 미확인"
+                    if probe_result.fail_note:  # 훑기 중 일부 페이지 조회 실패로 탐색이 불완전한 경우
+                        sink_note += f" ({probe_result.fail_note})"
                 else:
-                    sink_note = "판정 불가 - 마커 재조회 확인 실패"
+                    sink_note = f"판정 불가 - 확인 실패: {probe_result.fail_note}"
                 append_jsonl(findings_path, asdict(SinkNotConfirmedFinding(
                     target_id=sp.target_id,
                     param=sp.name,
@@ -179,6 +242,13 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, marker_factory=None, fin
                     probe_marker=marker,
                     revisit_url=probe_result.revisit_url if probe_result is not None else None,
                     sink_note=sink_note,
+                    stored_status=probe_result.stored_status if probe_result is not None else None,
+                    checked_urls=probe_result.checked_urls if probe_result is not None else [],
+                    checked_count=probe_result.checked_count if probe_result is not None else 0,
+                    failed_urls=probe_result.failed_urls if probe_result is not None else [],
+                    sweep_limit_hit=probe_result.sweep_limit_hit if probe_result is not None else False,
+                    post_status=probe_result.post_status if probe_result is not None else None,
+                    batch_id=probe_result.batch_id if probe_result is not None else None,
                 )))
         else:
             families.extend(generate_stored_xss_families(sp, target))
@@ -302,7 +372,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
     target_by_id = {f"t{idx}": target for idx, target in enumerate(targets)} # 타겟에 ID 부여 (ex. t0)
     scan_points = build_scan_points(targets)   # 타겟들을 파라미터 단위로 쪼갬.
     scan_points += build_fragment_points(targets, scan_points)  # 스캔 지점 없는 GET 페이지는 DOM hash 검사용 지점 1개
-    sweep_urls = _sweep_urls(targets)          # 저장형 출력 위치 탐색 후보 (저장 확인된 form 파라미터에만 사용)
+    base_host = urlparse(load_json(_TARGET_CONFIG, default={}).get("target_url", "")).netloc  # 훑기 외부 호스트 제외 기준
+    sweep_pages = _sweep_pages(targets, base_host)  # 저장형 출력 위치 탐색 후보 (form 지점 마커를 묶음마다 함께 찾음)
     progress.total = len(scan_points)
     progress.publish()
 
@@ -319,6 +390,8 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
     zap = requester.get_zap_client()
     marker_factory = new_run_marker_factory()  # 이번 스캔 실행 전체에서 고유 마커를 발급 (ScanPoint당 1개)
     headless = HeadlessSession()               # 최초 headless 대상이 나올 때까지 실제 브라우저는 안 뜸 (lazy)
+    # 스캔 루프 전에 form 지점 마커를 묶음으로 주입하고 수집 페이지를 함께 훑어 지점별 출력 위치 연결표를 만든다
+    stored_probes = _run_stored_probes(scan_points, target_by_id, zap, marker_factory, sweep_pages, progress)
 
     total_count = 0
 
@@ -332,7 +405,7 @@ def run_pipeline(on_paths_ready=None, on_progress=None, should_stop=None, output
             point_start_count = requester.get_send_count()
             point_browser_runs = 0
             try:
-                families, filter_stat = _route_scan_point(sp, target, zap, marker_factory=marker_factory, findings_path=findings_path, sweep_urls=sweep_urls, results_path=results_path, use_discovery=use_discovery)
+                families, filter_stat = _route_scan_point(sp, target, zap, stored_probes=stored_probes, findings_path=findings_path, results_path=results_path, use_discovery=use_discovery)
             except Exception as e:             # 라우팅(Discovery 포함) 실패는 findings.jsonl에 에러 레코드만 남기고 다음 ScanPoint로 넘김
                 append_jsonl(findings_path, {
                     "target_id": sp.target_id, "param": sp.name,

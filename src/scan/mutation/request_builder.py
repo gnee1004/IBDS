@@ -141,7 +141,7 @@ def _required_specials(payload: str) -> set[str]:
 # injection_context -> 유효한 technique 집합 매핑 (dom은 context 무관하게 항상 포함)
 # "suppressed"는 명시적으로 빈 집합 -> dom 외 모든 technique 억제
 _CONTEXT_TECHNIQUES: dict[str, set[str]] = {
-    "inHTML":     {"body", "html_comment", "filter_bypass", "template", "json", "css"},
+    "inHTML":     {"body", "html_comment", "filter_bypass", "ssti", "json", "css"},
     "inAttr":     {"attr_value", "attr_event"},
     "inAttrUrl":  {"attr_href"},
     "inScript":   {"script", "script_raw", "attr_event"},
