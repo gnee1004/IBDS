@@ -146,7 +146,6 @@ def _stored_batches(points: list[ScanPoint], form_key) -> list[list[ScanPoint]]:
 
 # 스캔 전 저장형 사전 확인 - form 지점에 마커를 묶음으로 주입하고 수집 페이지를 함께 훑어 지점별 출력 위치를 정한다
 # 지점마다 모든 페이지를 훑으면 요청이 지점 수와 페이지 수의 곱만큼 늘어나서 묶음 단위로 한 번씩만 훑는다
-# 반환: point_id -> (마커, probe 결과, 프로브 오류)
 def _run_stored_probes(scan_points: list[ScanPoint], target_by_id: dict, zap, marker_factory,
                        sweep_pages: list[tuple[str, dict]], progress) -> dict:
     points = [sp for sp in scan_points
@@ -168,15 +167,18 @@ def _run_stored_probes(scan_points: list[ScanPoint], target_by_id: dict, zap, ma
             try:
                 result = probe_sink(sp, target, marker, requester, zap)
             except Exception as e:  # 지점 하나만 격리 — 같은 param 의 reflected/SQLi 는 정상 진행
-                stored_probes[sp.point_id] = (marker, None, str(e))
+                stored_probes[sp.point_id] = (marker, None, str(e), ("sink_probe_failed", None))
                 print(f"[WARN] probe_sink 실패, stored XSS 스킵: target={sp.target_id} param={sp.name} - {e}")
                 continue
-            stored_probes[sp.point_id] = (marker, result, None)
-            batch.append((target, result))
+            batch.append((sp.point_id, marker, target, result))
         if batch:
-            sweep_markers(batch, sweep_pages, requester, zap, batch_id)
-            for _, result in batch:
-                finalize_probe(result)
+            sweep_markers([(target, result) for _, _, target, result in batch], sweep_pages, requester, zap, batch_id)
+            for point_id, marker, _, result in batch:
+                try:
+                    verdict = finalize_probe(result)
+                except Exception as e:  # 결론 계산 오류도 그 지점만 확인 실패로 격리
+                    verdict = ("sink_probe_failed", f"결론 계산 오류: {e}")
+                stored_probes[point_id] = (marker, result, None, verdict)
         progress.completed += 1  # 묶음 하나 완료 - 사전 확인 진행률 반영
         progress.publish()
     return stored_probes
@@ -207,9 +209,9 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, stored_probes: dict | No
 
         # form 파라미터에만 저장형 사전 확인 결과 적용 - 출력 위치가 확인되면 stored XSS family 생성
         if stored_probes is not None and sp.location == "form":
-            marker, probe_result, probe_err = stored_probes.get(sp.point_id, ("", None, "사전 확인 미실행"))
+            marker, probe_result, probe_err, (reason, fail_note) = stored_probes.get(sp.point_id, ("", None, "사전 확인 미실행", ("sink_probe_failed", None)))
 
-            if probe_result is not None and probe_result.stored_status == "sink_found":
+            if probe_result is not None and probe_result.sink_confirmed:
                 # 출력 위치마다 stored family 세트 하나 — 기본 재방문 주소 + sweep으로 찾은 추가 위치
                 sinks = [(probe_result.revisit_url, probe_result.revisit_source)]
                 sinks += [(url, "sweep") for url in probe_result.extra_sinks]
@@ -225,15 +227,14 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, stored_probes: dict | No
                     families.extend(stored)
 
             elif findings_path:     # 출력 위치 미확인 -> 저장형만 inconclusive (반사형 결과는 그대로)
-                # 수집 범위 내 미발견도 저장 없음으로 닫지 않고 판단 보류 유지, stored_status로 확인 실패와 구분
                 if probe_err is not None:
                     sink_note = f"판정 불가 - 프로브 오류: {probe_err}"
-                elif probe_result.stored_status == "not_found_in_scope":
+                elif reason == "sink_not_found_in_scope":
                     sink_note = f"판정 불가 - 수집 범위 내 미발견: 주입 직후 {len(probe_result.checked_urls)}곳, 훑기 {probe_result.checked_count}곳에서 마커 미확인"
-                    if probe_result.fail_note:  # 훑기 중 일부 페이지 조회 실패로 탐색이 불완전한 경우
-                        sink_note += f" ({probe_result.fail_note})"
+                    if fail_note:  # 훑기 중 일부 페이지 조회 실패로 탐색이 불완전한 경우
+                        sink_note += f" ({fail_note})"
                 else:
-                    sink_note = f"판정 불가 - 확인 실패: {probe_result.fail_note}"
+                    sink_note = f"판정 불가 - 확인 실패: {fail_note}"
                 append_jsonl(findings_path, asdict(SinkNotConfirmedFinding(
                     target_id=sp.target_id,
                     param=sp.name,
@@ -242,7 +243,7 @@ def _route_scan_point(sp: ScanPoint, target: dict, zap, stored_probes: dict | No
                     probe_marker=marker,
                     revisit_url=probe_result.revisit_url if probe_result is not None else None,
                     sink_note=sink_note,
-                    stored_status=probe_result.stored_status if probe_result is not None else None,
+                    reason=reason,  # 프로브 오류는 확인 실패로 이미 채워짐
                     checked_urls=probe_result.checked_urls if probe_result is not None else [],
                     checked_count=probe_result.checked_count if probe_result is not None else 0,
                     failed_urls=probe_result.failed_urls if probe_result is not None else [],

@@ -29,3 +29,5 @@
 
 # DVWA IDS(PHPIDS) 설정 토글, Spider가 크롤링 중 IDS를 켜고 끄는 것 방지 (완전 일치)
 .*/security\.php\?phpids=(on|off)$
+# OWASP Benchmark: sqli-/xss- 카테고리 외 테스트 폴더(cmdi-00, crypto-00 등) 제외
+.*/benchmark/(?!(sqli|xss)-)[a-z]+-\d+/.*

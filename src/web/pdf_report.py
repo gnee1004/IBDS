@@ -10,7 +10,8 @@ _PROGRESS = {"completed": "완료", "partial": "부분 완료", "failed": "실�
 _REASON = {"delivery_unknown": "전송 결과 불명", "attack_request_failed": "공격 요청 실패", "baseline_failed": "기준 요청 실패",
            "auth_failed": "인증 실패", "session_expired": "세션 만료", "discovery_failed": "사전 확인 요청 실패",
            "prepare_failed": "준비 단계 실패", "revisit_url_missing": "재조회 주소 없음", "revisit_failed": "재조회 실패",
-           "sink_not_confirmed": "저장 위치 미확인", "browser_timeout": "브라우저 시간 초과", "browser_failed": "브라우저 실행 실패",
+           "sink_not_confirmed": "저장 위치 미확인", "sink_not_found_in_scope": "수집 범위 내 미발견",
+           "sink_probe_failed": "저장형 확인 실패", "browser_timeout": "브라우저 시간 초과", "browser_failed": "브라우저 실행 실패",
            "state_unclear": "이번 시도와 구분 불가", "cancelled_by_user": "사용자 중단", "out_of_scope": "범위 밖 이동",
            "not_reached": "앞 단계 실패로 미도달"}
 _STAGE = {"completed": "검사 완료", "stopped": "사용자에 의해 중단됨", "failed": "실패로 중단됨",

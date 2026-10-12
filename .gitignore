@@ -3,6 +3,7 @@
 *.env
 .venv
 .claude
+.codex
 
 # Python cache
 __pycache__/
@@ -24,3 +25,6 @@ docs/
 
 # 인증서
 *.cer
+
+# 임시파일
+tmp/
