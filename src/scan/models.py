@@ -11,6 +11,7 @@ ReasonCode = Literal[
     "delivery_unknown", "baseline_failed", "attack_request_failed",
     "browser_timeout", "browser_failed", "revisit_url_missing", "revisit_failed", "sink_not_confirmed",
     "out_of_scope", "cancelled_by_user", "not_reached", "state_unclear", "discovery_failed", "prepare_failed",
+    "sink_not_found_in_scope", "sink_probe_failed",   # 저장형 사전 확인 — 수집 범위 내 미발견 / 확인 실패 (확인하고 주석 지워주세요)
 ]
 REASON_CODES = get_args(ReasonCode)
 
@@ -169,8 +170,6 @@ class SinkProbeResult:  # stored XSS 재조회 전 저장 여부 확인
     checked_count: int = 0              # 묶음 훑기에서 정상 조회한 페이지 수
     failed_urls: list[str] = field(default_factory=list)  # 묶음 훑기에서 조회 실패한 주소 -> 탐색 불완전
     sweep_limit_hit: bool = False       # 훑을 페이지가 상한보다 많아 일부만 조회했는지
-    stored_status: str | None = None    # sink_found(출력 위치 확인) / not_found_in_scope(수집 범위 내 미발견) / probe_failed(확인 실패)
-    fail_note: str | None = None        # 확인 실패 사유 또는 탐색 불완전 설명
 
 
 @dataclass
@@ -211,7 +210,6 @@ class SinkNotConfirmedFinding(StatusGuarded):  # 저장형 XSS 저장 위치(마
     probe_marker: str
     revisit_url: str | None
     sink_note: str                # 판정 불가 사유 설명 (프로브 오류 / 수집 범위 내 미발견 / 확인 실패)
-    stored_status: str | None = None  # not_found_in_scope(수집 범위 내 미발견) / probe_failed(확인 실패), 프로브 오류면 None
     checked_urls: list[str] = field(default_factory=list)
     checked_count: int = 0        # 묶음 훑기에서 정상 조회한 페이지 수
     failed_urls: list[str] = field(default_factory=list)
@@ -222,4 +220,4 @@ class SinkNotConfirmedFinding(StatusGuarded):  # 저장형 XSS 저장 위치(마
     technique: str = "stored"
     stage: str = "probe"
     final_status: str = "inconclusive"
-    reason: ReasonCode = "sink_not_confirmed"
+    reason: ReasonCode = "sink_not_found_in_scope"   # 확인 실패는 sink_probe_failed를 넘겨 받음

@@ -227,14 +227,11 @@ def sweep_markers(probes: list, pages: list[tuple[str, dict]], requester, zap, b
         r.batch_id, r.checked_count, r.failed_urls, r.sweep_limit_hit = batch_id, checked, list(failed), limit_hit
 
 
-# 3단계 저장형 상태 결정 - 마커를 찾았으면 저장 요청이 오류였어도 출력 위치 확인 우선 (오류 응답 전에 저장됐을 수 있음)
-# 저장 요청이나 주입 직후 재조회가 비정상이면 확인 실패, 둘 다 정상이면 수집 범위 내 미발견 (저장 없음이 아님)
-# 저장 요청의 로그인 화면 이동은 주입 직후 재조회도 비정상일 때만 세션 만료 근거로 쓴다 (가입 후 로그인 이동 같은 정상 흐름 구분)
-# 훑기 중 일부 페이지 조회 실패는 그 지점만 확인 실패로 돌리지 않고 탐색 불완전으로만 남긴다 (권한 없는 공용 페이지 하나가 묶음 전체를 가리지 않게)
-def finalize_probe(r) -> None:
-    if r.sink_confirmed:
-        r.stored_status, r.invalid_revisits, r.fail_note = "sink_found", [], None
-        return
+# 3단계 저장형 사유 코드 결정
+def finalize_probe(r) -> tuple[str | None, str | None]:
+    if r.sink_confirmed: # 마커가 있는지 확인\
+        return None, None
+    # 출력 위치 확인부
     notes = []
     if not _is_valid_status(r.post_status):
         notes.append(f"저장 요청 응답 무효 ({r.post_status})")
@@ -243,14 +240,11 @@ def finalize_probe(r) -> None:
     if r.login_redirect and notes:
         notes.insert(0, "저장 요청 뒤 로그인 화면으로 이동")
     if notes:
-        r.stored_status, r.fail_note = "probe_failed", "; ".join(notes)
-    elif r.checked_count == 0:
+        return "sink_probe_failed", "; ".join(notes)
+    if r.checked_count == 0:
         # 훑은 페이지가 하나도 없으면 수집 범위 내 미발견이라 부를 근거가 없다 (수집 GET 페이지 0곳이거나 전부 조회 실패)
-        r.stored_status = "probe_failed"
-        r.fail_note = f"훑은 페이지 없음 (조회 실패 {len(r.failed_urls)}곳)" if r.failed_urls else "훑은 페이지 없음 (수집 GET 페이지 0곳)"
-    else:
-        r.stored_status = "not_found_in_scope"
-        r.fail_note = f"훑기 조회 실패 {len(r.failed_urls)}곳으로 일부 범위 미탐색" if r.failed_urls else None
+        return "sink_probe_failed", (f"훑은 페이지 없음 (조회 실패 {len(r.failed_urls)}곳)" if r.failed_urls else "훑은 페이지 없음 (수집 GET 페이지 0곳)")
+    return "sink_not_found_in_scope", (f"훑기 조회 실패 {len(r.failed_urls)}곳으로 일부 범위 미탐색" if r.failed_urls else None)
 
 
 # refetch() 반환값 (재조회 이후 값)
